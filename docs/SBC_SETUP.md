@@ -1,0 +1,37 @@
+# SBC service setup
+
+Use Raspberry Pi OS Bookworm or newer, Debian 12+, or another Linux distribution with Python 3.11+. Firmware builds can run on your Fedora laptop; only the Python service needs to run on the SBC. The service uses Python's standard library and requires no package install.
+
+## Manual run
+
+Copy `.env.example` to `.env`, generate two distinct tokens and edit the URL. Source the environment with `set -a; . ./.env; set +a`, then `python3 -m sbc.app` from the repository root. Source only your own trusted environment file, since it is shell code. Use localhost:8080 by default.
+
+For remote access without changing the bind address:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 pi@YOUR_SBC
+```
+
+Then open localhost:8080 on your laptop. For direct trusted-LAN access, set `BIND_HOST=0.0.0.0` and restrict incoming TCP 8080 to your clients.
+
+## Optional systemd service
+
+Install the repository at `/opt/zigbee-border-gateway`, readable by the service user. Example on Debian/Pi OS:
+
+```bash
+sudo useradd --system --home /var/lib/zigbee-gateway --shell /usr/sbin/nologin zigbee
+sudo cp .env.example /etc/zigbee-gateway.env
+sudo chmod 600 /etc/zigbee-gateway.env
+sudoedit /etc/zigbee-gateway.env
+# Set the real board URL, both tokens and a suitable bind address.
+sudo cp sbc/gateway.service /etc/systemd/system/zigbee-gateway.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now zigbee-gateway
+sudo journalctl -u zigbee-gateway -f
+```
+
+Systemd reads the root-owned environment file before dropping privileges. It overrides DB_PATH to its managed state directory. Do not run the simulator as the production gateway. Use DHCP reservations for the board and SBC, synchronized time and regular SQLite backups.
+
+## Connecting your own dashboard
+
+Call SBC `/api/v1/state` for the persistent projected registry. Send commands to `/api/v1/commands`. Your dashboard backend may instead call the board API directly with GATEWAY_TOKEN. The board has no browser CORS support, history database or dashboard. It does not ship with this project's API until you flash our S3 firmware.

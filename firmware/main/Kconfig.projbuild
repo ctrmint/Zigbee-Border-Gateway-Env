@@ -1,0 +1,26 @@
+choice ZB_GW_RCP_CHIP
+    prompt "Zigbee gateway RCP chip for auto update"
+    depends on AUTO_UPDATE_RCP
+    default ZB_GW_RCP_CHIP_ESP32H2
+    help
+        Select the RCP chip connected to the Zigbee gateway.
+
+    config ZB_GW_RCP_CHIP_ESP32H2
+        bool "ESP32-H2"
+        help
+            ESP32-H2 is the RCP chip connected to the Zigbee gateway.
+
+    config ZB_GW_RCP_CHIP_ESP32C6
+        bool "ESP32-C6"
+        help
+            ESP32-C6 is the RCP chip connected to the Zigbee gateway.
+endchoice
+
+menu "Local gateway API"
+config GW_API_TOKEN
+    string "Bearer token (at least 32 characters)"
+    default ""
+    help
+        Required. Generate with python3 -c 'import secrets; print(secrets.token_hex(32))'.
+        HTTP is for an isolated trusted LAN only; see SECURITY.md.
+endmenu

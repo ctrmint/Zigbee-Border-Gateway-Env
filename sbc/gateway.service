@@ -1,0 +1,24 @@
+[Unit]
+Description=Local Zigbee gateway dashboard
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=zigbee
+Group=zigbee
+WorkingDirectory=/opt/zigbee-border-gateway
+EnvironmentFile=/etc/zigbee-gateway.env
+Environment=DB_PATH=/var/lib/zigbee-gateway/gateway.sqlite3
+ExecStart=/usr/bin/python3 -m sbc.app
+Restart=on-failure
+RestartSec=5
+StateDirectory=zigbee-gateway
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/zigbee-gateway
+
+[Install]
+WantedBy=multi-user.target
