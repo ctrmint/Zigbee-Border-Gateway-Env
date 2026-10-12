@@ -1,0 +1,27 @@
+# Local credentials (keep the blank setup template).
+.env
+.env.*
+!.env.example
+
+# Python caches and local environments.
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime data and backups.
+data/
+*.sqlite*
+*.db
+*.db-*
+backups/
+*.zip
+
+# ESP-IDF generated configuration, dependencies and firmware images.
+build/
+managed_components/
+sdkconfig
+sdkconfig.old
+*.bin
+*.elf
+*.map
