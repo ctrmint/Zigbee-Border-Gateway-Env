@@ -9,7 +9,7 @@ import urllib.request
 OPS = {"permit_join", "discover", "read", "on_off"}
 
 def validate_command(c):
-    if not isinstance(c, dict) or c.get("op") not in OPS:
+    if not isinstance(c, dict) or not isinstance(c.get("op"), str) or c["op"] not in OPS:
         raise ValueError("unsupported op")
     op = c["op"]
     fields = {"op"}
@@ -82,11 +82,13 @@ class Store:
         self.db.execute("INSERT OR REPLACE INTO devices VALUES(?,?)", (d["ieee"], json.dumps(d)))
     def sync_devices(self, items):
         with self.lock, self.db:
-            for item in items:
-                d = self._get(item["ieee"])
-                d.update(item)
-                self._put(d)
-    def ingest(self, boot, events, next_seq):
+            self._sync_devices(items)
+    def _sync_devices(self, items):
+        for item in items:
+            d = self._get(item["ieee"])
+            d.update(item)
+            self._put(d)
+    def ingest(self, boot, events, next_seq, devices=None):
         with self.lock, self.db:
             for e in events:
                 inserted = self.db.execute("INSERT OR IGNORE INTO events VALUES(?,?,?,?)",
@@ -108,6 +110,10 @@ class Store:
                     e = dict(e, value=value, unit=unit, received=time.time())
                     d["attributes"][f'{e["endpoint"]}:{e["cluster"]}:{e["attribute"]}'] = e
                 self._put(d)
+            # Current registry wins over historical membership/address events.
+            # Commit it with the events and cursor so readers see one projection.
+            if devices is not None:
+                self._sync_devices(devices)
             self.db.execute("INSERT OR REPLACE INTO cursor VALUES(1,?,?)", (boot, next_seq))
     def snapshot(self):
         with self.lock:
@@ -133,12 +139,12 @@ class Poller:
         changed = h["boot_id"] != boot
         if changed:
             seq = 0
-        # Sync every poll, also recovers announcements lost during SBC downtime.
-        self.store.sync_devices(self.gateway.request("/api/v1/devices")["devices"])
         batch = self.gateway.request(f"/api/v1/events?after={seq}")
-        if batch["boot_id"] != h["boot_id"]:
+        # Fetch the registry after events so its membership/address state is newer.
+        registry = self.gateway.request("/api/v1/devices")
+        if batch["boot_id"] != h["boot_id"] or registry["boot_id"] != h["boot_id"]:
             raise RuntimeError("gateway restarted during poll; retrying")
-        self.store.ingest(batch["boot_id"], batch["events"], batch["next_seq"])
+        self.store.ingest(batch["boot_id"], batch["events"], batch["next_seq"], registry["devices"])
         self.status = dict(h, connected=True, error=None,
             gap=bool(batch.get("gap") or self.status.get("gap")), last_poll=time.time())
         return batch["next_seq"] < batch["latest_seq"]
