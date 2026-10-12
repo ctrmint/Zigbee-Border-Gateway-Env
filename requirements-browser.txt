@@ -1,0 +1,2 @@
+# Optional real-browser checks, separate from runtime and API test dependencies.
+playwright>=1.40,<2

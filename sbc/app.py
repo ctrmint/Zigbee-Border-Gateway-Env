@@ -2,10 +2,12 @@
 import hmac
 import json
 import os
+import re
 from pathlib import Path
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from .core import Gateway, Store, Poller, validate_command
+from .core import ConfigurationError, Gateway, Store, Poller, validate_command
+from .contracts import capabilities, contract
 
 STATIC = Path(__file__).parent / "static"
 
@@ -23,6 +25,44 @@ def make_handler(store, poller, gateway, token):
             self.wfile.write(data)
         def auth(self):
             return hmac.compare_digest(self.headers.get("Authorization", ""), "Bearer " + token)
+        def read_body(self):
+            n = int(self.headers.get("Content-Length", "0"))
+            if not 0 < n <= 512:
+                raise ValueError("body size")
+            value = json.loads(self.rfile.read(n), parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite number")))
+            if not isinstance(value, dict):
+                raise ValueError("object required")
+            return value
+        def configuration(self, method):
+            if not self.auth():
+                return self.send(401, {"error": "token required"})
+            location = re.fullmatch(r"/api/v1/locations/([a-zA-Z0-9-]+)", self.path)
+            device = re.fullmatch(r"/api/v1/devices/([0-9a-fA-F]{16})/location", self.path)
+            try:
+                if method == "POST" and self.path == "/api/v1/locations":
+                    body = self.read_body()
+                    if set(body) != {"name"}:
+                        raise ValueError("name required; unexpected fields")
+                    return self.send(201, store.save_location(body["name"]))
+                if method == "PUT" and (location or device):
+                    body = self.read_body()
+                    field = "name" if location else "location_id"
+                    if set(body) != {field}:
+                        raise ValueError(field + " required; unexpected fields")
+                    result = store.save_location(body["name"], location[1]) if location else store.assign_location(device[1].lower(), body["location_id"])
+                    return self.send(200, result)
+                if method == "DELETE" and location:
+                    store.delete_location(location[1])
+                    return self.send(200, {"deleted": True})
+                return self.send(404, {"error": "not found"})
+            except ConfigurationError as error:
+                return self.send(error.status, {"error": str(error)})
+            except (ValueError, UnicodeError):
+                return self.send(400, {"error": "invalid configuration"})
+        def do_PUT(self):
+            self.configuration("PUT")
+        def do_DELETE(self):
+            self.configuration("DELETE")
         def do_GET(self):
             files = {"/": ("index.html", "text/html; charset=utf-8"),
                      "/app.js": ("app.js", "text/javascript"), "/style.css": ("style.css", "text/css")}
@@ -40,21 +80,28 @@ def make_handler(store, poller, gateway, token):
             if not self.auth():
                 return self.send(401, {"error": "token required"})
             if self.path == "/api/v1/state":
-                self.send(200, {"gateway": poller.status, "devices": store.snapshot()})
+                with store.lock:
+                    state = {"gateway": poller.status, "devices": store.snapshot(), "locations": store.locations()}
+                self.send(200, state)
             elif self.path == "/api/v1/events":
                 self.send(200, {"events": store.history()})
+            elif self.path == "/api/v1/locations":
+                self.send(200, {"locations": store.locations()})
+            elif self.path == "/api/v1/capabilities":
+                self.send(200, capabilities())
+            elif self.path == "/api/v1/openapi.json":
+                self.send(200, contract())
             else:
                 self.send(404, {"error": "not found"})
         def do_POST(self):
+            if self.path == "/api/v1/locations":
+                return self.configuration("POST")
             if not self.auth():
                 return self.send(401, {"error": "token required"})
             if self.path != "/api/v1/commands":
                 return self.send(404, {"error": "not found"})
             try:
-                n = int(self.headers.get("Content-Length", "0"))
-                if not 0 < n <= 512:
-                    raise ValueError("body size")
-                c = json.loads(self.rfile.read(n), parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite number")))
+                c = self.read_body()
                 validate_command(c)
             except (ValueError, UnicodeError):
                 return self.send(400, {"error": "invalid command"})

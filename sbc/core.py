@@ -4,9 +4,16 @@ import re
 import sqlite3
 import threading
 import time
+import unicodedata
 import urllib.request
+import uuid
 
 OPS = {"permit_join", "discover", "read", "on_off"}
+
+class ConfigurationError(ValueError):
+    def __init__(self, message, status=400):
+        super().__init__(message)
+        self.status = status
 
 def validate_command(c):
     if not isinstance(c, dict) or not isinstance(c.get("op"), str) or c["op"] not in OPS:
@@ -64,11 +71,16 @@ class Store:
         self.lock = threading.RLock()
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA foreign_keys=ON")
         self.db.executescript('''
           CREATE TABLE IF NOT EXISTS devices(ieee TEXT PRIMARY KEY, data TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS events(boot TEXT, seq INTEGER, received REAL, data TEXT,
             PRIMARY KEY(boot,seq));
           CREATE TABLE IF NOT EXISTS cursor(id INTEGER PRIMARY KEY CHECK(id=1), boot TEXT, seq INTEGER);
+          CREATE TABLE IF NOT EXISTS locations(id TEXT PRIMARY KEY, name TEXT NOT NULL, name_key TEXT UNIQUE NOT NULL);
+          CREATE TABLE IF NOT EXISTS device_locations(
+            ieee TEXT PRIMARY KEY REFERENCES devices(ieee),
+            location_id TEXT NOT NULL REFERENCES locations(id));
         ''')
         self.db.commit()
     def cursor(self):
@@ -79,7 +91,8 @@ class Store:
         row = self.db.execute("SELECT data FROM devices WHERE ieee=?", (ieee,)).fetchone()
         return json.loads(row[0]) if row else {"ieee": ieee, "endpoints": {}, "attributes": {}}
     def _put(self, d):
-        self.db.execute("INSERT OR REPLACE INTO devices VALUES(?,?)", (d["ieee"], json.dumps(d)))
+        self.db.execute("INSERT INTO devices VALUES(?,?) ON CONFLICT(ieee) DO UPDATE SET data=excluded.data",
+                        (d["ieee"], json.dumps(d)))
     def sync_devices(self, items):
         with self.lock, self.db:
             self._sync_devices(items)
@@ -117,7 +130,58 @@ class Store:
             self.db.execute("INSERT OR REPLACE INTO cursor VALUES(1,?,?)", (boot, next_seq))
     def snapshot(self):
         with self.lock:
-            return [json.loads(row[0]) for row in self.db.execute("SELECT data FROM devices ORDER BY ieee")]
+            return [dict(json.loads(row[0]), location_id=row[1], location_name=row[2]) for row in self.db.execute(
+                "SELECT d.data,l.id,l.name FROM devices d LEFT JOIN device_locations a ON a.ieee=d.ieee "
+                "LEFT JOIN locations l ON l.id=a.location_id ORDER BY d.ieee")]
+    def locations(self):
+        with self.lock:
+            return [dict(id=row[0], name=row[1], device_count=row[2]) for row in self.db.execute(
+                "SELECT l.id,l.name,COUNT(a.ieee) FROM locations l LEFT JOIN device_locations a "
+                "ON a.location_id=l.id GROUP BY l.id ORDER BY l.name_key,l.id")]
+    def save_location(self, name, location_id=None):
+        if not isinstance(name, str):
+            raise ConfigurationError("name must be a string")
+        if not 1 <= len(name) <= 80:
+            raise ConfigurationError("name must contain 1..80 characters")
+        name = unicodedata.normalize("NFC", name.strip())
+        if not 1 <= len(name) <= 80 or any(unicodedata.category(c).startswith("C") or c in "\u2028\u2029" for c in name):
+            raise ConfigurationError("name must contain 1..80 visible characters on one line")
+        key = unicodedata.normalize("NFKC", name).casefold()
+        with self.lock, self.db:
+            if location_id is not None and not self.db.execute("SELECT 1 FROM locations WHERE id=?", (location_id,)).fetchone():
+                raise ConfigurationError("location not found", 404)
+            duplicate = self.db.execute("SELECT id FROM locations WHERE name_key=?", (key,)).fetchone()
+            if duplicate and duplicate[0] != location_id:
+                raise ConfigurationError("a location with that name already exists", 409)
+            if location_id is None:
+                if self.db.execute("SELECT COUNT(*) FROM locations").fetchone()[0] >= 50:
+                    raise ConfigurationError("location limit of 50 reached", 409)
+                location_id = str(uuid.uuid4())
+                self.db.execute("INSERT INTO locations VALUES(?,?,?)", (location_id, name, key))
+            else:
+                self.db.execute("UPDATE locations SET name=?,name_key=? WHERE id=?", (name, key, location_id))
+            return next(location for location in self.locations() if location["id"] == location_id)
+    def delete_location(self, location_id):
+        with self.lock, self.db:
+            if not self.db.execute("SELECT 1 FROM locations WHERE id=?", (location_id,)).fetchone():
+                raise ConfigurationError("location not found", 404)
+            if self.db.execute("SELECT 1 FROM device_locations WHERE location_id=?", (location_id,)).fetchone():
+                raise ConfigurationError("move or unassign devices before deleting this location", 409)
+            self.db.execute("DELETE FROM locations WHERE id=?", (location_id,))
+    def assign_location(self, ieee, location_id):
+        if location_id is not None and not isinstance(location_id, str):
+            raise ConfigurationError("location_id must be a string or null")
+        with self.lock, self.db:
+            if not self.db.execute("SELECT 1 FROM devices WHERE ieee=?", (ieee,)).fetchone():
+                raise ConfigurationError("device not found", 404)
+            if location_id is None:
+                self.db.execute("DELETE FROM device_locations WHERE ieee=?", (ieee,))
+            else:
+                if not self.db.execute("SELECT 1 FROM locations WHERE id=?", (location_id,)).fetchone():
+                    raise ConfigurationError("location not found", 404)
+                self.db.execute("INSERT INTO device_locations VALUES(?,?) ON CONFLICT(ieee) "
+                                "DO UPDATE SET location_id=excluded.location_id", (ieee, location_id))
+            return {"ieee": ieee, "location_id": location_id}
     def history(self, limit=100):
         with self.lock:
             return [dict(json.loads(row[0]), received=row[1], boot_id=row[2]) for row in

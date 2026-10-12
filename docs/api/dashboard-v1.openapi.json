@@ -1,0 +1,1291 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Zigbee dashboard API",
+    "version": "1.2.0",
+    "description": "Implemented v1 API. Additive response fields are allowed. Proposed dashboard configuration APIs are documented separately."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/v1/state": {
+      "get": {
+        "operationId": "dashboard_state",
+        "responses": {
+          "200": {
+            "description": "Current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/State"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "operationId": "dashboard_events",
+        "responses": {
+          "200": {
+            "description": "Current events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/History"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/locations": {
+      "get": {
+        "operationId": "dashboard_locations",
+        "responses": {
+          "200": {
+            "description": "Current locations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_location",
+        "responses": {
+          "201": {
+            "description": "Saved configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Location"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown location or device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate name, location limit, or location still assigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capabilities": {
+      "get": {
+        "operationId": "dashboard_capabilities",
+        "responses": {
+          "200": {
+            "description": "Current capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "operationId": "dashboard_openapi_json",
+        "responses": {
+          "200": {
+            "description": "Current openapi.json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/commands": {
+      "post": {
+        "operationId": "dashboard_command",
+        "description": "No automatic retries. A timeout can mean the request executed. No delivery or state confirmation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Command"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted by the Zigbee stack",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid command",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Offline, not ready, busy, or stack rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CommandResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream failure; execution may have occurred",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/locations/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "rename_location",
+        "responses": {
+          "200": {
+            "description": "Saved configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Location"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown location or device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate name, location limit, or location still assigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_empty_location",
+        "responses": {
+          "200": {
+            "description": "Saved configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown location or device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate name, location limit, or location still assigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{ieee}/location": {
+      "parameters": [
+        {
+          "name": "ieee",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{16}$"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "assign_device_location",
+        "responses": {
+          "200": {
+            "description": "Saved configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationAssignmentResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown location or device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate name, location limit, or location still assigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationAssignment"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "DASHBOARD_TOKEN"
+      }
+    },
+    "schemas": {
+      "State": {
+        "type": "object",
+        "properties": {
+          "gateway": {
+            "$ref": "#/components/schemas/GatewayStatus"
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            }
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "gateway",
+          "devices",
+          "locations"
+        ]
+      },
+      "GatewayStatus": {
+        "type": "object",
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gap": {
+            "type": "boolean"
+          },
+          "last_poll": {
+            "type": "number",
+            "description": "Unix seconds when received by the SBC, not device observation time."
+          },
+          "boot_id": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "mode": {
+            "enum": [
+              "hardware",
+              "simulator"
+            ]
+          },
+          "join_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 180
+          },
+          "latest_seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dropped_events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uptime_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pan_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "channel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 26
+          }
+        },
+        "required": [
+          "connected",
+          "error",
+          "gap"
+        ]
+      },
+      "Device": {
+        "type": "object",
+        "properties": {
+          "ieee": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{16}$"
+          },
+          "nwk": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "location_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_seen": {
+            "type": "number",
+            "description": "Unix seconds when received by the SBC, not device observation time."
+          },
+          "endpoints": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Endpoint"
+            }
+          },
+          "attributes": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Attribute"
+            }
+          }
+        },
+        "required": [
+          "ieee",
+          "endpoints",
+          "attributes"
+        ]
+      },
+      "Endpoint": {
+        "type": "object",
+        "properties": {
+          "profile_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "device_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "input_clusters": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          },
+          "output_clusters": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          }
+        },
+        "required": [
+          "profile_id",
+          "device_id",
+          "input_clusters",
+          "output_clusters"
+        ]
+      },
+      "Attribute": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Event"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "received": {
+                "type": "number",
+                "description": "Unix seconds when received by the SBC, not device observation time."
+              },
+              "value": {
+                "type": [
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              },
+              "unit": {
+                "enum": [
+                  "°C",
+                  "%",
+                  "on/off",
+                  null
+                ]
+              }
+            },
+            "required": [
+              "received",
+              "value",
+              "unit"
+            ]
+          }
+        ]
+      },
+      "Event": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Unknown future event types must be retained and ignored by projections."
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uptime_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nwk": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "ieee": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{16}$"
+          },
+          "endpoint": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 240
+          },
+          "cluster": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "attribute": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "data_type": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "raw": {
+            "type": [
+              "number",
+              "string",
+              "boolean",
+              "null"
+            ]
+          },
+          "rssi": {
+            "type": "integer"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "profile_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "device_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "input_clusters": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          },
+          "output_clusters": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "tsn": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "capability": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "unsupported_type": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "seq",
+          "uptime_ms",
+          "nwk"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "attribute"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "endpoint",
+                "cluster",
+                "attribute",
+                "data_type",
+                "rssi"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "discovery"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "ok"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "endpoint"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "endpoint",
+                "ok"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "ok": {
+                        "const": true
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "profile_id",
+                      "device_id",
+                      "input_clusters",
+                      "output_clusters"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "zcl_response"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "status",
+                "tsn"
+              ]
+            }
+          }
+        ]
+      },
+      "Location": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "device_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "device_count"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "History": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoryEvent"
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "events"
+        ]
+      },
+      "HistoryEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Event"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "received": {
+                "type": "number",
+                "description": "Unix seconds when received by the SBC, not device observation time."
+              },
+              "boot_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "received",
+              "boot_id"
+            ]
+          }
+        ]
+      },
+      "LocationList": {
+        "type": "object",
+        "properties": {
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "locations"
+        ]
+      },
+      "LocationInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Trimmed, visible, single-line name. Unique after Unicode normalization and case folding."
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "Capabilities": {
+        "type": "object",
+        "properties": {
+          "api_version": {
+            "const": "1.2.0"
+          },
+          "gateway_api_version": {
+            "const": "1"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "discover",
+                "on_off",
+                "permit_join",
+                "read"
+              ]
+            },
+            "uniqueItems": true
+          },
+          "features": {
+            "type": "object",
+            "properties": {
+              "locations": {
+                "type": "boolean"
+              },
+              "device_configuration": {
+                "type": "boolean"
+              },
+              "dashboard_layouts": {
+                "type": "boolean"
+              },
+              "history_query": {
+                "type": "boolean"
+              },
+              "command_tracking": {
+                "type": "boolean"
+              },
+              "event_stream": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "locations",
+              "device_configuration",
+              "dashboard_layouts",
+              "history_query",
+              "command_tracking",
+              "event_stream"
+            ]
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "command_bytes": {
+                "const": 512
+              },
+              "pairing_seconds": {
+                "const": 180
+              },
+              "history_events": {
+                "const": 100
+              },
+              "locations": {
+                "const": 50
+              },
+              "location_name_characters": {
+                "const": 80
+              }
+            },
+            "required": [
+              "command_bytes",
+              "pairing_seconds",
+              "history_events",
+              "locations",
+              "location_name_characters"
+            ]
+          },
+          "contracts": {
+            "type": "object",
+            "properties": {
+              "dashboard": {
+                "const": "/api/v1/openapi.json"
+              }
+            },
+            "required": [
+              "dashboard"
+            ]
+          }
+        },
+        "required": [
+          "api_version",
+          "gateway_api_version",
+          "operations",
+          "features",
+          "limits",
+          "contracts"
+        ]
+      },
+      "Command": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "const": "discover"
+              },
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              }
+            },
+            "required": [
+              "op",
+              "ieee"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "const": "on_off"
+              },
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "state": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "op",
+              "ieee",
+              "endpoint",
+              "state"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "const": "permit_join"
+              },
+              "seconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 180
+              }
+            },
+            "required": [
+              "op",
+              "seconds"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "const": "read"
+              },
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "cluster": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535
+              },
+              "attribute": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535
+              }
+            },
+            "required": [
+              "op",
+              "ieee",
+              "endpoint",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "description": "A request is at most 512 UTF-8 bytes. 202 confirms stack acceptance only."
+      },
+      "CommandResult": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "stack_result": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted",
+          "stack_result"
+        ]
+      },
+      "Deleted": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "const": true
+          }
+        },
+        "required": [
+          "deleted"
+        ]
+      },
+      "LocationAssignmentResult": {
+        "type": "object",
+        "properties": {
+          "ieee": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{16}$"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "ieee",
+          "location_id"
+        ]
+      },
+      "LocationAssignment": {
+        "type": "object",
+        "properties": {
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "location_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+# Contract verification only; the SBC service has no third-party dependencies.
+jsonschema>=4.18,<5

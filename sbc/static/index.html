@@ -1,1 +1,16 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zigbee house gateway</title><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script></head><body><main><header><div class="eyebrow">LOCAL HOME AUTOMATION · ESPRESSIF</div><h1>Zigbee house gateway</h1><p>Devices, measurements and pairing, in one place.</p></header><section class="toolbar"><label>Dashboard access token <input id="token" type="password" autocomplete="off" placeholder="Paste dashboard token"></label><button id="connect">Connect</button><button id="logout" class="quiet">Clear token</button></section><section class="status"><strong id="status">Disconnected</strong><span id="pairing"></span><button id="join">Pair for 60 seconds</button><button id="close" class="quiet">Close pairing</button></section><p id="notice" role="status"></p><div id="devices" class="cards"></div><section><h2>Recent events</h2><pre id="events">Connect to load events.</pre></section><footer>Commands are accepted for transmission. Device reports confirm state. History is timestamped when received by the SBC.</footer></main></body></html>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zigbee house gateway</title><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script></head>
+<body><main>
+<header><div class="eyebrow">LOCAL HOME AUTOMATION · ESPRESSIF</div><h1>Zigbee house gateway</h1><p>Sensors and measurements, organized by location.</p></header>
+<section class="toolbar"><label>Dashboard access token <input id="token" type="password" autocomplete="off" placeholder="Paste dashboard token"></label><button id="connect">Connect</button><button id="logout" class="quiet">Clear token</button></section>
+<section class="status"><strong id="status">Disconnected</strong><span id="pairing"></span><button id="join">Pair for 60 seconds</button><button id="close" class="quiet">Close pairing</button></section>
+<p id="notice" role="status"></p>
+<section id="locations-panel" hidden>
+<h2>Locations</h2><p class="small">Create names such as Kitchen, Greenhouse or Upstairs. Assign devices below. Move or unassign devices before deleting a location.</p>
+<form id="location-form" class="location-row"><label>New location <input id="location-name" maxlength="80" required placeholder="e.g. Greenhouse"></label><button id="add-location" type="submit">Add location</button></form>
+<div id="location-list"></div>
+</section>
+<div id="devices"></div>
+<section><h2>Recent events</h2><pre id="events">Connect to load events.</pre></section>
+<footer>Locations are stored on this SBC. Commands are accepted for transmission. Device reports confirm state. History is timestamped when received by the SBC.</footer>
+</main></body></html>
