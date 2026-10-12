@@ -12,6 +12,7 @@ The board runs Zigbee coordinator firmware, exposes an authenticated local REST 
 - H2 RCP build recipe using ESP-IDF's supplied `ot_rcp` source.
 - SBC Python service with SQLite history, restart-aware polling, deduplication, gap detection and authenticated command proxy.
 - Local dashboard: pairing, inventory, temperature/humidity/state, endpoint inspection, reads and On/Off controls.
+- Named locations: create/rename locations, assign multiple sensors and group readings; saved on the SBC across restarts.
 - Explicit simulator with two sample devices; usable without hardware.
 - Hardware BOM, architecture, flashing, API, security, operations and compatibility documentation.
 
@@ -66,6 +67,13 @@ For another machine to access the dashboard, set `BIND_HOST=0.0.0.0` only on a t
 python3 -m unittest discover -s tests -v
 python3 -m compileall -q sbc tests
 ```
+
+Install contract-test dependencies first with
+`python3 -m pip install -r requirements-dev.txt` (prefer a virtual environment).
+The service and simulator themselves still require no third-party packages.
+Run `python3 -m sbc.contracts --check` to verify the exported API descriptions.
+See the [API contracts](docs/API.md) and
+[configurable dashboard development plan](docs/DASHBOARD_API_DESIGN.md).
 
 The ZIP is ready to extract into a new GitHub repository:
 

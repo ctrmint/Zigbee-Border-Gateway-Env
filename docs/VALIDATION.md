@@ -23,3 +23,20 @@ The build environment required a local ESP-IDF Component Manager process-inspect
 The API token is intentionally blank in defaults so unconfigured hardware fails closed. The compiled image used for validation is not distributed; users must configure their Wi-Fi and unique token before flashing. CI uses an explicitly named dummy compile token and does not upload deployable firmware.
 
 Follow [operations](OPERATIONS.md) and [device compatibility](DEVICE_COMPATIBILITY.md) for the required hardware acceptance checks. Binding/report configuration, IAS enrolment, MQTT, automation rules, TLS and OTA remain documented future work.
+
+## SBC API and locations update, 2026-10-12
+
+- PASS: all 19 API/integration tests, including named-location CRUD, multi-device
+  assignment, authentication, Unicode duplicate-name handling, limits, deletion
+  conflicts, persistence across polling/restart and upgrading an existing database.
+- PASS: published JSON Schema validation against actual simulator/SBC responses,
+  contract export consistency, Python compilation and Git whitespace checks.
+- PASS: two Chromium browser tests covering location creation, multi-device
+  assignment, rename, unassignment/deletion, mobile width and logout during an
+  in-flight refresh. JavaScript syntax checked with Node.
+
+Browser validation used Playwright/Chromium with fonts and missing OS libraries
+extracted into a temporary test environment on this SBC. Runtime remains Python
+standard library only. The browser check in the original 2026-10-10 record above
+was not performed at that time; this update supplies interaction coverage.
+Firmware and physical Zigbee behavior have not been revalidated by this update.

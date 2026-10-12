@@ -34,4 +34,11 @@ Systemd reads the root-owned environment file before dropping privileges. It ove
 
 ## Connecting your own dashboard
 
+The built-in dashboard supports dynamically named locations. Connect, add a
+location such as Kitchen or Greenhouse, then use each device's Location selector.
+Several devices can share a location; renaming it preserves all assignments.
+Location editing works while the ESP32 is offline. Move or unassign all devices
+before deleting a location. Names and assignments are stored in the same SQLite
+database as device/history data and are included in its backups.
+
 Call SBC `/api/v1/state` for the persistent projected registry. Send commands to `/api/v1/commands`. Your dashboard backend may instead call the board API directly with GATEWAY_TOKEN. The board has no browser CORS support, history database or dashboard. It does not ship with this project's API until you flash our S3 firmware.

@@ -1,0 +1,646 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Zigbee gateway API",
+    "version": "1.2.0",
+    "description": "Implemented v1 API. Additive response fields are allowed. Proposed dashboard configuration APIs are documented separately."
+  },
+  "servers": [
+    {
+      "url": "http://{gateway_host}",
+      "variables": {
+        "gateway_host": {
+          "default": "192.168.1.100",
+          "description": "Replace with the board's reserved LAN address."
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "gateway_health",
+        "responses": {
+          "200": {
+            "description": "Current health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/devices": {
+      "get": {
+        "operationId": "gateway_devices",
+        "responses": {
+          "200": {
+            "description": "Current devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Registry"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "operationId": "gateway_events",
+        "responses": {
+          "200": {
+            "description": "Current events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventBatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "Last committed sequence for this boot. Reset to zero when boot_id changes.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295,
+              "default": 0
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/commands": {
+      "post": {
+        "operationId": "gateway_command",
+        "description": "No automatic retries. A timeout can mean the request executed. No delivery or state confirmation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Command"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted by the Zigbee stack",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid command or unknown/inactive device",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Offline, not ready, busy, or stack rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CommandResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "GATEWAY_TOKEN"
+      }
+    },
+    "schemas": {
+      "Health": {
+        "type": "object",
+        "properties": {
+          "boot_id": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "mode": {
+            "enum": [
+              "hardware",
+              "simulator"
+            ]
+          },
+          "join_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 180
+          },
+          "latest_seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dropped_events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uptime_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pan_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "channel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 26,
+            "description": "Zero before formation; 11–26 when ready."
+          }
+        },
+        "required": [
+          "boot_id",
+          "ready",
+          "mode",
+          "join_seconds",
+          "latest_seq",
+          "dropped_events"
+        ]
+      },
+      "Registry": {
+        "type": "object",
+        "properties": {
+          "boot_id": {
+            "type": "string"
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryDevice"
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "boot_id",
+          "devices"
+        ]
+      },
+      "RegistryDevice": {
+        "type": "object",
+        "properties": {
+          "ieee": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{16}$"
+          },
+          "nwk": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Registered, not proof of reachability."
+          }
+        },
+        "required": [
+          "ieee",
+          "nwk",
+          "active"
+        ]
+      },
+      "EventBatch": {
+        "type": "object",
+        "properties": {
+          "boot_id": {
+            "type": "string"
+          },
+          "gap": {
+            "type": "boolean"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            },
+            "maxItems": 16
+          },
+          "next_seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "latest_seq": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "boot_id",
+          "gap",
+          "events",
+          "next_seq",
+          "latest_seq"
+        ]
+      },
+      "Event": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Unknown future event types must be retained and ignored by projections."
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uptime_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nwk": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "ieee": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{16}$"
+          },
+          "endpoint": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 240
+          },
+          "cluster": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "attribute": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "data_type": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "raw": {
+            "type": [
+              "number",
+              "string",
+              "boolean",
+              "null"
+            ]
+          },
+          "rssi": {
+            "type": "integer"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "profile_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "device_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "input_clusters": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          },
+          "output_clusters": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "tsn": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "capability": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "unsupported_type": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "seq",
+          "uptime_ms",
+          "nwk"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "attribute"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "endpoint",
+                "cluster",
+                "attribute",
+                "data_type",
+                "rssi"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "discovery"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "ok"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "endpoint"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "endpoint",
+                "ok"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "ok": {
+                        "const": true
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "profile_id",
+                      "device_id",
+                      "input_clusters",
+                      "output_clusters"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "zcl_response"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "status",
+                "tsn"
+              ]
+            }
+          }
+        ]
+      },
+      "Command": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "const": "discover"
+              },
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              }
+            },
+            "required": [
+              "op",
+              "ieee"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "const": "on_off"
+              },
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "state": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "op",
+              "ieee",
+              "endpoint",
+              "state"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "const": "permit_join"
+              },
+              "seconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 180
+              }
+            },
+            "required": [
+              "op",
+              "seconds"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "const": "read"
+              },
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "cluster": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535
+              },
+              "attribute": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535
+              }
+            },
+            "required": [
+              "op",
+              "ieee",
+              "endpoint",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": true
+          }
+        ],
+        "description": "A request is at most 512 UTF-8 bytes. 202 confirms stack acceptance only."
+      },
+      "CommandResult": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "stack_result": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted",
+          "stack_result"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      }
+    }
+  }
+}
