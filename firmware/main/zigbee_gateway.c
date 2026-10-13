@@ -16,6 +16,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "driver/uart_vfs.h"
 
 #if CONFIG_EXAMPLE_CONNECT_WIFI || CONFIG_EXAMPLE_CONNECT_ETHERNET
 #include "esp_event.h"
@@ -269,6 +270,12 @@ static void esp_zigbee_stack_main_task(void *pvParameters)
 void app_main(void)
 {
     ESP_ERROR_CHECK(nvs_flash_init());
+
+#if CONFIG_ZB_RADIO_SPINEL_UART && !CONFIG_ESP_CONSOLE_UART
+    /* IDF registers /dev/uart automatically only for a UART console. The
+     * prebuilt Zigbee UART-RCP driver also needs it with the USB console. */
+    uart_vfs_dev_register();
+#endif
 
     ESP_ERROR_CHECK(gateway_api_init());
     ESP_LOGI(TAG, "Start ESP Zigbee Stack");
