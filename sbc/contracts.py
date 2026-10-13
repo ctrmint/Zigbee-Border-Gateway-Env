@@ -166,8 +166,9 @@ def contract(service="dashboard"):
         op = {"operationId": service + "_" + route.replace(".", "_"),
               "responses": {"200": response("Current " + route, ref(schema) if schema else {"type": "object"}), "401": unauthorized}}
         if board and route == "events":
+            op["responses"]["400"] = response("Invalid or ambiguous event cursor query", error, error_mime)
             op["parameters"] = [{"name": "after", "in": "query", "required": False,
-                "description": "Last committed sequence for this boot. Reset to zero when boot_id changes.",
+                "description": "Single decimal cursor; no additional query parameters. Reset to zero when boot_id changes (restart or sequence epoch rollover).",
                 "schema": dict(integer(0, 4294967295), default=0)}]
         paths["/api/v1/" + route] = {"get": op}
     busy = {"oneOf": [ref("CommandResult"), ref("Error")]}

@@ -52,6 +52,17 @@ Types: `network_ready`, `announce`, `leave`, `discovery`, `endpoint`, `attribute
 
 Ring capacity is 64 events, 768 bytes per serialized event. Oversized events increment `dropped_events`. `gap` covers cursor overruns/restarts; it does not describe every possible radio loss. Drain using `next_seq`, not `latest_seq`; poll again immediately when they differ. Compare boot IDs before updating cursors.
 
+The board accepts a single `after` query parameter containing decimal digits in
+the range 0–4294967295. Invalid, repeated or additional event query parameters
+return 400. Cursor arithmetic remains bounded at the maximum value; if the event
+sequence exhausts uint32_t, the board changes `boot_id` and resets its ring to
+start a new cursor epoch. A boot ID change therefore also signals a cursor epoch
+change, even if uptime has not reset.
+
+Command bodies must be JSON objects with no trailing data, literal/escaped NULs or
+duplicate field names. Pairing health reflects permit-join status notifications
+from the Zigbee stack as well as accepted API requests.
+
 ## SBC routes
 
 GET `/api/v1/state`: `{gateway, devices, locations}` including endpoint maps, latest raw attributes, normalized values, receipt timestamps and location assignments. GET `/api/v1/events`: latest 100 raw events, including `received` and `boot_id`. POST `/api/v1/commands`: same command schema, with strict validation and upstream forwarding. Static dashboard paths are public but contain no telemetry or credentials.

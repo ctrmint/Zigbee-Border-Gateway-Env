@@ -40,3 +40,35 @@ extracted into a temporary test environment on this SBC. Runtime remains Python
 standard library only. The browser check in the original 2026-10-10 record above
 was not performed at that time; this update supplies interaction coverage.
 Firmware and physical Zigbee behavior have not been revalidated by this update.
+
+## Raspberry Pi firmware development, 2026-10-13
+
+The Raspberry Pi 5 is now the firmware development workstation as well as the
+dashboard host. ESP-IDF v5.5.4 is installed at `/home/mark/esp/esp-idf`, with native
+Linux ARM64 S3/H2 compiler tools and an isolated IDF Python environment. Fresh SSH
+shells can load the tools with `. /home/mark/esp/esp-idf/export.sh`.
+
+| Check | Result |
+| --- | --- |
+| S3 controller/API build on the Pi | PASS: ESP-IDF v5.5.4, ESP-Zigbee 2.0.4; image 0x10c9a0 bytes, 37% application partition free |
+| H2 UART RCP build on the Pi | PASS: image 0x32b60 bytes, 80% application partition free; RX23/TX24 and vendor hook enabled |
+| Native firmware regression tests | PASS: cursor limits/gaps/batching and cJSON command parsing, with undefined-behavior sanitizer |
+| SBC/API integration suite | PASS: all 19 tests; contract-specific tests rerun after the event-query contract update |
+| Exported API contract and Git whitespace checks | PASS |
+| USB serial access | PASS: `/dev/ttyACM0` opens with the Pi user's `dialout` permissions |
+| Connected chip identification | BLOCKED: USB device 303a:4001, serial 123456; no bootloader response using default-reset or USB-reset |
+| Flashing, runtime API, Zigbee formation/pairing/control | NOT TESTED in this session |
+
+Firmware changes fix uint32 cursor overflow, validate decimal event queries,
+parse complete command bodies, reject duplicate fields and literal/escaped NULs,
+and synchronize pairing health with stack permit-join notifications. S3 defaults
+now select the USB Serial/JTAG console. Health and inventory routing also ignores
+the query suffix when selecting the response type.
+
+Both build outputs are local and Git-ignored. The S3 validation image has a blank
+API token and placeholder Wi-Fi configuration; it is compile-only and will fail
+closed on boot. Configure real credentials locally and rebuild before deployment.
+No firmware was flashed or flash/network state erased. Physical bring-up requires
+identifying which chip is connected, obtaining a bootloader response, checking
+the existing network preservation requirement, and then flashing the matching
+image. Native and simulator checks do not establish radio or device compatibility.
