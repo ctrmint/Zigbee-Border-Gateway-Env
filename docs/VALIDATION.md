@@ -72,3 +72,37 @@ No firmware was flashed or flash/network state erased. Physical bring-up require
 identifying which chip is connected, obtaining a bootloader response, checking
 the existing network preservation requirement, and then flashing the matching
 image. Native and simulator checks do not establish radio or device compatibility.
+
+## Physical board bring-up, 2026-10-13
+
+Both chips were subsequently identified and backed up before programming. USB2
+is S3 revision 0.2, with 8 MB flash and 2 MB embedded PSRAM; USB1 is H2 revision
+0.1, with 4 MB physical flash. Complete original flash images, verified saved-file
+SHA-256 checksums, deployment image hashes and logs remain local in Git-ignored
+`backups/`. The firmware retains the conservative S3 4 MB/H2 2 MB build profiles.
+
+H2 RCP programming succeeded with all programmed image hashes verified. S3 Wi-Fi
+credentials and a unique API token were configured locally, and programming also
+verified every image hash. The first physical boot exposed a UART initialization
+failure: IDF does not automatically register `/dev/uart` when using a USB console,
+but the prebuilt Zigbee UART-RCP driver requires that registration. The application
+now explicitly registers UART devices before Zigbee initialization for UART-RCP
+with a non-UART console and declares its UART driver dependency. The corrected
+build boots and forms the network successfully. A USB hard reset left S3 in ROM
+download mode; an esptool 5.5 watchdog reset successfully started the application.
+
+| Hardware check | Result |
+| --- | --- |
+| S3 Wi-Fi connection | PASS: joined the configured existing network and acquired a LAN address |
+| S3/H2 UART-RCP handshake and network formation | PASS: formed a Zigbee network on channel 20 |
+| Real health, device and event response schemas | PASS: validated against the exported gateway contract, including query-suffixed health/inventory and the maximum cursor |
+| Authentication and input rejection | PASS: unauthenticated health 401; malformed/overflowing/repeated cursors and malformed/ambiguous command JSON 400 |
+| Close pairing command | PASS: 202 stack acceptance; pairing remains closed |
+| SBC poller against the physical gateway | PASS: hardware mode, connected/ready, and SQLite cursor persistence across store restart |
+| Pairing, device discovery, RF reads/reports/control | NOT TESTED: device registry is empty |
+| Coordinator reboot/network persistence and soak | NOT TESTED |
+
+The hardware ingestion database is `data/hardware.sqlite3`, separate from demo
+data. Credentials, databases and device backups remain Git-ignored. A successful
+coordinator/RCP handshake and network formation do not establish interoperability
+or delivery to a real Zigbee device; pairing a test device is the next check.
