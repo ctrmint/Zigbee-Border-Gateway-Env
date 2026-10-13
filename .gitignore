@@ -20,6 +20,8 @@ backups/
 # ESP-IDF generated configuration, dependencies and firmware images.
 build/
 managed_components/
+# Component-manager locks contain the workstation's local ESP-IDF component path.
+dependencies.lock
 sdkconfig
 sdkconfig.old
 *.bin

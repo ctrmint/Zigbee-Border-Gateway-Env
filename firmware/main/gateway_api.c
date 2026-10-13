@@ -5,6 +5,8 @@
 #include <inttypes.h>
 #include <math.h>
 #include "gateway_api.h"
+#include "gateway_cursor.h"
+#include "gateway_json.h"
 #include "esp_http_server.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -32,6 +34,12 @@ static void emit(cJSON *o)
 {
     if (!o) return;
     xSemaphoreTake(mutex, portMAX_DELAY);
+    /* Start a new cursor epoch before uint32_t wraps; pollers reset by boot_id. */
+    if(seq==UINT32_MAX){
+        snprintf(boot_id,sizeof(boot_id),"%08" PRIx32 "%08" PRIx32,esp_random(),esp_random());
+        seq=0;
+        memset(events,0,sizeof(events));
+    }
     cJSON_AddNumberToObject(o, "seq", seq + 1);
     cJSON_AddNumberToObject(o, "uptime_ms", esp_timer_get_time()/1000);
     char *s = cJSON_PrintUnformatted(o);
@@ -188,15 +196,25 @@ static bool authorized(httpd_req_t *req)
 static esp_err_t handle_get(httpd_req_t *req)
 {
     if(!authorized(req)) return httpd_resp_send_err(req,HTTPD_401_UNAUTHORIZED,"token required");
+    uint32_t after=0;
+    const char *query=strchr(req->uri,'?');
+    size_t path_len=query?(size_t)(query-req->uri):strlen(req->uri);
+    bool health=path_len==strlen("/api/v1/health") && !strncmp(req->uri,"/api/v1/health",path_len);
+    bool inventory=path_len==strlen("/api/v1/devices") && !strncmp(req->uri,"/api/v1/devices",path_len);
+    if(!health && !inventory && query){
+        /* Accept exactly one documented cursor; reject truncation and ambiguity. */
+        if(strncmp(query+1,"after=",6) || !gateway_parse_cursor(query+7,&after))
+            return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"invalid after cursor");
+    }
     cJSON *o=cJSON_CreateObject();xSemaphoreTake(mutex,portMAX_DELAY);
     cJSON_AddStringToObject(o,"boot_id",boot_id);
-    if(!strcmp(req->uri,"/api/v1/health")){
+    if(health){
         cJSON_AddBoolToObject(o,"ready",ready);cJSON_AddStringToObject(o,"mode","hardware");
         cJSON_AddNumberToObject(o,"uptime_ms",esp_timer_get_time()/1000);
         cJSON_AddNumberToObject(o,"join_seconds",join_until>esp_timer_get_time()?(join_until-esp_timer_get_time())/1000000:0);
         cJSON_AddNumberToObject(o,"pan_id",pan_id);cJSON_AddNumberToObject(o,"channel",channel);
         cJSON_AddNumberToObject(o,"dropped_events",dropped);cJSON_AddNumberToObject(o,"latest_seq",seq);
-    }else if(!strcmp(req->uri,"/api/v1/devices")){
+    }else if(inventory){
         cJSON *a=cJSON_AddArrayToObject(o,"devices");
         for(int i=0;i<MAX_DEVICES;i++) if(devices[i].used){
             cJSON *d=cJSON_CreateObject();char s[17];snprintf(s,sizeof(s),"%016" PRIx64,devices[i].ieee);
@@ -204,13 +222,12 @@ static esp_err_t handle_get(httpd_req_t *req)
             cJSON_AddBoolToObject(d,"active",devices[i].active);cJSON_AddItemToArray(a,d);
         }
     }else{
-        char q[96],v[16];uint32_t after=0;
-        if(httpd_req_get_url_query_str(req,q,sizeof(q))==ESP_OK && httpd_query_key_value(q,"after",v,sizeof(v))==ESP_OK) after=strtoul(v,NULL,10);
         uint32_t oldest=seq>=EVENT_SLOTS?seq-EVENT_SLOTS+1:1;
-        cJSON_AddBoolToObject(o,"gap",after+1<oldest || after>seq);
-        if(after+1<oldest || after>seq) after=oldest-1;
-        cJSON *a=cJSON_AddArrayToObject(o,"events");uint32_t end=seq<after+16?seq:after+16;
-        for(uint32_t i=after+1;i<=end;i++) cJSON_AddItemToArray(a,cJSON_Parse(events[i%EVENT_SLOTS]));
+        bool gap=gateway_cursor_gap(after,oldest,seq);
+        cJSON_AddBoolToObject(o,"gap",gap);
+        if(gap) after=oldest-1;
+        cJSON *a=cJSON_AddArrayToObject(o,"events");uint32_t end=gateway_batch_end(after,seq);
+        for(uint32_t i=after;i<end;){++i;cJSON_AddItemToArray(a,cJSON_Parse(events[i%EVENT_SLOTS]));}
         cJSON_AddNumberToObject(o,"next_seq",end);cJSON_AddNumberToObject(o,"latest_seq",seq);
     }
     xSemaphoreGive(mutex);return reply(req,o);
@@ -227,7 +244,9 @@ static esp_err_t command(httpd_req_t *req)
     if(req->content_len<=0 || req->content_len>512) return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"body size");
     char body[513];int n=0;
     while(n<req->content_len){int x=httpd_req_recv(req,body+n,req->content_len-n);if(x<=0) return ESP_FAIL;n+=x;}body[n]=0;
-    cJSON *o=cJSON_Parse(body);cJSON *op=cJSON_GetObjectItemCaseSensitive(o,"op");
+    cJSON *o=gateway_parse_command(body,(size_t)n);
+    if(!o) return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"invalid command JSON");
+    cJSON *op=cJSON_GetObjectItemCaseSensitive(o,"op");
     if(!cJSON_IsString(op)){cJSON_Delete(o);return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"op required");}
     xSemaphoreTake(mutex,portMAX_DELAY);bool is_ready=ready;xSemaphoreGive(mutex);
     if(!is_ready){cJSON_Delete(o);return unavailable(req,"stack not ready");}
@@ -268,6 +287,12 @@ void gateway_ready(void)
 {
     xSemaphoreTake(mutex,portMAX_DELAY);ready=true;pan_id=ezb_nwk_get_panid();channel=ezb_nwk_get_current_channel();xSemaphoreGive(mutex);
     emit(event("network_ready",0));
+}
+void gateway_permit_join_status(uint8_t seconds)
+{
+    xSemaphoreTake(mutex,portMAX_DELAY);
+    join_until=esp_timer_get_time()+(int64_t)seconds*1000000;
+    xSemaphoreGive(mutex);
 }
 esp_err_t gateway_api_init(void)
 {

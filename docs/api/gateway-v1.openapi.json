@@ -99,6 +99,16 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid or ambiguous event cursor query",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -106,7 +116,7 @@
             "name": "after",
             "in": "query",
             "required": false,
-            "description": "Last committed sequence for this boot. Reset to zero when boot_id changes.",
+            "description": "Single decimal cursor; no additional query parameters. Reset to zero when boot_id changes (restart or sequence epoch rollover).",
             "schema": {
               "type": "integer",
               "minimum": 0,

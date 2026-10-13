@@ -150,6 +150,7 @@ static bool esp_zigbee_app_signal_handler(const ezb_app_signal_t *app_signal)
     } break;
     case EZB_NWK_SIGNAL_PERMIT_JOIN_STATUS: {
         uint8_t duration = *(uint8_t *)ezb_app_signal_get_params(app_signal);
+        gateway_permit_join_status(duration);
         if (duration) {
             ESP_LOGI(TAG, "Network(0x%04hx) is open for %d seconds", ezb_nwk_get_panid(), duration);
         } else {
