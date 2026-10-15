@@ -71,11 +71,11 @@ GET `/api/v1/capabilities` describes SBC-supported operations, limits and featur
 flags. It is available before the gateway connects. It does not promise that a
 particular device supports an operation. Use `/api/v1/state` for connection and
 readiness, and discovered input clusters to decide which device controls to show.
-Configuration, layouts, queried history, command tracking and streaming flags
-currently remain false.
+Configuration, layouts and queried history are implemented through the dashboard
+v2 API and their capability flags are true. Command tracking and streaming remain false.
 Named locations are implemented and advertised separately as `features.locations`.
-`device_configuration` refers to the future full device-settings document,
-not the implemented location assignment.
+`device_configuration` now covers v2 names, freshness windows and location
+assignment. The v1 location APIs remain available and update the same revision.
 
 GET `/api/v1/openapi.json` returns the dashboard contract. Both new routes require
 `DASHBOARD_TOKEN`, return JSON with `Cache-Control: no-store`, and never expose the
@@ -145,10 +145,10 @@ assignments. There are no changes to the ESP32 API.
 
 ## Maintaining the contracts
 
-The executable descriptions are in `sbc/contracts.py`. After changing them, run
+The executable descriptions are in `sbc/contracts.py` and `sbc/contracts_v2.py`. After changing them, run
 `python3 -m sbc.contracts` to regenerate the checked-in JSON documents, then
-`python3 -m sbc.contracts --check`. The contract version is 1.2.0; route version
-remains v1 because these changes are additive.
+`python3 -m sbc.contracts --check`. The v1 contract version is 1.3.0; the separate
+dashboard v2 contract is 2.0.0. Both remain available during migration.
 
 Runtime needs only Python's standard library. Contract tests additionally use
 `python3 -m pip install -r requirements-dev.txt`; then run
@@ -158,6 +158,58 @@ verification is not a firmware or hardware compatibility test.
 
 Optional Chromium interaction tests use `requirements-browser.txt` and
 `python3 -m playwright install chromium` (the host also needs Chromium's OS
-libraries). Run `python3 -m unittest discover -s tests -p browser_locations.py -v`.
-They cover naming, multi-device assignments, renaming, unassignment/deletion,
-mobile width and logout during a pending refresh.
+libraries). Run `python3 -m unittest discover -s tests -p 'browser_*.py' -v`.
+They cover tabs, locations, widget editing/ordering/ranges, multiple endpoints,
+mobile width, edit conflicts, stale/invalid/offline readings and logout during
+pending telemetry/history requests.
+
+## Implemented dashboard v2 API
+
+All routes use `DASHBOARD_TOKEN`; the browser continues to use v1 commands and
+location CRUD. GET `/api/v2/openapi.json` publishes the
+[dashboard v2 contract](api/dashboard-v2.openapi.json).
+
+| Method / route | Result |
+| --- | --- |
+| GET `/api/v2/capabilities` | Implemented widget types, features and query/configuration limits |
+| GET `/api/v2/gateway` | Existing gateway connection/readiness and ingestion status |
+| GET `/api/v2/devices` | Named devices, assigned location, freshness and endpoint measurements |
+| GET `/api/v2/configuration` | `schema_version`, `revision`, locations, device settings, dashboard layout; strong ETag |
+| PUT `/api/v2/configuration` | Atomically replace editable locations/devices/dashboard with required `If-Match` |
+| GET `/api/v2/history` | Filtered, paginated measurement history and known ingestion interruptions |
+
+Configuration GET/PUT returns `ETag: "configuration-N"`. PUT accepts exactly
+`locations`, `devices` and `dashboard`; missing revision returns 428, stale revision
+412, invalid configuration 422 and a body over 64 KiB 413. Locations use existing
+server-generated IDs; create them through v1. Limits are 50 locations, 50 device
+settings and 100 widgets. Device settings support optional name, nullable location
+and freshness 60–604800 seconds (default 3600). Dashboard settings are title,
+`temperature_unit` (`celsius`/`fahrenheit`) and widgets. Each widget requires unique
+ID, type (`numeric`/`chart`), title, source `(ieee, endpoint, cluster, attribute)`,
+unique position 0–99 and `time_range` (3600, 21600, 86400, 604800 or 2592000).
+Names/titles are visible single-line text of 1–80 characters. Sources must match
+supported measurements on discovered/observed endpoints. Current supported
+measurements are temperature, humidity and On/Off reported state. Widgets follow
+their source device's location. Configuration exports contain no gateway secrets.
+
+History requires `ieee`, `endpoint`, `cluster`, `attribute`, `from`, `to`, with
+optional `limit` (1–500, default 100) and `cursor`. Times are UTC Unix seconds;
+`from < to` and requests span at most 31 days. Results are ordered by receipt
+time and database ID, with `items`, opaque `next_cursor`, `gaps` and
+`gaps_truncated`. Cursors bind to the original identity/time filters and survive
+SBC restarts; changed or tampered cursors return 400. Invalid ZCL values remain
+null samples rather than zeroes. Known outages, gateway restarts and ring overruns
+create interruption records when prior receipt/poll evidence is available.
+At most 500 gap markers are returned; truncation is explicit so clients avoid
+connecting readings across unknown gaps. Existing retention is 30 days.
+
+The browser drains at most 20 history pages (10,000 readings) per chart refresh
+and asks for a shorter range when truncated. Charts refresh at most every 30 seconds
+unless the latest measurement changes. Telemetry refreshes every three seconds,
+backs off to ten seconds after failures and cancels pending requests on logout.
+Display-unit conversion never rewrites stored Celsius readings. Missing, invalid
+and stale measurements are distinct; gateway connectivity is shown separately.
+
+V2 errors use `{"error":{"code":"...","message":"...","details":[]},"request_id":"..."}`.
+V1 error envelopes and command acceptance semantics are unchanged. Device-specific
+discovery completion and durable command tracking remain future capabilities.

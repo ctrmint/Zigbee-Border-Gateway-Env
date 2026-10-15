@@ -5,9 +5,13 @@ import os
 import re
 from pathlib import Path
 import threading
+import uuid
+from urllib.parse import urlsplit, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from .core import ConfigurationError, Gateway, Store, Poller, validate_command
 from .contracts import capabilities, contract
+from .dashboard import DashboardError
+from .contracts_v2 import contract_v2, capabilities_v2
 
 STATIC = Path(__file__).parent / "static"
 
@@ -15,24 +19,66 @@ def make_handler(store, poller, gateway, token):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
             pass
-        def send(self, code, obj):
+        def send(self, code, obj, headers=None):
             data = json.dumps(obj, allow_nan=False).encode()
             self.send_response(code)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Cache-Control", "no-store")
+            for key, value in (headers or {}).items():
+                self.send_header(key, value)
             self.end_headers()
             self.wfile.write(data)
         def auth(self):
             return hmac.compare_digest(self.headers.get("Authorization", ""), "Bearer " + token)
-        def read_body(self):
+        def read_body(self, limit=512):
             n = int(self.headers.get("Content-Length", "0"))
-            if not 0 < n <= 512:
+            if n > limit:
+                raise DashboardError("Request body is too large.", 413, "body_too_large") if limit > 512 else ValueError("body size")
+            if n <= 0:
                 raise ValueError("body size")
-            value = json.loads(self.rfile.read(n), parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite number")))
+            def unique(pairs):
+                result = {}
+                for key, value in pairs:
+                    if key in result: raise ValueError("duplicate field")
+                    result[key] = value
+                return result
+            value = json.loads(self.rfile.read(n), object_pairs_hook=unique,
+                parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite number")))
             if not isinstance(value, dict):
                 raise ValueError("object required")
             return value
+        def v2_error(self, status, code, message, path=""):
+            return self.send(status, {"error": {"code": code, "message": message,
+                "details": [{"path": path, "code": code, "message": message}] if path else []}, "request_id": str(uuid.uuid4())})
+        def v2(self, method):
+            if not self.auth():
+                return self.v2_error(401, "unauthorized", "Dashboard token required.")
+            route = urlsplit(self.path)
+            try:
+                if method == "GET":
+                    if route.path == "/api/v2/capabilities": return self.send(200, capabilities_v2())
+                    if route.path == "/api/v2/openapi.json": return self.send(200, contract_v2())
+                    if route.path == "/api/v2/configuration":
+                        doc = store.configuration_document()
+                        return self.send(200, doc, {"ETag": f'"configuration-{doc["revision"]}"'})
+                    if route.path == "/api/v2/devices": return self.send(200, store.device_views())
+                    if route.path == "/api/v2/gateway": return self.send(200, dict(poller.status))
+                    if route.path == "/api/v2/history":
+                        params = parse_qs(route.query, keep_blank_values=True, strict_parsing=True)
+                        if any(len(values) != 1 for values in params.values()):
+                            raise DashboardError("Repeated query parameters are not allowed.", 400, "invalid_query")
+                        return self.send(200, store.measurement_history({key: values[0] for key, values in params.items()}))
+                if method == "PUT" and route.path == "/api/v2/configuration":
+                    expected = self.headers.get("If-Match")
+                    if expected is None: return self.v2_error(428, "revision_required", "Reload configuration before saving.")
+                    doc = store.replace_configuration(self.read_body(65536), expected)
+                    return self.send(200, doc, {"ETag": f'"configuration-{doc["revision"]}"'})
+                return self.v2_error(404, "not_found", "Resource not found.")
+            except DashboardError as error:
+                return self.v2_error(error.status, error.code, str(error), error.path)
+            except (ValueError, UnicodeError):
+                return self.v2_error(400, "malformed_request", "Invalid JSON or query parameters.")
         def configuration(self, method):
             if not self.auth():
                 return self.send(401, {"error": "token required"})
@@ -60,10 +106,13 @@ def make_handler(store, poller, gateway, token):
             except (ValueError, UnicodeError):
                 return self.send(400, {"error": "invalid configuration"})
         def do_PUT(self):
+            if self.path.startswith('/api/v2/'): return self.v2("PUT")
             self.configuration("PUT")
         def do_DELETE(self):
+            if self.path.startswith('/api/v2/'): return self.v2("DELETE")
             self.configuration("DELETE")
         def do_GET(self):
+            if self.path.startswith('/api/v2/'): return self.v2("GET")
             files = {"/": ("index.html", "text/html; charset=utf-8"),
                      "/app.js": ("app.js", "text/javascript"), "/style.css": ("style.css", "text/css")}
             if self.path in files:
@@ -94,6 +143,7 @@ def make_handler(store, poller, gateway, token):
             else:
                 self.send(404, {"error": "not found"})
         def do_POST(self):
+            if self.path.startswith('/api/v2/'): return self.v2("POST")
             if self.path == "/api/v1/locations":
                 return self.configuration("POST")
             if not self.auth():

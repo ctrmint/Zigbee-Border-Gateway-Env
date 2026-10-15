@@ -7,6 +7,7 @@ import time
 import unicodedata
 import urllib.request
 import uuid
+from .dashboard import DashboardStore
 
 OPS = {"permit_join", "discover", "read", "on_off"}
 
@@ -66,7 +67,7 @@ class Gateway:
         with urllib.request.urlopen(req, timeout=5) as response:
             return json.load(response)
 
-class Store:
+class Store(DashboardStore):
     def __init__(self, path):
         self.lock = threading.RLock()
         self.db = sqlite3.connect(path, check_same_thread=False)
@@ -83,6 +84,7 @@ class Store:
             location_id TEXT NOT NULL REFERENCES locations(id));
         ''')
         self.db.commit()
+        self._init_dashboard()
     def cursor(self):
         with self.lock:
             row = self.db.execute("SELECT boot,seq FROM cursor WHERE id=1").fetchone()
@@ -91,8 +93,11 @@ class Store:
         row = self.db.execute("SELECT data FROM devices WHERE ieee=?", (ieee,)).fetchone()
         return json.loads(row[0]) if row else {"ieee": ieee, "endpoints": {}, "attributes": {}}
     def _put(self, d):
+        new = not self.db.execute("SELECT 1 FROM devices WHERE ieee=?", (d["ieee"],)).fetchone()
         self.db.execute("INSERT INTO devices VALUES(?,?) ON CONFLICT(ieee) DO UPDATE SET data=excluded.data",
                         (d["ieee"], json.dumps(d)))
+        if new:
+            self._bump_revision()
     def sync_devices(self, items):
         with self.lock, self.db:
             self._sync_devices(items)
@@ -101,13 +106,17 @@ class Store:
             d = self._get(item["ieee"])
             d.update(item)
             self._put(d)
-    def ingest(self, boot, events, next_seq, devices=None):
+    def ingest(self, boot, events, next_seq, devices=None, gap_start=None, gap_reason="history_gap"):
         with self.lock, self.db:
+            if gap_start is not None:
+                self.db.execute("INSERT INTO ingestion_gaps(start,end,reason) VALUES(?,?,?)", (gap_start, time.time(), gap_reason))
             for e in events:
+                received = time.time()
                 inserted = self.db.execute("INSERT OR IGNORE INTO events VALUES(?,?,?,?)",
-                    (boot, e["seq"], time.time(), json.dumps(e))).rowcount
+                    (boot, e["seq"], received, json.dumps(e))).rowcount
                 if not inserted or not e.get("ieee"):
                     continue
+                self._record_measurement(boot, e, received)
                 d = self._get(e["ieee"])
                 d["nwk"] = e["nwk"]
                 d["last_seen"] = time.time()
@@ -128,6 +137,7 @@ class Store:
             if devices is not None:
                 self._sync_devices(devices)
             self.db.execute("INSERT OR REPLACE INTO cursor VALUES(1,?,?)", (boot, next_seq))
+            self.db.execute("INSERT OR REPLACE INTO ingestion_state VALUES(1,?)", (time.time(),))
     def snapshot(self):
         with self.lock:
             return [dict(json.loads(row[0]), location_id=row[1], location_name=row[2]) for row in self.db.execute(
@@ -160,6 +170,7 @@ class Store:
                 self.db.execute("INSERT INTO locations VALUES(?,?,?)", (location_id, name, key))
             else:
                 self.db.execute("UPDATE locations SET name=?,name_key=? WHERE id=?", (name, key, location_id))
+            self._bump_revision()
             return next(location for location in self.locations() if location["id"] == location_id)
     def delete_location(self, location_id):
         with self.lock, self.db:
@@ -168,6 +179,7 @@ class Store:
             if self.db.execute("SELECT 1 FROM device_locations WHERE location_id=?", (location_id,)).fetchone():
                 raise ConfigurationError("move or unassign devices before deleting this location", 409)
             self.db.execute("DELETE FROM locations WHERE id=?", (location_id,))
+            self._bump_revision()
     def assign_location(self, ieee, location_id):
         if location_id is not None and not isinstance(location_id, str):
             raise ConfigurationError("location_id must be a string or null")
@@ -181,6 +193,7 @@ class Store:
                     raise ConfigurationError("location not found", 404)
                 self.db.execute("INSERT INTO device_locations VALUES(?,?) ON CONFLICT(ieee) "
                                 "DO UPDATE SET location_id=excluded.location_id", (ieee, location_id))
+            self._bump_revision()
             return {"ieee": ieee, "location_id": location_id}
     def history(self, limit=100):
         with self.lock:
@@ -189,6 +202,8 @@ class Store:
     def prune(self, days):
         with self.lock, self.db:
             self.db.execute("DELETE FROM events WHERE received < ?", (time.time()-days*86400,))
+            self.db.execute("DELETE FROM measurements WHERE received < ?", (time.time()-days*86400,))
+            self.db.execute("DELETE FROM ingestion_gaps WHERE end < ?", (time.time()-days*86400,))
     def close(self):
         self.db.close()
 
@@ -208,7 +223,14 @@ class Poller:
         registry = self.gateway.request("/api/v1/devices")
         if batch["boot_id"] != h["boot_id"] or registry["boot_id"] != h["boot_id"]:
             raise RuntimeError("gateway restarted during poll; retrying")
-        self.store.ingest(batch["boot_id"], batch["events"], batch["next_seq"], registry["devices"])
+        previous_poll = self.status.get("last_poll") or self.store.last_ingestion()
+        if previous_poll is None and batch.get("gap"):
+            with self.store.lock:
+                previous_poll = self.store.db.execute("SELECT MAX(received) FROM events").fetchone()[0]
+        interrupted = previous_poll is not None and (not self.status.get("connected") or batch.get("gap") or (changed and bool(boot)))
+        self.store.ingest(batch["boot_id"], batch["events"], batch["next_seq"], registry["devices"],
+            gap_start=previous_poll if interrupted else None,
+            gap_reason="gateway_restart" if changed else "history_gap" if batch.get("gap") else "connection_interrupted")
         self.status = dict(h, connected=True, error=None,
             gap=bool(batch.get("gap") or self.status.get("gap")), last_poll=time.time())
         return batch["next_seq"] < batch["latest_seq"]

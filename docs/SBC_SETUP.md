@@ -1,6 +1,6 @@
 # SBC service setup
 
-Use Raspberry Pi OS Bookworm or newer, Debian 12+, or another Linux distribution with Python 3.11+. Firmware builds can run on your Fedora laptop; only the Python service needs to run on the SBC. The service uses Python's standard library and requires no package install.
+Use Raspberry Pi OS Bookworm or newer, Debian 12+, or another Linux distribution with Python 3.11+. In this project the Pi is both the dashboard host and the ESP firmware development workstation. The dashboard service uses Python's standard library and requires no package install; firmware development uses the separate ESP-IDF toolchain.
 
 ## Manual run
 
@@ -40,5 +40,27 @@ Several devices can share a location; renaming it preserves all assignments.
 Location editing works while the ESP32 is offline. Move or unassign all devices
 before deleting a location. Names and assignments are stored in the same SQLite
 database as device/history data and are included in its backups.
+
+Configuration & Setup contains pairing, inventory, locations, device names and
+freshness settings. Every location has its own tab with editable numeric readings
+and history charts. Use Add widget to select a device endpoint measurement, or
+Add sensor widgets to create numeric/chart pairs for the available sources.
+Titles, ordering, temperature display units and chart ranges persist on the Pi.
+Widgets follow devices when their locations change. On the first upgrade,
+already assigned sensors receive initial numeric/chart widgets; intentionally
+deleted widgets are not recreated on subsequent starts.
+
+Charts use stored measurements with receipt timestamps, not browser-generated
+samples. Ranges are one hour, six hours, one day, seven days and thirty days.
+Known ingestion interruptions, invalid readings and freshness gaps break chart
+lines. Freshness defaults to one hour and can be changed per device. Gateway
+offline status is independent of the age of a saved reading. No tab requests
+a radio read unless a user explicitly uses a Read control in Setup.
+
+When two browser sessions edit configuration, a stale save displays a conflict.
+Reload to discard it, or choose Reload & reapply edit to apply the specific edit
+to the latest revision. Existing v1 location mutations also advance that revision.
+Back up the SQLite database before upgrading. Opening an existing database adds
+the configuration/history tables and backfills retained attribute events once.
 
 Call SBC `/api/v1/state` for the persistent projected registry. Send commands to `/api/v1/commands`. Your dashboard backend may instead call the board API directly with GATEWAY_TOKEN. The board has no browser CORS support, history database or dashboard. It does not ship with this project's API until you flash our S3 firmware.

@@ -11,8 +11,9 @@ The board runs Zigbee coordinator firmware, exposes an authenticated local REST 
 - S3 firmware: coordinator formation and persistence, explicit 0–180 second pairing, 50-entry IEEE-address registry, automatic endpoint/cluster discovery on announcement, standard scalar attribute reports and reads, On/Off commands, bounded event history.
 - H2 RCP build recipe using ESP-IDF's supplied `ot_rcp` source.
 - SBC Python service with SQLite history, restart-aware polling, deduplication, gap detection and authenticated command proxy.
-- Local dashboard: pairing, inventory, temperature/humidity/state, endpoint inspection, reads and On/Off controls.
+- Tabbed dashboard: Configuration & Setup, one tab per location, configurable numeric readings and history charts, pairing, inventory, endpoint inspection, reads and On/Off controls.
 - Named locations: create/rename locations, assign multiple sensors and group readings; saved on the SBC across restarts.
+- Saved device names, freshness windows, widget titles/order and chart ranges; revision checks protect edits between browser sessions. Indexed measurement history migrates existing events and marks known ingestion interruptions.
 - Explicit simulator with two sample devices; usable without hardware.
 - Hardware BOM, architecture, flashing, API, security, operations and compatibility documentation.
 

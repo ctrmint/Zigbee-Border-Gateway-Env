@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .core import OPS
 
-CONTRACT_VERSION = "1.2.0"
+CONTRACT_VERSION = "1.3.0"
 
 
 def ref(name):
@@ -113,7 +113,7 @@ def schemas(strict_commands):
             "limits": obj({"command_bytes": {"const": 512}, "pairing_seconds": {"const": 180},
                 "history_events": {"const": 100}, "locations": {"const": 50}, "location_name_characters": {"const": 80}},
                 ("command_bytes", "pairing_seconds", "history_events", "locations", "location_name_characters")),
-            "contracts": obj({"dashboard": {"const": "/api/v1/openapi.json"}}, ("dashboard",))},
+            "contracts": obj({"dashboard": {"const": "/api/v1/openapi.json"}, "dashboard_v2": {"const": "/api/v2/openapi.json"}}, ("dashboard", "dashboard_v2"))},
             ("api_version", "gateway_api_version", "operations", "features", "limits", "contracts")),
     }
 
@@ -121,9 +121,9 @@ def schemas(strict_commands):
 def capabilities():
     """SBC support, independent of gateway readiness and per-device support."""
     return {"api_version": CONTRACT_VERSION, "gateway_api_version": "1", "operations": sorted(OPS),
-            "features": {"locations": True, **dict.fromkeys(("device_configuration", "dashboard_layouts", "history_query", "command_tracking", "event_stream"), False)},
+            "features": {"locations": True, "device_configuration": True, "dashboard_layouts": True, "history_query": True, "command_tracking": False, "event_stream": False},
             "limits": {"command_bytes": 512, "pairing_seconds": 180, "history_events": 100, "locations": 50, "location_name_characters": 80},
-            "contracts": {"dashboard": "/api/v1/openapi.json"}}
+            "contracts": {"dashboard": "/api/v1/openapi.json", "dashboard_v2": "/api/v2/openapi.json"}}
 
 
 def response(description, schema, mime="application/json"):
@@ -211,9 +211,11 @@ def main():
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1] / "docs" / "api"
-    for service in ("dashboard", "gateway"):
-        path = root / (service + "-v1.openapi.json")
-        content = json.dumps(contract(service), indent=2, ensure_ascii=False) + "\n"
+    from .contracts_v2 import contract_v2
+    documents = {"dashboard-v1": contract(), "gateway-v1": contract("gateway"), "dashboard-v2": contract_v2()}
+    for service, document in documents.items():
+        path = root / (service + ".openapi.json")
+        content = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
         if args.check:
             if not path.exists() or path.read_text() != content:
                 raise SystemExit(f"Contract out of date: {path}; run python3 -m sbc.contracts")

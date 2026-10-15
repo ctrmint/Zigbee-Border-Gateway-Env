@@ -45,7 +45,7 @@ class SystemTests(unittest.TestCase):
         self.poller.once();server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(self.store,self.poller,self.gateway,TOKEN))
         thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start();url='http://127.0.0.1:'+str(server.server_port)
         try:
-            with urllib.request.urlopen(url+'/') as r:self.assertIn(b'Zigbee house gateway',r.read())
+            with urllib.request.urlopen(url+'/') as r:self.assertIn(b'Zigbee dashboard',r.read())
             with self.assertRaises(urllib.error.HTTPError) as e:urllib.request.urlopen(url+'/api/v1/state')
             self.assertEqual(e.exception.code,401);dashboard=Gateway(url,TOKEN)
             for op in ([], {}):
