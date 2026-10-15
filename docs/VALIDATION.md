@@ -223,3 +223,25 @@ from a subsequent read response. Fish Tank assignment was retained and dashboard
 freshness is4500 seconds. Longer-term periodic delivery is still under observation;
 no humidity operations were required. Private hardware-verification.json is saved
 in the temperature-only deployment backup directory.
+
+
+## Location-first navigation, issue #13, 2026-10-15
+
+- PASS: all 15 Chromium cases, including four navigation cases for location-first
+  connection/reconnect/reload, explicit Setup selection during refresh, empty-list
+  onboarding, rename/deletion fallback, left/right alignment, long-name overflow,
+  keyboard order across both groups, and logout/deletion during pending history.
+  Existing sensor commissioning, widgets, chart editing and configuration conflicts
+  retain their browser coverage.
+- PASS: JavaScript syntax, generated-contract consistency and Git whitespace checks.
+  This changes static browser assets only; API/database formats and firmware are
+  unchanged.
+- PASS: live Pi browser verification on desktop and 360px mobile. The first saved
+  location opened after token connection, location tabs remained left-aligned,
+  Setup stayed right-aligned, manual Setup selection survived refresh, keyboard
+  Home returned to the first location, and reconnect again selected that location.
+  Logout cleared authenticated content and no browser errors occurred.
+- PASS: existing layout data, locations and assignments matched the predeployment
+  snapshot, with SQLite integrity OK. Static assets were deployed after private
+  source/database backup; no service or coordinator restart was required. Local
+  evidence is in backups/dashboard-issue13-20261015T140719Z/.

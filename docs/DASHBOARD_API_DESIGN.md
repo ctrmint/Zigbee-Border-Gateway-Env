@@ -46,7 +46,14 @@ Numeric widgets display the latest received value, unit and receipt age. They do
 not request a radio read. Charts use indexed stored measurements with selectable
 hour, six-hour, day, week and thirty-day ranges. Titles, types, source selection,
 order and ranges persist. Mouse and keyboard inspection shows timestamps/values.
-Tab navigation supports arrows, Home and End, with selected/focused tab semantics.
+Location tabs align left in an independently scrollable group, with Configuration
+& Setup aligned right. After connection, the first location in the server-provided
+order is selected; Setup is the fallback only for an empty location list. Manual
+Setup selection survives refresh, renames preserve selection by ID, and deleting
+the active location selects the first remaining location. Login/logout retains
+no preferred-location or token value in browser persistent storage.
+Tab navigation supports arrows, Home and End in location-then-Setup order, with
+selected/focused tab semantics.
 
 On first migration, assigned supported endpoint measurements receive initial
 numeric/chart pairs, within the 100-widget limit. This runs once: deleting widgets

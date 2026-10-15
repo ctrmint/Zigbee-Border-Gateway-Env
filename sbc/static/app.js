@@ -1,6 +1,6 @@
 'use strict';
 let token='',session=0,timer=null,refreshing=false,online=false,saving=false;
-let commissioningJobs=[],config=null,etag='',state=null,views=[],activeTab='setup',setupSignature='',widgetSignature='',editor=null,conflictEdit=null,chartEpoch=0;
+let commissioningJobs=[],config=null,etag='',state=null,views=[],activeTab=null,setupSignature='',widgetSignature='',editor=null,conflictEdit=null,chartEpoch=0;
 const requests=new Set(),chartRequests=new Set(),chartJobs=new Map(),historyCache=new Map();
 const $=id=>document.getElementById(id),clone=value=>JSON.parse(JSON.stringify(value));
 const rangeNames={3600:'Last hour',21600:'Last 6 hours',86400:'Last 24 hours',604800:'Last 7 days',2592000:'Last 30 days'};
@@ -36,12 +36,24 @@ function displayValue(value,unit){value=converted(value,unit);return value===nul
 function age(received){if(!received)return 'No reading received';const s=Math.max(0,Math.floor(Date.now()/1000-received));return s<60?'Received just now':s<3600?`Received ${Math.floor(s/60)}m ago`:`Received ${Math.floor(s/3600)}h ago`;}
 function locate(source){const d=views.find(d=>d.ieee===source.ieee);return {device:d,measurement:d?.measurements.find(m=>m.endpoint===source.endpoint&&m.cluster===source.cluster&&m.attribute===source.attribute)};}
 function sources(location){return views.filter(d=>d.location_id===location).flatMap(d=>d.measurements.map(m=>({source:{ieee:d.ieee,endpoint:m.endpoint,cluster:m.cluster,attribute:m.attribute},label:`${d.name} · Endpoint ${m.endpoint} · ${m.label}`,title:m.label})));}
-function selectTab(id,focus=false){activeTab=id;chartEpoch++;for(const c of chartRequests)c.abort();chartJobs.clear();widgetSignature='';renderTabs();if(id==='setup'){renderSetup();loadEvents();}else renderLocation();if(focus)document.querySelector('[role=tab][aria-selected=true]')?.focus();}
+function clearChartRequests(){chartEpoch++;for(const c of chartRequests)c.abort();chartJobs.clear();widgetSignature='';}
+function selectTab(id,focus=false){
+  activeTab=id;clearChartRequests();renderTabs();if(activeTab==='setup'){renderSetup();loadEvents();}else renderLocation();
+  if(focus){const selected=document.querySelector('[role=tab][aria-selected=true]');selected?.focus({preventScroll:true});selected?.scrollIntoView({block:'nearest',inline:'nearest'});}
+}
 function renderTabs(){
-  if(!config)return;const tabs=[{id:'setup',name:'Configuration & Setup'},...config.locations];if(!tabs.some(t=>t.id===activeTab))activeTab='setup';
-  const signature=JSON.stringify([tabs,activeTab]);if($('tabs').dataset.signature!==signature){$('tabs').dataset.signature=signature;$('tabs').replaceChildren();
+  if(!config)return;const tabs=[...config.locations,{id:'setup',name:'Configuration & Setup'}];
+  const selectionChanged=!tabs.some(t=>t.id===activeTab);if(selectionChanged){activeTab=config.locations[0]?.id||'setup';clearChartRequests();}
+  const signature=JSON.stringify([tabs,activeTab]);if($('tabs').dataset.signature!==signature){
+    const focusedId=document.activeElement?.closest('[role=tab]')?.id;
+    $('tabs').dataset.signature=signature;const locations=el('div',undefined,'location-tabs');locations.id='location-tabs';locations.setAttribute('role','presentation');
+    const scroll=$('location-tabs')?.scrollLeft||0;$('tabs').replaceChildren(locations);
     tabs.forEach((t,i)=>{const n=btn(t.name,()=>selectTab(t.id));n.id=t.id==='setup'?'tab-setup':'tab-'+t.id;n.setAttribute('role','tab');n.setAttribute('aria-selected',String(activeTab===t.id));n.setAttribute('aria-controls',t.id==='setup'?'setup-panel':'location-panel');n.tabIndex=activeTab===t.id?0:-1;n.title=t.name;
-      n.onkeydown=e=>{let next=i;if(e.key==='ArrowRight')next=(i+1)%tabs.length;else if(e.key==='ArrowLeft')next=(i+tabs.length-1)%tabs.length;else if(e.key==='Home')next=0;else if(e.key==='End')next=tabs.length-1;else return;e.preventDefault();selectTab(tabs[next].id,true);};$('tabs').append(n);});}
+      n.onkeydown=e=>{let next=i;if(e.key==='ArrowRight')next=(i+1)%tabs.length;else if(e.key==='ArrowLeft')next=(i+tabs.length-1)%tabs.length;else if(e.key==='Home')next=0;else if(e.key==='End')next=tabs.length-1;else return;e.preventDefault();selectTab(tabs[next].id,true);};
+      (t.id==='setup'?$('tabs'):locations).append(n);
+    });locations.scrollLeft=selectionChanged?0:scroll;
+    if(focusedId){const focused=document.getElementById(focusedId)||document.querySelector('[role=tab][aria-selected=true]');focused?.focus({preventScroll:true});}
+  }
   $('tabs').hidden=false;$('setup-panel').hidden=activeTab!=='setup';$('location-panel').hidden=activeTab==='setup';if(activeTab!=='setup')$('location-panel').setAttribute('aria-labelledby','tab-'+activeTab);
 }
 async function reportingRequest(body){try{await api('/api/v2/commissioning',body);document.activeElement?.blur();setupSignature='';await refresh();$('notice').textContent=body.action?'Commissioning cancelled.':'Reporting setup queued. Briefly press the sensor button to wake it.';}catch(e){message(e);}}
@@ -125,7 +137,7 @@ async function refresh(){
     $('status').textContent=(state.gateway.mode==='simulator'?'SIMULATOR · ':'')+(online?'Gateway connected':'Gateway offline / starting');$('sensor-count').textContent=`${state.devices.length} device${state.devices.length===1?'':'s'} registered`;$('home-title').textContent=config.dashboard.title;document.title=config.dashboard.title+' · Zigbee dashboard';$('join').disabled=!online;$('close').disabled=!online;$('welcome').hidden=true;$('token-label').hidden=true;$('connect').hidden=true;$('logout').hidden=false;renderTabs();renderSetup();renderLocation();if(state.gateway.gap&&!$('notice').textContent)$('notice').textContent='A history interruption was recorded. Charts mark known ingestion gaps.';
   }catch(e){if(epoch!==session||e.name==='AbortError')return;online=false;$('status').textContent=e.message;$('join').disabled=true;$('close').disabled=true;for(const b of $('devices').querySelectorAll('.actions button'))b.disabled=true;}finally{if(epoch===session)refreshing=false;}
 }
-function endSession(){session++;chartEpoch++;for(const c of requests)c.abort();clearTimeout(timer);refreshing=false;token='';commissioningJobs=[];online=false;config=null;state=null;views=[];etag='';saving=false;conflictEdit=null;editor=null;activeTab='setup';setupSignature='';widgetSignature='';historyCache.clear();chartJobs.clear();if($('widget-dialog').open)$('widget-dialog').close();for(const id of ['devices','widgets','location-list','tabs'])$(id).replaceChildren();delete $('tabs').dataset.signature;for(const id of ['tabs','setup-panel','location-panel','conflict','logout'])$(id).hidden=true;for(const id of ['welcome','token-label','connect'])$(id).hidden=false;$('notice').textContent='';$('status').textContent='Disconnected';$('sensor-count').textContent='';$('home-title').textContent='Home';$('events').textContent='Disconnected.';$('join').disabled=true;$('close').disabled=true;}
+function endSession(){session++;chartEpoch++;for(const c of requests)c.abort();clearTimeout(timer);refreshing=false;token='';commissioningJobs=[];online=false;config=null;state=null;views=[];etag='';saving=false;conflictEdit=null;editor=null;activeTab=null;setupSignature='';widgetSignature='';historyCache.clear();chartJobs.clear();if($('widget-dialog').open)$('widget-dialog').close();for(const id of ['devices','widgets','location-list','tabs'])$(id).replaceChildren();delete $('tabs').dataset.signature;for(const id of ['tabs','setup-panel','location-panel','conflict','logout'])$(id).hidden=true;for(const id of ['welcome','token-label','connect'])$(id).hidden=false;$('notice').textContent='';$('status').textContent='Disconnected';$('sensor-count').textContent='';$('home-title').textContent='Home';$('events').textContent='Disconnected.';$('join').disabled=true;$('close').disabled=true;}
 async function tick(epoch=session){await refresh();if(epoch===session&&token)timer=setTimeout(()=>tick(epoch),online?3000:10000);}
 $('connect').onclick=()=>{const next=$('token').value.trim();endSession();token=next;$('token').value='';$('logout').hidden=false;tick();};$('logout').onclick=endSession;
 $('location-form').onsubmit=async e=>{e.preventDefault();const input=$('location-name'),button=$('add-location');button.disabled=true;if(await legacy('locations',{name:input.value},'POST','Location created.'))input.value='';button.disabled=false;document.activeElement?.blur();setupSignature='';renderSetup();};
