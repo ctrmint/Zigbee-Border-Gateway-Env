@@ -41,6 +41,16 @@ Location editing works while the ESP32 is offline. Move or unassign all devices
 before deleting a location. Names and assignments are stored in the same SQLite
 database as device/history data and are included in its backups.
 
+Location tabs sit on the left of the navigation bar; **Configuration & Setup**
+is separate on the right. Connecting with the token opens the first saved location
+in the displayed order, including an empty location. Reconnecting or reloading
+uses the same rule. Setup opens automatically only when there are no saved
+locations. Select Setup explicitly for configuration; polling preserves your
+selection. If the selected location is deleted, the first remaining location
+opens, or Setup when none remain. Location tabs scroll independently on narrow
+screens so Setup remains reachable; arrow keys, Home and End follow the visible
+order of locations then Setup.
+
 Configuration & Setup contains pairing, inventory, locations, device names and
 freshness settings. Every location has its own tab with editable numeric readings
 and history charts. Use Add widget to select a device endpoint measurement, or
