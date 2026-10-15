@@ -68,6 +68,8 @@ class ContractTests(unittest.TestCase):
             self.validate("dashboard", "Error", json.load(error.exception))
         features = self.dashboard.request("/api/v1/capabilities")["features"]
         self.assertTrue(features.pop('locations'))
+        for feature in ('device_configuration', 'dashboard_layouts', 'history_query'):
+            self.assertTrue(features.pop(feature))
         self.assertFalse(any(features.values()))
 
     def test_error_responses(self):

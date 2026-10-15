@@ -1,0 +1,1069 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Zigbee dashboard v2 API",
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/v2/configuration": {
+      "get": {
+        "operationId": "v2_configuration",
+        "responses": {
+          "200": {
+            "description": "Current configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Configuration"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "replace_configuration",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigurationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved configuration and new ETag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Configuration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Revision required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/devices": {
+      "get": {
+        "operationId": "v2_devices",
+        "responses": {
+          "200": {
+            "description": "Current devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Devices"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/history": {
+      "get": {
+        "operationId": "v2_history",
+        "responses": {
+          "200": {
+            "description": "Current history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/History"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query or cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "ieee",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{16}$"
+            }
+          },
+          {
+            "name": "endpoint",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 240
+            }
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          },
+          {
+            "name": "attribute",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/gateway": {
+      "get": {
+        "operationId": "v2_gateway",
+        "responses": {
+          "200": {
+            "description": "Current gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gateway"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/capabilities": {
+      "get": {
+        "operationId": "v2_capabilities",
+        "responses": {
+          "200": {
+            "description": "Current capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/openapi.json": {
+      "get": {
+        "operationId": "v2_contract",
+        "responses": {
+          "200": {
+            "description": "This contract",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "ConfigurationInput": {
+        "type": "object",
+        "properties": {
+          "locations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 50
+          },
+          "devices": {
+            "type": "object",
+            "maxProperties": 50,
+            "propertyNames": {
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "location_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "freshness_seconds": {
+                  "type": "integer",
+                  "minimum": 60,
+                  "maximum": 604800
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "dashboard": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "temperature_unit": {
+                "enum": [
+                  "celsius",
+                  "fahrenheit"
+                ]
+              },
+              "widgets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                    },
+                    "type": {
+                      "enum": [
+                        "numeric",
+                        "chart"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "source": {
+                      "type": "object",
+                      "properties": {
+                        "ieee": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{16}$"
+                        },
+                        "endpoint": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 240
+                        },
+                        "cluster": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        },
+                        "attribute": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "ieee",
+                        "endpoint",
+                        "cluster",
+                        "attribute"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 99
+                    },
+                    "time_range": {
+                      "enum": [
+                        3600,
+                        21600,
+                        86400,
+                        604800,
+                        2592000
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "title",
+                    "source",
+                    "position",
+                    "time_range"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 100
+              }
+            },
+            "required": [
+              "title",
+              "temperature_unit",
+              "widgets"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "locations",
+          "devices",
+          "dashboard"
+        ],
+        "additionalProperties": false
+      },
+      "Configuration": {
+        "type": "object",
+        "properties": {
+          "locations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 50
+          },
+          "devices": {
+            "type": "object",
+            "maxProperties": 50,
+            "propertyNames": {
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "location_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "freshness_seconds": {
+                  "type": "integer",
+                  "minimum": 60,
+                  "maximum": 604800
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "dashboard": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "temperature_unit": {
+                "enum": [
+                  "celsius",
+                  "fahrenheit"
+                ]
+              },
+              "widgets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                    },
+                    "type": {
+                      "enum": [
+                        "numeric",
+                        "chart"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "source": {
+                      "type": "object",
+                      "properties": {
+                        "ieee": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{16}$"
+                        },
+                        "endpoint": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 240
+                        },
+                        "cluster": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        },
+                        "attribute": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "ieee",
+                        "endpoint",
+                        "cluster",
+                        "attribute"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 99
+                    },
+                    "time_range": {
+                      "enum": [
+                        3600,
+                        21600,
+                        86400,
+                        604800,
+                        2592000
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "title",
+                    "source",
+                    "position",
+                    "time_range"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 100
+              }
+            },
+            "required": [
+              "title",
+              "temperature_unit",
+              "widgets"
+            ],
+            "additionalProperties": false
+          },
+          "schema_version": {
+            "const": 1
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "schema_version",
+          "revision",
+          "locations",
+          "devices",
+          "dashboard"
+        ],
+        "additionalProperties": false
+      },
+      "Devices": {
+        "type": "object",
+        "properties": {
+          "devices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ieee": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "location_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "registered": {
+                  "type": "boolean"
+                },
+                "discovery": {
+                  "enum": [
+                    "unknown",
+                    "partial"
+                  ]
+                },
+                "freshness_seconds": {
+                  "type": "integer",
+                  "minimum": 60,
+                  "maximum": 604800
+                },
+                "measurements": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "endpoint": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 240
+                      },
+                      "cluster": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535
+                      },
+                      "attribute": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": [
+                          "number",
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "unit": {
+                        "type": "string"
+                      },
+                      "received_at": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "quality": {
+                        "enum": [
+                          "valid",
+                          "invalid",
+                          "missing",
+                          "stale"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "endpoint",
+                      "cluster",
+                      "attribute",
+                      "label",
+                      "value",
+                      "unit",
+                      "received_at",
+                      "quality"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "ieee",
+                "name",
+                "location_id",
+                "registered",
+                "discovery",
+                "freshness_seconds",
+                "measurements"
+              ]
+            }
+          }
+        },
+        "required": [
+          "devices"
+        ]
+      },
+      "History": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "received_at": {
+                  "type": "number"
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "quality": {
+                  "enum": [
+                    "valid",
+                    "invalid"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "received_at",
+                "value",
+                "unit",
+                "quality"
+              ]
+            },
+            "maxItems": 500
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gaps_truncated": {
+            "type": "boolean"
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "number"
+                },
+                "to": {
+                  "type": "number"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "from",
+                "to",
+                "reason"
+              ]
+            },
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "gaps",
+          "gaps_truncated"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "code",
+                    "message"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "details"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "request_id"
+        ]
+      },
+      "Gateway": {
+        "type": "object",
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mode": {
+            "enum": [
+              "hardware",
+              "simulator"
+            ]
+          }
+        },
+        "required": [
+          "connected",
+          "error"
+        ]
+      },
+      "Capabilities": {
+        "type": "object",
+        "properties": {
+          "api_version": {
+            "const": "2"
+          },
+          "widget_types": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "numeric",
+                "chart"
+              ]
+            }
+          },
+          "features": {
+            "type": "object",
+            "properties": {
+              "configuration": {
+                "const": true
+              },
+              "history_query": {
+                "const": true
+              },
+              "dashboard_layouts": {
+                "const": true
+              }
+            },
+            "required": [
+              "configuration",
+              "history_query",
+              "dashboard_layouts"
+            ]
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "configuration_bytes": {
+                "type": "integer"
+              },
+              "widgets": {
+                "type": "integer"
+              },
+              "locations": {
+                "type": "integer"
+              },
+              "device_overrides": {
+                "type": "integer"
+              },
+              "history_page": {
+                "type": "integer"
+              },
+              "history_days": {
+                "type": "integer"
+              },
+              "history_retention_days": {
+                "type": "integer"
+              },
+              "chart_ranges": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            },
+            "required": [
+              "configuration_bytes",
+              "widgets",
+              "locations",
+              "device_overrides",
+              "history_page",
+              "history_days",
+              "history_retention_days",
+              "chart_ranges"
+            ]
+          }
+        },
+        "required": [
+          "api_version",
+          "widget_types",
+          "features",
+          "limits"
+        ]
+      }
+    }
+  }
+}

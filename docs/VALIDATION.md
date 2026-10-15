@@ -106,3 +106,35 @@ The hardware ingestion database is `data/hardware.sqlite3`, separate from demo
 data. Credentials, databases and device backups remain Git-ignored. A successful
 coordinator/RCP handshake and network formation do not establish interoperability
 or delivery to a real Zigbee device; pairing a test device is the next check.
+
+## Tabbed location dashboard, issue #8, 2026-10-13
+
+- PASS: 29 API/integration tests, covering the existing v1 behavior and v2
+  configuration, validation, cross-store revision conflicts, migration, seeded
+  layouts, history pagination/filter binding, invalid samples, gaps, retention,
+  schema/export consistency and persistence across service/store restart.
+- PASS: eight Chromium interaction cases covering location tabs/lifecycle,
+  widget creation/edit/removal/order/ranges, distinct endpoint sources, device
+  reassignment, reload persistence, configuration conflict reapplication,
+  step charts for reported state, stale/invalid/offline data, keyboard/mobile
+  operation and logout during pending telemetry/history requests.
+- PASS: JavaScript syntax, Python compilation, exported-contract consistency and
+  Git whitespace checks. Browser validation used an isolated development
+  environment with Chromium libraries/fonts extracted locally on the Pi.
+- PASS: rehearsal and live migration of the existing hardware database preserved
+  its device, two locations, assignment and all 17 events. Nine supported
+  measurements were backfilled and four initial numeric/chart widgets created.
+  SQLite integrity checks passed before and after deployment. Original database
+  and deployed-code backups are local and Git-ignored.
+- PASS: real LAN browser validation after service restart showed Configuration
+  & Setup plus both location tabs, two numeric readings and two actual history
+  charts for the assigned temperature/humidity sensor. Empty-location guidance,
+  mobile width and logout passed without browser errors. Gateway polling remained
+  connected and ready. This does not establish sensor reporting frequency or
+  prove compatibility beyond the observed device/measurements.
+
+Runtime continues to require only Python's standard library. The browser uses
+native SVG charts and fetch; no CDN or chart-library installation is required.
+Dense charts stop at 10,000 readings with a visible shorter-range notice. Fifty
+devices, one hundred widgets and long-duration concurrent-client load have not
+been load-tested. Firmware was not changed or reflashed for this dashboard work.

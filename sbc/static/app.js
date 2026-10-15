@@ -1,82 +1,118 @@
 'use strict';
-let token='',timer=null,online=false,session=0,refreshing=false;
-let locations=[],locationSignature='';
-const requests=new Set();
-const $=id=>document.getElementById(id);
+let token='',session=0,timer=null,refreshing=false,online=false,saving=false;
+let config=null,etag='',state=null,views=[],activeTab='setup',setupSignature='',widgetSignature='',editor=null,conflictEdit=null,chartEpoch=0;
+const requests=new Set(),chartRequests=new Set(),chartJobs=new Map(),historyCache=new Map();
+const $=id=>document.getElementById(id),clone=value=>JSON.parse(JSON.stringify(value));
+const rangeNames={3600:'Last hour',21600:'Last 6 hours',86400:'Last 24 hours',604800:'Last 7 days',2592000:'Last 30 days'};
 function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;}
-function btn(text,fn,disabled=false){const n=el('button',text);n.disabled=disabled;n.onclick=fn;return n;}
-async function api(path,body,method=body?'POST':'GET'){
-  const epoch=session,controller=new AbortController();requests.add(controller);
-  try{
-    const r=await fetch('/api/v1/'+path,{method,signal:controller.signal,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
-    const d=await r.json();
+function btn(label,action,disabled=false){const n=el('button',label);n.type='button';n.disabled=disabled;n.onclick=action;return n;}
+function svgEl(tag,attrs={},text){const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v);if(text!==undefined)n.textContent=text;return n;}
+function widgetId(){const bytes=new Uint8Array(12);crypto.getRandomValues(bytes);return 'w-'+Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');}
+function sourceKey(s){return [s.ieee,s.endpoint,s.cluster,s.attribute].join(':');}
+function message(e){if(e.name!=='AbortError')$('notice').textContent=e.message;}
+async function api(path,body,method=body?'POST':'GET',headers={},chart=false){
+  const epoch=session,c=new AbortController();requests.add(c);if(chart)chartRequests.add(c);
+  try{const r=await fetch(path,{method,signal:c.signal,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',...headers},body:body?JSON.stringify(body):undefined});const data=await r.json();
     if(epoch!==session)throw new DOMException('Session changed','AbortError');
-    if(!r.ok)throw Error(d.error||'Request failed');
-    return d;
-  }finally{requests.delete(controller);}
+    if(!r.ok){const e=Error(data.error?.message||data.error||'Request failed');e.status=r.status;throw e;}return {data,etag:r.headers.get('ETag')};
+  }finally{requests.delete(c);chartRequests.delete(c);}
 }
-function reportError(e){if(e.name!=='AbortError')$('notice').textContent=e.message;}
-async function command(c){try{const d=await api('commands',c);$('notice').textContent=d.accepted?'Command accepted. Waiting for device report.':'Command rejected.';await refresh();}catch(e){reportError(e);}}
-async function configure(path,body,method,message){try{await api(path,body,method);$('notice').textContent=message;await refresh();return true;}catch(e){reportError(e);return false;}}
-function renderLocations(){
-  const signature=JSON.stringify(locations);
-  if(signature===locationSignature)return;
-  // Preserve drafts while telemetry refreshes.
-  if(document.activeElement?.closest('#location-list'))return;
-  locationSignature=signature;$('location-list').replaceChildren();
-  for(const location of locations){
-    const row=el('div',undefined,'location-row'),label=el('label',`Location · ${location.device_count} device${location.device_count===1?'':'s'}`);
-    const input=el('input');input.value=location.name;input.maxLength=80;input.setAttribute('aria-label',`Rename ${location.name}`);label.append(input);
-    row.append(label,btn('Save name',async()=>{if(await configure('locations/'+location.id,{name:input.value},'PUT','Location renamed.')){document.activeElement.blur();renderLocations();}}));
-    const remove=btn('Delete',async()=>{if(await configure('locations/'+location.id,null,'DELETE','Location deleted.')){document.activeElement.blur();renderLocations();}},location.device_count>0);
-    remove.className='quiet';remove.title=location.device_count?'Move or unassign devices before deleting.':'Delete empty location';row.append(remove);$('location-list').append(row);
-  }
-  if(!locations.length)$('location-list').append(el('p','Add a location, then assign sensors using the selector on each device.','small'));
+function draftActive(){return $('widget-dialog').open||!!document.activeElement?.closest('form,#location-list');}
+async function loadConfiguration(){const r=await api('/api/v2/configuration');config=r.data;etag=r.etag;setupSignature='';widgetSignature='';return config;}
+async function saveConfig(mutate,base=config,revision=etag){
+  if(saving)return false;const epoch=session;saving=true;
+  try{const draft=clone(base);mutate(draft);const r=await api('/api/v2/configuration',{locations:draft.locations,devices:draft.devices,dashboard:draft.dashboard},'PUT',{'If-Match':revision});
+    config=r.data;etag=r.etag;conflictEdit=null;$('conflict').hidden=true;$('notice').textContent='Dashboard saved.';
+    if($('widget-dialog').open)$('widget-dialog').close();editor=null;document.activeElement?.blur();setupSignature='';widgetSignature='';
+    await refresh();renderTabs();renderSetup();renderLocation();return true;
+  }catch(e){if(e.status===412){conflictEdit=mutate;$('conflict').hidden=false;if($('widget-dialog').open)$('widget-dialog').close();editor=null;$('notice').textContent='Your edit is waiting for conflict resolution.';}else{message(e);if($('widget-dialog').open)$('widget-error').textContent=e.message;}return false;
+  }finally{if(epoch===session)saving=false;}
+}
+async function legacy(path,body,method,notice){const epoch=session;try{await api('/api/v1/'+path,body,method);if(epoch!==session)return false;await loadConfiguration();$('notice').textContent=notice;await refresh();return true;}catch(e){message(e);return false;}}
+async function command(body){try{const r=await api('/api/v1/commands',body);$('notice').textContent=r.data.accepted?'Command accepted. A device response may take time.':'Command rejected.';await refresh();}catch(e){message(e);}}
+function converted(value,unit){if(value===null||value===undefined)return null;return unit==='°C'&&config.dashboard.temperature_unit==='fahrenheit'?value*9/5+32:value;}
+function displayUnit(unit){return unit==='°C'&&config.dashboard.temperature_unit==='fahrenheit'?'°F':unit==='on/off'?'':unit;}
+function displayValue(value,unit){value=converted(value,unit);return value===null?'—':typeof value==='boolean'?(value?'On':'Off'):Number(value).toLocaleString(undefined,{maximumFractionDigits:2});}
+function age(received){if(!received)return 'No reading received';const s=Math.max(0,Math.floor(Date.now()/1000-received));return s<60?'Received just now':s<3600?`Received ${Math.floor(s/60)}m ago`:`Received ${Math.floor(s/3600)}h ago`;}
+function locate(source){const d=views.find(d=>d.ieee===source.ieee);return {device:d,measurement:d?.measurements.find(m=>m.endpoint===source.endpoint&&m.cluster===source.cluster&&m.attribute===source.attribute)};}
+function sources(location){return views.filter(d=>d.location_id===location).flatMap(d=>d.measurements.map(m=>({source:{ieee:d.ieee,endpoint:m.endpoint,cluster:m.cluster,attribute:m.attribute},label:`${d.name} · Endpoint ${m.endpoint} · ${m.label}`,title:m.label})));}
+function selectTab(id,focus=false){activeTab=id;chartEpoch++;for(const c of chartRequests)c.abort();chartJobs.clear();widgetSignature='';renderTabs();if(id==='setup'){renderSetup();loadEvents();}else renderLocation();if(focus)document.querySelector('[role=tab][aria-selected=true]')?.focus();}
+function renderTabs(){
+  if(!config)return;const tabs=[{id:'setup',name:'Configuration & Setup'},...config.locations];if(!tabs.some(t=>t.id===activeTab))activeTab='setup';
+  const signature=JSON.stringify([tabs,activeTab]);if($('tabs').dataset.signature!==signature){$('tabs').dataset.signature=signature;$('tabs').replaceChildren();
+    tabs.forEach((t,i)=>{const n=btn(t.name,()=>selectTab(t.id));n.id=t.id==='setup'?'tab-setup':'tab-'+t.id;n.setAttribute('role','tab');n.setAttribute('aria-selected',String(activeTab===t.id));n.setAttribute('aria-controls',t.id==='setup'?'setup-panel':'location-panel');n.tabIndex=activeTab===t.id?0:-1;n.title=t.name;
+      n.onkeydown=e=>{let next=i;if(e.key==='ArrowRight')next=(i+1)%tabs.length;else if(e.key==='ArrowLeft')next=(i+tabs.length-1)%tabs.length;else if(e.key==='Home')next=0;else if(e.key==='End')next=tabs.length-1;else return;e.preventDefault();selectTab(tabs[next].id,true);};$('tabs').append(n);});}
+  $('tabs').hidden=false;$('setup-panel').hidden=activeTab!=='setup';$('location-panel').hidden=activeTab==='setup';if(activeTab!=='setup')$('location-panel').setAttribute('aria-labelledby','tab-'+activeTab);
 }
 function deviceCard(d){
-  const card=el('article',undefined,'card'),model=Object.values(d.attributes).find(a=>a.cluster===0&&a.attribute===5);
-  card.append(el('h3',model?.raw||'Zigbee device'),el('div',d.ieee,'small'),el('p',`Network address: 0x${Number(d.nwk).toString(16).padStart(4,'0')} · ${d.active?'Registered':'Left network'}`,'small'));
-  const label=el('label','Location'),select=el('select');select.setAttribute('aria-label',`Location for ${d.ieee}`);
-  const unassigned=el('option','Unassigned');unassigned.value='';select.append(unassigned);
-  for(const location of locations){const option=el('option',location.name);option.value=location.id;select.append(option);}
-  select.value=d.location_id||'';
-  select.onchange=async()=>{select.disabled=true;const ok=await configure('devices/'+d.ieee+'/location',{location_id:select.value||null},'PUT','Device location saved.');if(!ok)select.value=d.location_id||'';select.disabled=false;select.blur();await refresh();};
-  label.append(select);card.append(label);
-  const metrics=el('div',undefined,'metrics');
-  for(const a of Object.values(d.attributes)){if(a.unit){const m=el('div',undefined,'metric');m.append(el('strong',a.value===null?'Unknown':a.unit==='on/off'?(a.value?'On':'Off'):a.value.toFixed(2)),el('span',a.unit==='on/off'?'Reported state':a.unit),el('div',new Date(a.received*1000).toLocaleString(),'small'));metrics.append(m);}}
-  card.append(metrics);const actions=el('div',undefined,'actions');actions.append(btn('Discover',()=>command({op:'discover',ieee:d.ieee}),!online||!d.active));
-  for(const [ep,desc] of Object.entries(d.endpoints)){
-    if(desc.input_clusters.includes(6)){for(const state of [true,false])actions.append(btn(`${state?'On':'Off'} · EP ${ep}`,()=>command({op:'on_off',ieee:d.ieee,endpoint:Number(ep),state}),!online||!d.active));}
-    for(const cluster of desc.input_clusters.filter(c=>[6,0x0402,0x0405].includes(c)))actions.append(btn(`Read ${cluster.toString(16)} · EP ${ep}`,()=>command({op:'read',ieee:d.ieee,endpoint:Number(ep),cluster,attribute:0}),!online||!d.active));
-  }
+  const view=views.find(v=>v.ieee===d.ieee),setting=config.devices[d.ieee],card=el('article',undefined,'card');card.append(el('h3',view?.name||d.ieee),el('div',d.ieee,'device-id'));
+  const form=el('form'),name=el('input'),fresh=el('input'),select=el('select');name.value=setting?.name||'';name.maxLength=80;name.placeholder='Optional friendly name';name.setAttribute('aria-label','Name for '+d.ieee);
+  fresh.type='number';fresh.min='60';fresh.max='604800';fresh.value=setting?.freshness_seconds||3600;fresh.setAttribute('aria-label','Freshness seconds for '+d.ieee);
+  for(const [label,input] of [['Device name',name],['Reading freshness (seconds)',fresh]]){const l=el('label',label);l.append(input);form.append(l);}const base=clone(config),revision=etag,save=el('button','Save device settings');save.type='submit';form.append(save);
+  form.onsubmit=async e=>{e.preventDefault();const n=name.value.trim(),f=Number(fresh.value);save.disabled=true;await saveConfig(draft=>{if(!draft.devices[d.ieee])throw Error('Device is no longer available.');if(n)draft.devices[d.ieee].name=n;else delete draft.devices[d.ieee].name;draft.devices[d.ieee].freshness_seconds=f;},base,revision);save.disabled=false;};card.append(form);
+  const label=el('label','Location');select.setAttribute('aria-label','Location for '+d.ieee);const unassigned=el('option','Unassigned');unassigned.value='';select.append(unassigned);for(const l of config.locations){const o=el('option',l.name);o.value=l.id;select.append(o);}select.value=d.location_id||'';
+  select.onchange=async()=>{select.disabled=true;const ok=await legacy('devices/'+d.ieee+'/location',{location_id:select.value||null},'PUT','Device location saved.');if(!ok)select.value=d.location_id||'';select.disabled=false;select.blur();setupSignature='';renderSetup();};label.append(select);card.append(label);
+  const metrics=el('div',undefined,'metrics');for(const m of view?.measurements||[]){const metric=el('div',undefined,'metric');metric.append(el('strong',`${displayValue(m.value,m.unit)} ${displayUnit(m.unit)}`),el('span',`${m.label} · EP ${m.endpoint}`,'small'));metrics.append(metric);}card.append(metrics,el('p',`${d.active?'Registered':'Left network'} · ${view?.discovery==='partial'?'Endpoint information available':'Discovery needed'}`,'small'));
+  const actions=el('div',undefined,'actions');actions.append(btn('Discover',()=>command({op:'discover',ieee:d.ieee}),!online||!d.active));
+  for(const [ep,desc] of Object.entries(d.endpoints)){if(desc.input_clusters.includes(6))for(const value of [true,false])actions.append(btn(`${value?'On':'Off'} · EP ${ep}`,()=>command({op:'on_off',ieee:d.ieee,endpoint:Number(ep),state:value}),!online||!d.active));for(const cluster of desc.input_clusters.filter(c=>[6,1026,1029].includes(c)))actions.append(btn(`Read ${cluster===1026?'temperature':cluster===1029?'humidity':'state'} · EP ${ep}`,()=>command({op:'read',ieee:d.ieee,endpoint:Number(ep),cluster,attribute:0}),!online||!d.active));}
   card.append(actions);const details=el('details');details.append(el('summary','Endpoints and raw attributes'),el('pre',JSON.stringify({endpoints:d.endpoints,attributes:d.attributes},null,2)));card.append(details);return card;
 }
-function render(devices){
-  if(document.activeElement?.closest('#devices select'))return;
-  $('devices').replaceChildren();
-  for(const location of [...locations,{id:null,name:'Unassigned'}]){
-    const members=devices.filter(d=>(d.location_id||null)===location.id);if(!members.length)continue;
-    const section=el('section');section.append(el('h2',`${location.name} · ${members.length}`));const cards=el('div',undefined,'cards');for(const d of members)cards.append(deviceCard(d));section.append(cards);$('devices').append(section);
+function renderSetup(){
+  if(!config||!state||activeTab!=='setup')return;$('gateway-state').textContent=online?'Connected':'Offline / starting';$('gateway-channel').textContent=state.gateway.channel||'—';$('pairing').textContent=state.gateway.join_seconds?`${state.gateway.join_seconds}s remaining`:'Closed';
+  const signature=JSON.stringify([config,state.devices,views,online]);if(signature===setupSignature||document.activeElement?.closest('#setup-panel form,#location-list'))return;
+  setupSignature=signature;$('dashboard-title').value=config.dashboard.title;$('temperature-unit').value=config.dashboard.temperature_unit;$('location-list').replaceChildren();
+  for(const l of state.locations){const row=el('div',undefined,'location-row'),label=el('label',`${l.device_count} device${l.device_count===1?'':'s'}`),input=el('input');input.value=l.name;input.maxLength=80;input.setAttribute('aria-label','Rename '+l.name);label.append(input);row.append(label,btn('Save name',async()=>{if(await legacy('locations/'+l.id,{name:input.value},'PUT','Location renamed.')){document.activeElement?.blur();setupSignature='';renderSetup();}}));const remove=btn('Delete',async()=>{if(await legacy('locations/'+l.id,null,'DELETE','Location deleted.')){document.activeElement?.blur();setupSignature='';renderSetup();}},l.device_count>0);remove.className='quiet';remove.title=l.device_count?'Move or unassign devices before deleting.':'Delete empty location';row.append(remove);$('location-list').append(row);}
+  if(!config.locations.length)$('location-list').append(el('p','Create a location to start your dashboard.','small'));$('devices').replaceChildren();for(const d of state.devices)$('devices').append(deviceCard(d));if(!state.devices.length)$('devices').append(el('div','No devices yet. Open pairing, then put a device into pairing mode.','empty'));
+}
+function chartKey(w){return sourceKey(w.source)+':'+w.time_range;}
+function drawChart(widget,data,container){
+  const source=locate(widget.source),unit=displayUnit(source.measurement?.unit||data.items[0]?.unit||''),w=560,h=220,l=48,r=16,t=18,b=34,valid=data.items.filter(p=>p.value!==null),start=data.from,end=data.to;
+  if(!valid.length){container.append(el('div','No valid readings in this time range. Choose a longer range or wait for a sensor update.','chart-empty'));return;}
+  const isState=widget.source.cluster===6,values=valid.map(p=>Number(converted(p.value,p.unit)));let low=Math.min(...values),high=Math.max(...values);if(isState){low=-.1;high=1.1;}else if(high===low){low-=1;high+=1;}else{const pad=(high-low)*.15;low-=pad;high+=pad;}
+  const x=v=>l+(v-start)/(end-start)*(w-l-r),y=v=>h-b-(v-low)/(high-low)*(h-t-b),svg=svgEl('svg',{viewBox:`0 0 ${w} ${h}`,role:'img',tabindex:'0','aria-label':`${widget.title} history in ${unit}. Use left and right arrows to inspect readings.`,class:'chart'});
+  for(const value of isState?[0,1]:[low,(low+high)/2,high]){const yy=y(value);svg.append(svgEl('line',{x1:l,y1:yy,x2:w-r,y2:yy,class:'chart-axis'}),svgEl('text',{x:l-7,y:yy+4,'text-anchor':'end',class:'chart-label'},isState?(value?'On':'Off'):value.toLocaleString(undefined,{maximumFractionDigits:1})));}
+  const timeLabel=v=>new Date(v*1000).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});svg.append(svgEl('text',{x:l,y:h-10,class:'chart-label'},timeLabel(start)),svgEl('text',{x:w-r,y:h-10,'text-anchor':'end',class:'chart-label'},timeLabel(end)),svgEl('text',{x:l,y:11,class:'chart-label'},unit));
+  for(const gap of data.gaps){const xx=x(Math.max(start,gap.from)),width=Math.max(2,x(Math.min(end,gap.to))-xx),rect=svgEl('rect',{x:xx,y:t,width,height:h-t-b,class:'chart-gap'});rect.append(svgEl('title',{},'Known ingestion interruption: '+gap.reason.replaceAll('_',' ')));svg.append(rect);}
+  let path='',previous=null;for(const p of data.items){if(p.value===null){previous=null;continue;}const interrupted=previous&&(data.gapsTruncated||p.received_at-previous.received_at>(source.device?.freshness_seconds||3600)||data.gaps.some(g=>g.from<p.received_at&&g.to>previous.received_at)),xx=x(p.received_at).toFixed(2),yy=y(Number(converted(p.value,p.unit))).toFixed(2);path+=previous&&!interrupted?(isState?'H'+xx+'V'+yy:'L'+xx+','+yy):'M'+xx+','+yy;path+=' ';previous=p;}svg.append(svgEl('path',{d:path,class:'chart-line'}));
+  const stride=Math.max(1,Math.ceil(valid.length/200));valid.forEach((p,i)=>{if(i%stride===0||i===valid.length-1)svg.append(svgEl('circle',{cx:x(p.received_at),cy:y(Number(converted(p.value,p.unit))),r:3,class:'chart-point'}));});
+  const tooltip=el('div','Hover the chart or use arrow keys to inspect readings.','chart-tooltip');let selected=valid.length-1;function inspect(i){selected=Math.max(0,Math.min(valid.length-1,i));const p=valid[selected];tooltip.textContent=`${new Date(p.received_at*1000).toLocaleString()} · ${displayValue(p.value,p.unit)} ${displayUnit(p.unit)}`;}
+  svg.onpointermove=e=>{const box=svg.getBoundingClientRect(),target=start+((e.clientX-box.left)/box.width*w-l)/(w-l-r)*(end-start);let a=0,z=valid.length-1;while(a<z){const m=Math.floor((a+z)/2);if(valid[m].received_at<target)a=m+1;else z=m;}if(a>0&&Math.abs(valid[a-1].received_at-target)<Math.abs(valid[a].received_at-target))a--;inspect(a);};svg.onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();inspect(selected+(e.key==='ArrowLeft'?-1:1));}};container.append(svg,tooltip);
+  if(data.gaps.length)container.append(el('p','Shaded areas mark known ingestion interruptions. Lines also break beyond the device freshness window.','small'));if(data.gapsTruncated)container.append(el('p','Too many interruptions to display together. Readings are shown without connecting lines; choose a shorter range.','small'));if(data.truncated)container.append(el('p','Showing the first 10,000 readings. Choose a shorter time range to inspect the remaining history.','small'));
+}
+function widgetCard(widget,index,list){
+  const {device,measurement:m}=locate(widget.source),card=el('article',undefined,'widget'+(widget.source.cluster===1026?' temperature':''));card.dataset.widgetId=widget.id;const head=el('div',undefined,'widget-top'),title=el('div');title.append(el('h3',widget.title),el('div',`${device?.name||widget.source.ieee} · Endpoint ${widget.source.endpoint} · ${m?.label||'Unavailable measurement'}`,'widget-source'));const quality=m?.quality||'missing';head.append(title,el('span',!device?.registered?'Unavailable':quality==='valid'?'Latest reading':quality[0].toUpperCase()+quality.slice(1),'badge '+quality));card.append(head);
+  if(widget.type==='numeric'){const reading=el('div',displayValue(m?.value,m?.unit),'reading');reading.append(el('span',displayUnit(m?.unit||''),'unit'));card.append(reading);}else{const cache=historyCache.get(chartKey(widget));if(cache?.error)card.append(el('p',cache.error,'chart-empty'));else if(cache)drawChart(widget,cache,card);else card.append(el('p','Loading measurement history…','chart-empty'));}card.append(el('p',age(m?.received_at),'small'));if(m?.received_at)card.title='Last received: '+new Date(m.received_at*1000).toLocaleString();
+  const bottom=el('div',undefined,'widget-bottom'),actions=el('div',undefined,'actions');actions.append(btn('Edit',()=>openEditor(widget)),btn('↑',()=>moveWidget(widget,list[index-1]),index===0),btn('↓',()=>moveWidget(widget,list[index+1]),index===list.length-1),btn('Remove',()=>saveConfig(draft=>{draft.dashboard.widgets=draft.dashboard.widgets.filter(w=>w.id!==widget.id);})));actions.children[1].setAttribute('aria-label','Move '+widget.title+' up');actions.children[2].setAttribute('aria-label','Move '+widget.title+' down');bottom.append(actions);
+  if(widget.type==='chart'){const select=el('select');select.setAttribute('aria-label','Time range for '+widget.title);for(const [value,label] of Object.entries(rangeNames)){const o=el('option',label);o.value=value;select.append(o);}select.value=widget.time_range;select.onchange=()=>{const range=Number(select.value);saveConfig(draft=>{const w=draft.dashboard.widgets.find(w=>w.id===widget.id);if(!w)throw Error('Widget was removed.');w.time_range=range;});};bottom.append(select);}card.append(bottom);return card;
+}
+async function moveWidget(widget,other){if(other)await saveConfig(draft=>{const a=draft.dashboard.widgets.find(w=>w.id===widget.id),b=draft.dashboard.widgets.find(w=>w.id===other.id);if(!a||!b)throw Error('Widget order changed. Reload first.');[a.position,b.position]=[b.position,a.position];});}
+function renderLocation(){
+  if(!config||activeTab==='setup')return;const location=config.locations.find(l=>l.id===activeTab);if(!location){selectTab('setup');return;}$('location-title').textContent=location.name;const members=views.filter(d=>d.location_id===location.id);$('location-subtitle').textContent=`${members.length} device${members.length===1?'':'s'} · Latest readings and history`;const available=sources(location.id);$('add-widget').disabled=!available.length;$('suggest-widgets').disabled=!available.length;
+  const widgets=config.dashboard.widgets.filter(w=>config.devices[w.source.ieee]?.location_id===location.id).sort((a,b)=>a.position-b.position),signature=JSON.stringify([location.id,widgets,views,config.dashboard.temperature_unit,[...historyCache].map(([k,v])=>[k,v.loadedAt])]);
+  if(signature!==widgetSignature){widgetSignature=signature;$('widgets').replaceChildren();if(!widgets.length){const empty=el('div',undefined,'empty');empty.append(el('span','⌂','empty-icon'),el('h3',members.length?'Make this space your own':'This space is ready for devices'),el('p',members.length?'Add an instant reading or chart for any available endpoint measurement.':'Assign a device to this location in Configuration & Setup.'),btn(members.length?'Add your first widget':'Open Configuration & Setup',()=>members.length?openEditor():selectTab('setup'),members.length>0&&!available.length));$('widgets').append(empty);}else widgets.forEach((w,i)=>$('widgets').append(widgetCard(w,i,widgets)));}loadCharts(widgets);
+}
+function loadCharts(widgets){
+  const epoch=session,generation=chartEpoch;for(const widget of widgets.filter(w=>w.type==='chart')){const key=chartKey(widget),latest=locate(widget.source).measurement?.received_at||0,cache=historyCache.get(key);if(chartJobs.has(key)||(cache&&Date.now()-cache.loadedAt<30000&&cache.latest===latest))continue;const job={};chartJobs.set(key,job);
+    (async()=>{try{const to=Date.now()/1000,from=to-widget.time_range,params=new URLSearchParams({...widget.source,from,to,limit:500});let items=[],gaps=[],cursor=null,pages=0,gapsTruncated=false;do{if(cursor)params.set('cursor',cursor);const r=await api('/api/v2/history?'+params,null,'GET',{},true);if(epoch!==session||generation!==chartEpoch)return;items.push(...r.data.items);gaps=r.data.gaps;gapsTruncated=r.data.gaps_truncated;cursor=r.data.next_cursor;pages++;}while(cursor&&pages<20);historyCache.set(key,{items,gaps,gapsTruncated,from,to,truncated:!!cursor,loadedAt:Date.now(),latest});}
+      catch(e){if(e.name!=='AbortError'&&epoch===session&&generation===chartEpoch)historyCache.set(key,{error:e.message,loadedAt:Date.now(),latest});}
+      finally{if(chartJobs.get(key)===job)chartJobs.delete(key);if(epoch===session&&generation===chartEpoch){widgetSignature='';renderLocation();}}})();
   }
-  if(!devices.length)$('devices').append(el('p','No devices yet. Open pairing and put a device into pairing mode.'));
 }
+function openEditor(widget=null){const available=sources(activeTab);if(!available.length)return;editor={widget:widget?clone(widget):null,base:clone(config),etag};$('widget-error').textContent='';$('widget-editor-title').textContent=widget?'Edit widget':'Add a widget';$('widget-title').value=widget?.title||available[0].title;$('widget-type').value=widget?.type||'numeric';$('widget-range').value=widget?.time_range||86400;$('widget-source').replaceChildren();for(const choice of available){const o=el('option',choice.label);o.value=JSON.stringify(choice.source);$('widget-source').append(o);if(widget&&sourceKey(choice.source)===sourceKey(widget.source))o.selected=true;}$('widget-dialog').showModal();$('widget-title').focus();}
+async function suggestWidgets(){const choices=sources(activeTab);await saveConfig(draft=>{for(const choice of choices)for(const type of ['numeric','chart']){if(draft.dashboard.widgets.some(w=>w.type===type&&sourceKey(w.source)===sourceKey(choice.source)))continue;const used=new Set(draft.dashboard.widgets.map(w=>w.position));let position=0;while(used.has(position))position++;draft.dashboard.widgets.push({id:widgetId(),type,title:choice.title+(type==='chart'?' history':''),source:choice.source,position,time_range:86400});}});}
+async function loadEvents(){if(!token||activeTab!=='setup')return;try{const r=await api('/api/v1/events');$('events').textContent=r.data.events.slice(0,20).map(e=>`${new Date(e.received*1000).toLocaleString()} · ${e.type} · ${e.ieee||''}`).join('\n');}catch(e){message(e);}}
 async function refresh(){
-  if(!token||refreshing)return;const epoch=session;refreshing=true;
-  try{
-    const [d,e]=await Promise.all([api('state'),api('events')]);if(epoch!==session)return;
-    online=d.gateway.connected&&d.gateway.ready;locations=d.locations;
-    $('status').textContent=`${d.gateway.mode==='simulator'?'SIMULATOR · ':''}${online?'Gateway connected':'Gateway offline / starting'}`;$('pairing').textContent=`Pairing: ${d.gateway.join_seconds||0}s remaining`;
-    $('join').disabled=!online;$('close').disabled=!online;$('locations-panel').hidden=false;renderLocations();render(d.devices);
-    if(d.gateway.gap)$('notice').textContent='History gap detected. Some gateway events were missed; rediscover devices if needed.';
-    $('events').textContent=e.events.slice(0,20).map(x=>`${new Date(x.received*1000).toLocaleString()} · ${x.type} · ${x.ieee||''} · ${JSON.stringify(x)}`).join('\n');
-  }catch(e){if(epoch!==session||e.name==='AbortError')return;online=false;$('status').textContent=e.message;$('join').disabled=true;$('close').disabled=true;for(const button of $('devices').querySelectorAll('.actions button'))button.disabled=true;}
-  finally{if(epoch===session)refreshing=false;}
+  if(!token||refreshing)return;const epoch=session;refreshing=true;try{const [s,c,d]=await Promise.all([api('/api/v1/state'),api('/api/v2/configuration'),api('/api/v2/devices')]);if(epoch!==session)return;state=s.data;views=d.data.devices;if(!config||(!draftActive()&&!conflictEdit&&config.revision!==c.data.revision)){config=c.data;etag=c.etag;setupSignature='';widgetSignature='';}online=state.gateway.connected&&state.gateway.ready;
+    $('status').textContent=(state.gateway.mode==='simulator'?'SIMULATOR · ':'')+(online?'Gateway connected':'Gateway offline / starting');$('sensor-count').textContent=`${state.devices.length} device${state.devices.length===1?'':'s'} registered`;$('home-title').textContent=config.dashboard.title;document.title=config.dashboard.title+' · Zigbee dashboard';$('join').disabled=!online;$('close').disabled=!online;$('welcome').hidden=true;$('token-label').hidden=true;$('connect').hidden=true;$('logout').hidden=false;renderTabs();renderSetup();renderLocation();if(state.gateway.gap&&!$('notice').textContent)$('notice').textContent='A history interruption was recorded. Charts mark known ingestion gaps.';
+  }catch(e){if(epoch!==session||e.name==='AbortError')return;online=false;$('status').textContent=e.message;$('join').disabled=true;$('close').disabled=true;for(const b of $('devices').querySelectorAll('.actions button'))b.disabled=true;}finally{if(epoch===session)refreshing=false;}
 }
-function endSession(){
-  session++;for(const controller of requests)controller.abort();clearInterval(timer);refreshing=false;token='';online=false;locations=[];locationSignature='';
-  $('devices').replaceChildren();$('location-list').replaceChildren();$('locations-panel').hidden=true;$('location-name').value='';$('notice').textContent='';$('events').textContent='Disconnected.';$('status').textContent='Disconnected';$('pairing').textContent='';$('join').disabled=true;$('close').disabled=true;
-}
-$('connect').onclick=()=>{const nextToken=$('token').value.trim();endSession();token=nextToken;refresh();timer=setInterval(refresh,3000);};
-$('logout').onclick=()=>{endSession();$('token').value='';};
-$('location-form').onsubmit=async event=>{event.preventDefault();const input=$('location-name'),submit=$('add-location');submit.disabled=true;const epoch=session;if(await configure('locations',{name:input.value},'POST','Location created.')&&epoch===session)input.value='';submit.disabled=false;};
+function endSession(){session++;chartEpoch++;for(const c of requests)c.abort();clearTimeout(timer);refreshing=false;token='';online=false;config=null;state=null;views=[];etag='';saving=false;conflictEdit=null;editor=null;activeTab='setup';setupSignature='';widgetSignature='';historyCache.clear();chartJobs.clear();if($('widget-dialog').open)$('widget-dialog').close();for(const id of ['devices','widgets','location-list','tabs'])$(id).replaceChildren();delete $('tabs').dataset.signature;for(const id of ['tabs','setup-panel','location-panel','conflict','logout'])$(id).hidden=true;for(const id of ['welcome','token-label','connect'])$(id).hidden=false;$('notice').textContent='';$('status').textContent='Disconnected';$('sensor-count').textContent='';$('home-title').textContent='Home';$('events').textContent='Disconnected.';$('join').disabled=true;$('close').disabled=true;}
+async function tick(epoch=session){await refresh();if(epoch===session&&token)timer=setTimeout(()=>tick(epoch),online?3000:10000);}
+$('connect').onclick=()=>{const next=$('token').value.trim();endSession();token=next;$('token').value='';$('logout').hidden=false;tick();};$('logout').onclick=endSession;
+$('location-form').onsubmit=async e=>{e.preventDefault();const input=$('location-name'),button=$('add-location');button.disabled=true;if(await legacy('locations',{name:input.value},'POST','Location created.'))input.value='';button.disabled=false;document.activeElement?.blur();setupSignature='';renderSetup();};
+$('preferences-form').onsubmit=e=>{e.preventDefault();const title=$('dashboard-title').value,unit=$('temperature-unit').value;saveConfig(draft=>{draft.dashboard.title=title;draft.dashboard.temperature_unit=unit;});};
+$('widget-form').onsubmit=async e=>{e.preventDefault();if(!editor)return;const current=editor,w={id:current.widget?.id||widgetId(),type:$('widget-type').value,title:$('widget-title').value,source:JSON.parse($('widget-source').value),position:current.widget?.position??0,time_range:Number($('widget-range').value)};$('save-widget').disabled=true;await saveConfig(draft=>{if(current.widget){const i=draft.dashboard.widgets.findIndex(x=>x.id===current.widget.id);if(i<0)throw Error('This widget was removed in another session.');w.position=draft.dashboard.widgets[i].position;draft.dashboard.widgets[i]=w;}else{const used=new Set(draft.dashboard.widgets.map(x=>x.position));let position=0;while(used.has(position))position++;draft.dashboard.widgets.push({...w,position});}},current.base,current.etag);$('save-widget').disabled=false;};
+for(const id of ['cancel-widget','discard-widget'])$(id).onclick=()=>{$('widget-dialog').close();editor=null;};$('widget-dialog').oncancel=()=>{editor=null;};$('widget-source').onchange=()=>{if(!editor?.widget)$('widget-title').value=locate(JSON.parse($('widget-source').value)).measurement?.label||'Reading';};$('add-widget').onclick=()=>openEditor();$('suggest-widgets').onclick=suggestWidgets;
+$('reload-config').onclick=async()=>{try{await loadConfiguration();conflictEdit=null;$('conflict').hidden=true;if($('widget-dialog').open)$('widget-dialog').close();editor=null;document.activeElement?.blur();await refresh();}catch(e){message(e);}};
+$('reapply-config').onclick=async()=>{const edit=conflictEdit;if(!edit)return;try{await loadConfiguration();await saveConfig(edit);}catch(e){message(e);}};
 $('join').onclick=()=>command({op:'permit_join',seconds:60});$('close').onclick=()=>command({op:'permit_join',seconds:0});$('join').disabled=true;$('close').disabled=true;
