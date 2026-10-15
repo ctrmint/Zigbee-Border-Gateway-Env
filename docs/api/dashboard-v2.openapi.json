@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.1.0"
+    "version": "2.1.1"
   },
   "servers": [
     {
@@ -1244,7 +1244,8 @@
           "model_hint": {
             "enum": [
               "",
-              "SONOFF SNZB-02WD"
+              "SONOFF SNZB-02WD",
+              "SONOFF SNZB-02LD"
             ]
           }
         },
@@ -1253,11 +1254,21 @@
           "endpoint",
           "min_interval",
           "max_interval",
-          "temperature_change",
-          "humidity_change",
           "model_hint"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "temperature_change"
+            ]
+          },
+          {
+            "required": [
+              "humidity_change"
+            ]
+          }
+        ]
       },
       "CommissioningJob": {
         "type": "object",
@@ -1305,7 +1316,8 @@
               "model_hint": {
                 "enum": [
                   "",
-                  "SONOFF SNZB-02WD"
+                  "SONOFF SNZB-02WD",
+                  "SONOFF SNZB-02LD"
                 ]
               }
             },
@@ -1314,11 +1326,21 @@
               "endpoint",
               "min_interval",
               "max_interval",
-              "temperature_change",
-              "humidity_change",
               "model_hint"
             ],
-            "additionalProperties": true
+            "additionalProperties": true,
+            "anyOf": [
+              {
+                "required": [
+                  "temperature_change"
+                ]
+              },
+              {
+                "required": [
+                  "humidity_change"
+                ]
+              }
+            ]
           },
           "state": {
             "enum": [

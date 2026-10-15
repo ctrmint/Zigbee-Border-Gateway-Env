@@ -224,11 +224,15 @@ and latest measurement receipt/origin. `POST /api/v2/commissioning` accepts:
 {"ieee":"a4c13804d148ffff","endpoint":1,"min_interval":5,"max_interval":3600,"temperature_change":0.2,"humidity_change":1,"model_hint":"SONOFF SNZB-02WD"}
 ```
 
-All fields are required. `model_hint` may also be empty. Changes are in °C / RH
+The identity, endpoint, interval and `model_hint` fields are required. Supply
+`temperature_change` when the endpoint exposes temperature and `humidity_change`
+when it exposes humidity; omit thresholds for unsupported measurements. At least
+one measurement is required. Existing dual-measurement requests remain valid.
+`model_hint` may also be empty. Changes are in °C / RH
 percentage points, exact hundredths; maximum must be 1–65534 seconds and at least
 the minimum (0–65534). This bounded policy does not support ZCL disable/reset
-intervals. A discovered active endpoint exposing both measurement clusters is
-required. Returns 202 queued, 409 already active, 422 invalid input/endpoint, or
+intervals. A discovered active endpoint exposing temperature, humidity or both is
+required. Temperature-only sensors generate no humidity commands. Returns 202 queued, 409 already active, 422 invalid input/endpoint, or
 503 if gateway offline or firmware lacks `reporting_commissioning` in health.
 POST `{"ieee":"a4c13804d148ffff","action":"cancel"}` returns 200 and stops future
 attempts. Layout revisions are independent of this workflow. Existing v1 routes

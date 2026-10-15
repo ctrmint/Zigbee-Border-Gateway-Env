@@ -194,3 +194,32 @@ while both measurement streams continued using the previously verified policy.
 Two-hour periodic-report observation is still pending. Restart evidence is
 saved privately as restart-before.json / restart-after.json alongside deployment
 backups. These observations do not establish accuracy against a reference sensor.
+
+
+### Temperature-only endpoint follow-up, 2026-10-15
+
+The newly paired Fish Tank device exposes endpoint 1 with temperature 0x0402 and
+Poll Control 0x0020, but no humidity cluster. The original commissioning UI/API
+incorrectly required both measurement clusters. The Pi now selects setup steps
+from the discovered endpoint and accepts thresholds only for measurements it
+supports. Existing combined sensor requests remain compatible; temperature-only
+and humidity-only requests omit the unsupported change threshold.
+
+All 38 API/integration tests and 11 Chromium cases pass, including single-measurement
+job generation, readback, persistence, unsupported-threshold rejection and absence
+of humidity controls/commands for a temperature-only device. Generated contracts,
+Python/JavaScript syntax and whitespace checks pass. No firmware change or flash
+is needed. The Pi service was restarted after a private SQLite/source backup and
+queued four steps for the Fish Tank sensor: Poll Control bind, temperature bind,
+configure and readback. The initial bind timed out; hardware acknowledgement and
+unsolicited reports from that device remain pending a wake/reachability check.
+
+
+The SNZB-02LD subsequently re-announced at a new short address and completed all
+four temperature-only setup steps. Remote readback verified signed-int16 temperature,
+minimum 5 seconds, maximum 3600 seconds and raw delta20 (0.2°C). An unsolicited
+temperature report (raw1780 =17.8°C, RSSI -58dBm) was received and stored separately
+from a subsequent read response. Fish Tank assignment was retained and dashboard
+freshness is4500 seconds. Longer-term periodic delivery is still under observation;
+no humidity operations were required. Private hardware-verification.json is saved
+in the temperature-only deployment backup directory.

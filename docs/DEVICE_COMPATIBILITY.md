@@ -38,7 +38,9 @@ only during an explicitly armed, at most 120-second commissioning window; normal
 poll intervals are not changed. Outside that window check-ins decline fast poll.
 
 In Configuration & Setup, use **Sensor reporting setup** on a discovered, active
-temperature/humidity endpoint. For the user-identified SONOFF SNZB-02WD, the initial
+temperature and/or humidity endpoint. Only the measurements actually advertised
+by that endpoint are configured; a temperature-only probe has no humidity field
+or humidity setup steps. For the user-identified SONOFF SNZB-02WD, the initial
 policy is 5-second minimum / 3,600-second maximum, 0.2°C temperature change and
 1 percentage point humidity change. These follow the upstream converter's reference
 settings, not a verified promise about every device firmware revision:
@@ -67,3 +69,14 @@ in °C / percentage points in the dashboard and converted exactly to hundredths
 for ZCL. Keep reading freshness above the maximum interval, e.g. 4,500 seconds
 for an hourly heartbeat; changing freshness alone does not repair missing reports.
 Battery percentage/voltage reporting is not part of this implementation.
+
+
+The Fish Tank sensor is user-identified as **SONOFF SNZB-02LD**, SONOFF's
+waterproof temperature probe model. Its descriptor exposes temperature and Poll
+Control, with no humidity cluster. The reference converter uses temperature
+minimum 5 seconds, maximum 3600 seconds and delta 20 (0.2°C), plus Poll Control
+binding. This matches the temperature-only policy. The dashboard supports an
+SNZB-02LD model hint separately from Basic-cluster identity; radio verification
+and recurring reporting must still be confirmed. See the
+[manufacturer manual](https://support.sonoff.tech/snzb-02ld-usermanual/) and
+[upstream converter](https://github.com/Koenkk/zigbee-herdsman-converters/blob/master/src/devices/sonoff.ts).

@@ -43,6 +43,36 @@ class CommissioningTests(contracts.ContractTests):
         self.assertEqual(next(a for a in self.job()['measurements'] if a['cluster']==1026)['origin'],'read_response')
         self.sim.attr(1,1026,0x29,2300);self.poller.once()
         self.assertEqual(next(a for a in self.job()['measurements'] if a['cluster']==1026)['origin'],'report')
+    def test_temperature_only_and_humidity_only_endpoints(self):
+        self.poller.once()
+        for cluster,key in [(1026,'temperature_change'),(1029,'humidity_change')]:
+            with self.store.lock,self.store.db:
+                device=self.store._get(IEEE)
+                device['endpoints']['1']['input_clusters']=[0,32,cluster]
+                self.store._put(device)
+            body=policy();body.pop('humidity_change' if cluster==1026 else 'temperature_change')
+            if cluster==1026:body['model_hint']='SONOFF SNZB-02LD'
+            job=self.dashboard.request('/api/v2/commissioning',body)
+            self.assertEqual([(s['op'],s['cluster']) for s in job['steps']],
+                [('bind',32),('bind',cluster),('configure_reporting',cluster),('read_reporting',cluster)])
+            self.drain();job=self.job()
+            self.assertEqual(job['state'],'verified');self.assertEqual(len(job['results']),4)
+            self.assertNotIn('humidity_change_raw' if cluster==1026 else 'temperature_change_raw',job['policy'])
+            doc=contract_v2();schema=dict(doc['components']['schemas']['CommissioningJob'],components=doc['components'])
+            Draft202012Validator(schema).validate(job)
+            with self.assertRaises(DashboardError):self.store.start_commissioning(policy())
+            incomplete=body.copy();incomplete.pop(key)
+            with self.assertRaises(DashboardError):self.store.start_commissioning(incomplete)
+            # Reopen a separate connection to verify persistence of the reduced policy.
+            clone=Store(self.tmp.name+'/contract.sqlite3')
+            self.assertEqual(clone.commissioning_document()['jobs'][0]['steps'],job['steps']);clone.close()
+    def test_thresholds_must_match_discovered_measurements(self):
+        self.poller.once()
+        body=policy();body.pop('humidity_change')
+        with self.assertRaises(DashboardError):self.store.start_commissioning(body)
+        with self.store.lock,self.store.db:
+            d=self.store._get(IEEE);d['endpoints']['1']['input_clusters']=[0,32];self.store._put(d)
+        with self.assertRaises(DashboardError):self.store.start_commissioning(body)
     def test_validation_and_http_failures(self):
         self.poller.once()
         for key,value in [('min_interval',True),('max_interval',65535),('max_interval',0),('max_interval',3),('temperature_change',.001),('humidity_change',101),('model_hint','invented')]:
