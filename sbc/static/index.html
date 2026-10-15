@@ -6,6 +6,12 @@
 <p id="notice" role="status" aria-live="polite"></p>
 <section id="conflict" class="conflict" role="alert" hidden><strong>Configuration changed in another session.</strong><p>Your edit has not been saved. Reload the latest configuration, or explicitly reapply your edit to it.</p><button id="reload-config" class="quiet">Reload configuration</button><button id="reapply-config">Reload &amp; reapply edit</button></section>
 <nav id="tabs" class="tabs" role="tablist" aria-label="Dashboard sections" hidden></nav>
+<section id="all-panel" role="tabpanel" aria-labelledby="tab-all" hidden>
+<div class="all-heading"><h2>All sensors</h2><p id="all-summary"></p></div>
+<p id="all-connection" class="all-connection" role="status"></p>
+<div id="all-grid" class="all-grid"></div>
+<p id="all-empty" class="all-empty" hidden>No registered sensors yet. Readings will appear here when sensors are discovered.</p>
+</section>
 <section id="setup-panel" role="tabpanel" aria-labelledby="tab-setup" hidden>
 <div class="section-heading"><div><div class="eyebrow">CONFIGURATION &amp; SETUP</div><h2>Make yourself at home</h2><p>Connect devices, name your spaces, and arrange your dashboard.</p></div></div>
 <section class="panel"><h3>Gateway &amp; pairing</h3><div class="gateway-stats"><div><span>Connection</span><strong id="gateway-state">Waiting</strong></div><div><span>Zigbee channel</span><strong id="gateway-channel">—</strong></div><div><span>Pairing window</span><strong id="pairing">Closed</strong></div></div><div class="actions"><button id="join">Pair for 60 seconds</button><button id="close" class="quiet">Close pairing</button></div><p class="small">Put one device into pairing mode, then use discovery to inspect its endpoints. Gateway connection credentials are configured locally on the Pi.</p></section>

@@ -82,3 +82,7 @@ unsolicited reports across at least two maximum intervals. See
 [compatibility and reporting](DEVICE_COMPATIBILITY.md) for retry, expiry and
 verification semantics. Existing gateway firmware must be upgraded before these
 controls become available; no re-pairing or network erasure is required.
+
+## All sensors overview
+
+Select **All** after connecting to view compact, read-only tiles for every discovered sensor, including unassigned sensors. See [overview behavior and tablet validation](DASHBOARD_ALL.md). Existing location widgets and the first-location login default are retained.

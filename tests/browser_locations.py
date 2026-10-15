@@ -1,5 +1,6 @@
 """Optional browser checks: unittest discover -s tests -p browser_locations.py -v."""
 import tempfile
+import os
 import threading
 import unittest
 import time
@@ -46,9 +47,13 @@ class BrowserLocationTests(unittest.TestCase):
         self.addCleanup(self.release.set)
         self.playwright = sync_playwright().start()
         self.addCleanup(self.playwright.stop)
-        self.browser = self.playwright.chromium.launch(headless=True)
+        browser_name = os.environ.get('DASHBOARD_TEST_BROWSER', 'chromium')
+        if browser_name not in ('chromium', 'webkit'):
+            raise ValueError('DASHBOARD_TEST_BROWSER must be chromium or webkit')
+        self.browser = getattr(self.playwright, browser_name).launch(headless=True)
         self.addCleanup(self.browser.close)
-        self.page = self.browser.new_page()
+        device = os.environ.get('DASHBOARD_TEST_DEVICE')
+        self.page = self.browser.new_page(**(self.playwright.devices[device] if device else {}))
         self.errors = []
         self.page.on('pageerror', lambda error: self.errors.append(str(error)))
         self.page.goto(f'http://127.0.0.1:{self.server.server_port}')

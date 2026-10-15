@@ -38,23 +38,50 @@ function locate(source){const d=views.find(d=>d.ieee===source.ieee);return {devi
 function sources(location){return views.filter(d=>d.location_id===location).flatMap(d=>d.measurements.map(m=>({source:{ieee:d.ieee,endpoint:m.endpoint,cluster:m.cluster,attribute:m.attribute},label:`${d.name} · Endpoint ${m.endpoint} · ${m.label}`,title:m.label})));}
 function clearChartRequests(){chartEpoch++;for(const c of chartRequests)c.abort();chartJobs.clear();widgetSignature='';}
 function selectTab(id,focus=false){
-  activeTab=id;clearChartRequests();renderTabs();if(activeTab==='setup'){renderSetup();loadEvents();}else renderLocation();
+  activeTab=id;clearChartRequests();renderTabs();if(activeTab==='setup'){renderSetup();loadEvents();}else if(activeTab==='all')renderAll();else renderLocation();
   if(focus){const selected=document.querySelector('[role=tab][aria-selected=true]');selected?.focus({preventScroll:true});selected?.scrollIntoView({block:'nearest',inline:'nearest'});}
 }
 function renderTabs(){
-  if(!config)return;const tabs=[...config.locations,{id:'setup',name:'Configuration & Setup'}];
+  if(!config)return;const tabs=[{id:'all',name:'All'},...config.locations,{id:'setup',name:'Configuration & Setup'}];
   const selectionChanged=!tabs.some(t=>t.id===activeTab);if(selectionChanged){activeTab=config.locations[0]?.id||'setup';clearChartRequests();}
   const signature=JSON.stringify([tabs,activeTab]);if($('tabs').dataset.signature!==signature){
     const focusedId=document.activeElement?.closest('[role=tab]')?.id;
     $('tabs').dataset.signature=signature;const locations=el('div',undefined,'location-tabs');locations.id='location-tabs';locations.setAttribute('role','presentation');
     const scroll=$('location-tabs')?.scrollLeft||0;$('tabs').replaceChildren(locations);
-    tabs.forEach((t,i)=>{const n=btn(t.name,()=>selectTab(t.id));n.id=t.id==='setup'?'tab-setup':'tab-'+t.id;n.setAttribute('role','tab');n.setAttribute('aria-selected',String(activeTab===t.id));n.setAttribute('aria-controls',t.id==='setup'?'setup-panel':'location-panel');n.tabIndex=activeTab===t.id?0:-1;n.title=t.name;
+    tabs.forEach((t,i)=>{const n=btn(t.name,()=>selectTab(t.id));n.id=t.id==='setup'?'tab-setup':'tab-'+t.id;n.setAttribute('role','tab');n.setAttribute('aria-selected',String(activeTab===t.id));n.setAttribute('aria-controls',t.id==='setup'?'setup-panel':t.id==='all'?'all-panel':'location-panel');n.tabIndex=activeTab===t.id?0:-1;n.title=t.name;
       n.onkeydown=e=>{let next=i;if(e.key==='ArrowRight')next=(i+1)%tabs.length;else if(e.key==='ArrowLeft')next=(i+tabs.length-1)%tabs.length;else if(e.key==='Home')next=0;else if(e.key==='End')next=tabs.length-1;else return;e.preventDefault();selectTab(tabs[next].id,true);};
       (t.id==='setup'?$('tabs'):locations).append(n);
     });locations.scrollLeft=selectionChanged?0:scroll;
     if(focusedId){const focused=document.getElementById(focusedId)||document.querySelector('[role=tab][aria-selected=true]');focused?.focus({preventScroll:true});}
   }
-  $('tabs').hidden=false;$('setup-panel').hidden=activeTab!=='setup';$('location-panel').hidden=activeTab==='setup';if(activeTab!=='setup')$('location-panel').setAttribute('aria-labelledby','tab-'+activeTab);
+  $('tabs').hidden=false;$('setup-panel').hidden=activeTab!=='setup';$('all-panel').hidden=activeTab!=='all';document.body.classList.toggle('overview-mode',activeTab==='all');$('location-panel').hidden=activeTab==='setup'||activeTab==='all';if(activeTab!=='setup'&&activeTab!=='all')$('location-panel').setAttribute('aria-labelledby','tab-'+activeTab);
+}
+// Read-only overview: reuse discovered data, never issue radio commands or history queries.
+function overviewSensors(){
+  return views.filter(d=>d.registered&&(d.measurements.some(m=>m.cluster!==6)||d.profile?.startsWith('SONOFF SNZB-02')||Object.values(state.devices.find(v=>v.ieee===d.ieee)?.endpoints||{}).some(ep=>ep.device_id===770||ep.input_clusters.some(c=>c===1026||c===1029)))).sort((a,b)=>a.ieee.localeCompare(b.ieee));
+}
+function overviewQuality(m,freshness=3600){return m.quality==='missing'?'missing':m.value===null?'invalid':m.received_at&&Date.now()/1000-m.received_at>(m.freshness_seconds||freshness)?'stale':m.quality;}
+function overviewTile(d){
+  const tile=el('article',undefined,'sensor-tile');tile.dataset.sensorId=d.ieee;tile.setAttribute('aria-labelledby','sensor-title-'+d.ieee);
+  const heading=el('header'),title=el('h3',d.name),location=config.locations.find(l=>l.id===d.location_id)?.name||'Unassigned';title.id='sensor-title-'+d.ieee;heading.append(title,el('p',location,'sensor-location'));tile.append(heading);
+  const measurements=d.measurements.filter(m=>m.cluster!==6).sort((a,b)=>a.endpoint-b.endpoint||a.cluster-b.cluster||a.attribute-b.attribute),multi=new Set(measurements.map(m=>m.endpoint)).size>1,readings=el('dl',undefined,'sensor-readings');
+  for(const m of measurements){const quality=overviewQuality(m,d.freshness_seconds),entry=el('div',undefined,'sensor-reading'+(m.cluster===1?' sensor-battery':'')),label=el('dt',m.label+(multi?' · EP '+m.endpoint:'')),value=el('dd');entry.dataset.quality=quality;
+    value.append(el('span',displayValue(m.value,m.unit),'sensor-value'),el('span',displayUnit(m.unit),'sensor-unit'));
+    const statuses=[];if(quality!=='valid')statuses.push(quality==='missing'?'No reading':quality==='invalid'?'Invalid reading':'Stale');if(m.low_battery)statuses.push('Low battery');
+    entry.append(label,value,el('p',[...statuses,age(m.received_at)].join(' · '),'sensor-age'+(statuses.length?' sensor-warning':'')));readings.append(entry);
+  }
+  tile.append(readings);if(!measurements.length)tile.append(el('p','No supported readings discovered yet.','sensor-age'));
+  return tile;
+}
+function renderAll(){
+  if(!config||!state||activeTab!=='all')return;const sensors=overviewSensors(),grid=$('all-grid'),ids=new Set(sensors.map(d=>d.ieee));
+  $('all-summary').textContent=`${sensors.length} sensor${sensors.length===1?'':'s'} · Latest received readings`;
+  $('all-connection').textContent=online?'':'Gateway offline or unavailable · Showing last received data';$('all-connection').hidden=online;$('all-empty').hidden=!!sensors.length;
+  for(const node of [...grid.children])if(!ids.has(node.dataset.sensorId))node.remove();
+  sensors.forEach((d,i)=>{const candidate=overviewTile(d),signature=candidate.innerHTML;let tile=[...grid.children].find(n=>n.dataset.sensorId===d.ieee);
+    if(!tile)tile=candidate;else if(tile._signature!==signature)tile.replaceChildren(...candidate.childNodes);
+    tile._signature=signature;if(grid.children[i]!==tile)grid.insertBefore(tile,grid.children[i]||null);
+  });
 }
 async function reportingRequest(body){try{await api('/api/v2/commissioning',body);document.activeElement?.blur();setupSignature='';await refresh();$('notice').textContent=body.action?'Commissioning cancelled.':'Reporting setup queued. Briefly press the sensor button to wake it.';}catch(e){message(e);}}
 function reportingCard(d,card){
@@ -118,7 +145,7 @@ function widgetCard(widget,index,list){
 }
 async function moveWidget(widget,other){if(other)await saveConfig(draft=>{const a=draft.dashboard.widgets.find(w=>w.id===widget.id),b=draft.dashboard.widgets.find(w=>w.id===other.id);if(!a||!b)throw Error('Widget order changed. Reload first.');[a.position,b.position]=[b.position,a.position];});}
 function renderLocation(){
-  if(!config||activeTab==='setup')return;const location=config.locations.find(l=>l.id===activeTab);if(!location){selectTab('setup');return;}$('location-title').textContent=location.name;const members=views.filter(d=>d.location_id===location.id);$('location-subtitle').textContent=`${members.length} device${members.length===1?'':'s'} · Latest readings and history`;const available=sources(location.id);$('add-widget').disabled=!available.length;$('suggest-widgets').disabled=!available.length;
+  if(!config||activeTab==='setup'||activeTab==='all')return;const location=config.locations.find(l=>l.id===activeTab);if(!location){selectTab('setup');return;}$('location-title').textContent=location.name;const members=views.filter(d=>d.location_id===location.id);$('location-subtitle').textContent=`${members.length} device${members.length===1?'':'s'} · Latest readings and history`;const available=sources(location.id);$('add-widget').disabled=!available.length;$('suggest-widgets').disabled=!available.length;
   const widgets=config.dashboard.widgets.filter(w=>config.devices[w.source.ieee]?.location_id===location.id).sort((a,b)=>a.position-b.position),signature=JSON.stringify([location.id,widgets,views,config.dashboard.temperature_unit,[...historyCache].map(([k,v])=>[k,v.loadedAt])]);
   if(signature!==widgetSignature){widgetSignature=signature;$('widgets').replaceChildren();if(!widgets.length){const empty=el('div',undefined,'empty');empty.append(el('span','⌂','empty-icon'),el('h3',members.length?'Make this space your own':'This space is ready for devices'),el('p',members.length?'Add an instant reading or chart for any available endpoint measurement.':'Assign a device to this location in Configuration & Setup.'),btn(members.length?'Add your first widget':'Open Configuration & Setup',()=>members.length?openEditor():selectTab('setup'),members.length>0&&!available.length));$('widgets').append(empty);}else widgets.forEach((w,i)=>$('widgets').append(widgetCard(w,i,widgets)));}loadCharts(widgets);
 }
@@ -134,10 +161,10 @@ async function suggestWidgets(){const choices=sources(activeTab);await saveConfi
 async function loadEvents(){if(!token||activeTab!=='setup')return;try{const r=await api('/api/v1/events');$('events').textContent=r.data.events.slice(0,20).map(e=>`${new Date(e.received*1000).toLocaleString()} · ${e.type} · ${e.ieee||''}`).join('\n');}catch(e){message(e);}}
 async function refresh(){
   if(!token||refreshing)return;const epoch=session;refreshing=true;try{const [s,c,d,j]=await Promise.all([api('/api/v1/state'),api('/api/v2/configuration'),api('/api/v2/devices'),api('/api/v2/commissioning')]);if(epoch!==session)return;state=s.data;views=d.data.devices;commissioningJobs=j.data.jobs;if(!config||(!draftActive()&&!conflictEdit&&config.revision!==c.data.revision)){config=c.data;etag=c.etag;setupSignature='';widgetSignature='';}online=state.gateway.connected&&state.gateway.ready;
-    $('status').textContent=(state.gateway.mode==='simulator'?'SIMULATOR · ':'')+(online?'Gateway connected':'Gateway offline / starting');$('sensor-count').textContent=`${state.devices.length} device${state.devices.length===1?'':'s'} registered`;$('home-title').textContent=config.dashboard.title;document.title=config.dashboard.title+' · Zigbee dashboard';$('join').disabled=!online;$('close').disabled=!online;$('welcome').hidden=true;$('token-label').hidden=true;$('connect').hidden=true;$('logout').hidden=false;renderTabs();renderSetup();renderLocation();if(state.gateway.gap&&!$('notice').textContent)$('notice').textContent='A history interruption was recorded. Charts mark known ingestion gaps.';
-  }catch(e){if(epoch!==session||e.name==='AbortError')return;online=false;$('status').textContent=e.message;$('join').disabled=true;$('close').disabled=true;for(const b of $('devices').querySelectorAll('.actions button'))b.disabled=true;}finally{if(epoch===session)refreshing=false;}
+    $('status').textContent=(state.gateway.mode==='simulator'?'SIMULATOR · ':'')+(online?'Gateway connected':'Gateway offline / starting');$('sensor-count').textContent=`${state.devices.length} device${state.devices.length===1?'':'s'} registered`;$('home-title').textContent=config.dashboard.title;document.title=config.dashboard.title+' · Zigbee dashboard';$('join').disabled=!online;$('close').disabled=!online;$('welcome').hidden=true;$('token-label').hidden=true;$('connect').hidden=true;$('logout').hidden=false;renderTabs();renderSetup();renderLocation();renderAll();if(state.gateway.gap&&!$('notice').textContent)$('notice').textContent='A history interruption was recorded. Charts mark known ingestion gaps.';
+  }catch(e){if(epoch!==session||e.name==='AbortError')return;online=false;renderAll();$('status').textContent=e.message;$('join').disabled=true;$('close').disabled=true;for(const b of $('devices').querySelectorAll('.actions button'))b.disabled=true;}finally{if(epoch===session)refreshing=false;}
 }
-function endSession(){session++;chartEpoch++;for(const c of requests)c.abort();clearTimeout(timer);refreshing=false;token='';commissioningJobs=[];online=false;config=null;state=null;views=[];etag='';saving=false;conflictEdit=null;editor=null;activeTab=null;setupSignature='';widgetSignature='';historyCache.clear();chartJobs.clear();if($('widget-dialog').open)$('widget-dialog').close();for(const id of ['devices','widgets','location-list','tabs'])$(id).replaceChildren();delete $('tabs').dataset.signature;for(const id of ['tabs','setup-panel','location-panel','conflict','logout'])$(id).hidden=true;for(const id of ['welcome','token-label','connect'])$(id).hidden=false;$('notice').textContent='';$('status').textContent='Disconnected';$('sensor-count').textContent='';$('home-title').textContent='Home';$('events').textContent='Disconnected.';$('join').disabled=true;$('close').disabled=true;}
+function endSession(){document.body.classList.remove('overview-mode');session++;chartEpoch++;for(const c of requests)c.abort();clearTimeout(timer);refreshing=false;token='';commissioningJobs=[];online=false;config=null;state=null;views=[];etag='';saving=false;conflictEdit=null;editor=null;activeTab=null;setupSignature='';widgetSignature='';historyCache.clear();chartJobs.clear();if($('widget-dialog').open)$('widget-dialog').close();for(const id of ['devices','widgets','location-list','tabs','all-grid'])$(id).replaceChildren();delete $('tabs').dataset.signature;for(const id of ['tabs','setup-panel','location-panel','all-panel','conflict','logout'])$(id).hidden=true;for(const id of ['welcome','token-label','connect'])$(id).hidden=false;$('notice').textContent='';$('status').textContent='Disconnected';$('sensor-count').textContent='';$('home-title').textContent='Home';$('events').textContent='Disconnected.';$('join').disabled=true;$('close').disabled=true;}
 async function tick(epoch=session){await refresh();if(epoch===session&&token)timer=setTimeout(()=>tick(epoch),online?3000:10000);}
 $('connect').onclick=()=>{const next=$('token').value.trim();endSession();token=next;$('token').value='';$('logout').hidden=false;tick();};$('logout').onclick=endSession;
 $('location-form').onsubmit=async e=>{e.preventDefault();const input=$('location-name'),button=$('add-location');button.disabled=true;if(await legacy('locations',{name:input.value},'POST','Location created.'))input.value='';button.disabled=false;document.activeElement?.blur();setupSignature='';renderSetup();};
