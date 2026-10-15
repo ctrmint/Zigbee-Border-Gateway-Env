@@ -12,8 +12,9 @@ ACTIVE = {'queued', 'waiting', 'sending'}
 
 def policy_input(body):
     fields = {'ieee','endpoint','min_interval','max_interval','temperature_change','humidity_change','model_hint'}
-    if not isinstance(body, dict) or set(body) != fields:
-        raise DashboardError('Provide exactly the documented reporting policy fields.', 422)
+    common = fields - {'temperature_change','humidity_change'}
+    if not isinstance(body, dict) or not common.issubset(body) or set(body)-fields or not (set(body) & {'temperature_change','humidity_change'}):
+        raise DashboardError('Provide the common policy fields and change thresholds for the endpoint measurements.', 422)
     if not isinstance(body['ieee'], str) or not re.fullmatch('[0-9a-f]{16}', body['ieee']):
         raise DashboardError('Invalid IEEE address.', 422)
     for key, low, high in [('endpoint',1,240),('min_interval',0,65534),('max_interval',1,65534)]:
@@ -23,6 +24,7 @@ def policy_input(body):
         raise DashboardError('Minimum interval must not exceed maximum.', 422)
     result = dict(body)
     for key, maximum in [('temperature_change',32767),('humidity_change',10000)]:
+        if key not in body:continue
         value = body[key]
         if type(value) not in (int,float) or not math.isfinite(value):
             raise DashboardError('Invalid '+key,422)
@@ -33,7 +35,7 @@ def policy_input(body):
         except InvalidOperation:
             raise DashboardError(key+' must be positive, in hundredths, within the supported range.',422)
         result[key+'_raw'] = int(raw)
-    if body['model_hint'] not in ('', 'SONOFF SNZB-02WD'):
+    if body['model_hint'] not in ('', 'SONOFF SNZB-02WD', 'SONOFF SNZB-02LD'):
         raise DashboardError('Unsupported model hint; this is user-supplied identity.',422)
     return result
 
@@ -43,6 +45,7 @@ def steps(policy, poll_control):
     # Bind check-ins first so future wake windows can help resume a partial setup.
     if poll_control: result.append({'op':'bind','cluster':32})
     for cluster, key in [(1026,'temperature_change_raw'),(1029,'humidity_change_raw')]:
+        if key not in policy:continue
         result.extend([{'op':'bind','cluster':cluster}, {'op':'configure_reporting','cluster':cluster,'attribute':0,
             'min_interval':policy['min_interval'],'max_interval':policy['max_interval'],'reportable_change':policy[key]},
             {'op':'read_reporting','cluster':cluster,'attribute':0}])
@@ -70,8 +73,12 @@ class CommissioningStore:
             if not self.db.execute('SELECT 1 FROM devices WHERE ieee=?',(policy['ieee'],)).fetchone():
                 raise DashboardError('Device not found.',404)
             d=self._get(policy['ieee']);desc=d['endpoints'].get(str(policy['endpoint']),{})
-            if not d.get('active') or not {1026,1029}.issubset(desc.get('input_clusters',[])):
-                raise DashboardError('Discover an active temperature/humidity endpoint first.',422)
+            supported={key for cluster,key in [(1026,'temperature_change'),(1029,'humidity_change')] if cluster in desc.get('input_clusters',[])}
+            requested=set(body) & {'temperature_change','humidity_change'}
+            if not d.get('active') or not supported:
+                raise DashboardError('Discover an active endpoint with temperature or humidity measurements first.',422)
+            if requested != supported:
+                raise DashboardError('Provide change thresholds only for all measurements supported by this endpoint: '+', '.join(sorted(supported))+'.',422)
             old=self.db.execute('SELECT data FROM commissioning WHERE ieee=?',(policy['ieee'],)).fetchone()
             if old and json.loads(old[0])['state'] in ACTIVE:
                 raise DashboardError('Commissioning already in progress. Cancel before changing policy.',409)

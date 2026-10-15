@@ -59,8 +59,9 @@ def contract_v2():
         "min_interval":integer(0,65534),"max_interval":integer(1,65534),
         "temperature_change":{"type":"number","minimum":0.01,"maximum":327.67,"multipleOf":0.01},
         "humidity_change":{"type":"number","minimum":0.01,"maximum":100,"multipleOf":0.01},
-        "model_hint":{"enum":["","SONOFF SNZB-02WD"]}},
-        ("ieee","endpoint","min_interval","max_interval","temperature_change","humidity_change","model_hint"),additionalProperties=False)
+        "model_hint":{"enum":["","SONOFF SNZB-02WD","SONOFF SNZB-02LD"]}},
+        ("ieee","endpoint","min_interval","max_interval","model_hint"),additionalProperties=False,
+        anyOf=[{"required":["temperature_change"]},{"required":["humidity_change"]}])
     job = obj({"id":{"type":"string"},"ieee":{"type":"string"},"policy":dict(policy,additionalProperties=True),
         "state":{"enum":["queued","waiting","sending","verified","configured_unverified","failed","expired","cancelled"]},
         "step":integer(),"attempt":integer(0,3),"steps":array({"type":"object"},maxItems=7),
@@ -92,6 +93,6 @@ def contract_v2():
             ("to", {"type": "number", "minimum": 0}), ("limit", integer(1,500)), ("cursor", {"type": "string"}))]
     history["responses"]["400"] = response("Invalid query or cursor", ref("Error"))
     paths['/api/v2/openapi.json'] = {"get": {"operationId": "v2_contract", "responses": {"200": response("This contract", {"type": "object"}), "401": response("Unauthorized", ref("Error"))}}}
-    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.1.0"},
+    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.1.1"},
         "servers": [{"url": "/"}], "security": [{"bearerAuth": []}], "paths": paths,
         "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": definitions}}

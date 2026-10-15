@@ -38,6 +38,24 @@ class ReportingBrowserTests(base.BrowserLocationTests):
         self.page.get_by_role('button',name='Disconnect',exact=True).click()
         expect(self.page.locator('#devices')).to_be_empty()
         self.assertEqual(self.errors,[])
+    def test_temperature_only_setup_has_no_humidity_commands_or_controls(self):
+        ieee='00124b0000000002'
+        with self.store.lock,self.store.db:
+            d=self.store._get(ieee);d['endpoints']['1']['input_clusters']=[0,32,1026];self.store._put(d)
+        self.connect()
+        expect(self.page.get_by_label('Temperature change (°C) for '+ieee,exact=True)).to_be_visible()
+        expect(self.page.get_by_label('Humidity change (% RH) for '+ieee,exact=True)).to_have_count(0)
+        self.page.get_by_label('User-reported sensor model').select_option('SONOFF SNZB-02LD')
+        self.page.get_by_role('button',name='Configure reporting',exact=True).click()
+        expect(self.page.get_by_role('button',name='Cancel reporting setup')).to_be_visible()
+        job=self.store.commissioning_document()['jobs'][0]
+        self.assertEqual(job['policy']['model_hint'],'SONOFF SNZB-02LD')
+        self.assertNotIn('humidity_change',job['policy'])
+        self.assertEqual([step['cluster'] for step in job['steps']],[32,1026,1026,1026])
+        self.page.reload();self.connect()
+        expect(self.page.get_by_role('button',name='Cancel reporting setup')).to_be_visible()
+        expect(self.page.get_by_label('Humidity change (% RH) for '+ieee,exact=True)).to_have_count(0)
+        self.assertEqual(self.errors,[])
     def test_old_gateway_controls_disabled(self):
         self.poller.status.pop('reporting_commissioning')
         self.connect()
