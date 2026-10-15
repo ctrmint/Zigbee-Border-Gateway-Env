@@ -245,3 +245,15 @@ in the temperature-only deployment backup directory.
   snapshot, with SQLite integrity OK. Static assets were deployed after private
   source/database backup; no service or coordinator restart was required. Local
   evidence is in backups/dashboard-issue13-20261015T140719Z/.
+
+## Issue #18 All sensors overview, 2026-10-15
+
+- PASS: 23 Chromium dashboard browser tests during combined development with #14. The independently reviewable #18 branch additionally passes its 20 Chromium cases (five All-tab cases plus all 15 existing navigation/location/reporting/widget cases), with a targeted regression for saved device freshness on the existing API. #18 does not require the unmerged #14 backend.
+- PASS: nine Playwright WebKit tests (All-tab and navigation suites), using the `iPad (gen 7)` touch/device profile. Coverage includes 390/507/768/1024/1180-pixel viewports, 200% page zoom, mixed sensor capabilities, 31 sensors, long names, stable nodes/scroll, API failure/recovery, no tile actions and no additional radio/history requests.
+- PASS: live dashboard with both real sensors, initial-location default retained, All showing correct capability-specific readings, desktop/tablet portrait/landscape/narrow/mobile screenshots and no JavaScript errors. Saved layout, locations, assignments, freshness settings and commissioning records match the pre-change database snapshot; SQLite integrity is OK.
+- PASS: JavaScript syntax, changed test Python compilation and Git whitespace checks. No API, database schema or firmware change was required for #18.
+- PENDING: actual iPad Safari version/device verification, touch scrolling and text enlargement on hardware. WebKit device emulation is not physical Safari validation.
+
+Local WebKit validation used downloaded libraries extracted into a private cache and software EGL rendering. Its cached launcher was adjusted to retain the library path; host-cache dependency validation was skipped because those libraries are outside the system cache. No system packages or repository runtime dependencies were installed/changed. These environment adjustments do not validate iPad-specific browser behavior.
+
+See [All sensors overview](DASHBOARD_ALL.md) for operation and rollback. Optional browser engine/device selection is available via `DASHBOARD_TEST_BROWSER=webkit DASHBOARD_TEST_DEVICE='iPad (gen 7)'`; default browser tests continue to use Chromium.
