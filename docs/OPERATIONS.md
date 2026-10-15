@@ -40,3 +40,25 @@ Raw event retention is 30 days, pruned periodically while polling succeeds. Late
 - Test sleepy device interviews and short-address changes.
 - Grow through 5, 20 and 50 devices; measure heap, RF failures, discovery failures, ring gaps and read latency during Wi-Fi traffic.
 - Observe a 24-hour soak before enabling unattended use. This source does not implement a safety controller for heaters, locks or other critical loads.
+
+## Reporting setup and stale sensors
+
+A connected gateway and a registered device do not prove recurring measurements.
+For a discovered temperature/humidity endpoint, use **Sensor reporting setup** in
+Configuration & Setup. Briefly wake the sensor as instructed by its manufacturer.
+The action binds measurement clusters and, if advertised, Poll Control to the
+coordinator endpoint 10, then configures and reads back reporting settings.
+
+Inspect the acknowledgements/readback panel. A local 202 only means accepted;
+`verified` requires successful remote responses plus matching settings. Unsupported
+readback is `configured_unverified`. Transport timeout 7 indicates no response;
+check wake state, battery and range, then explicitly retry after a failed/expired
+job. Automatic retries stop at three per step or five minutes. Cancellation cannot
+undo packets already sent, and a bounded fast-poll window may remain briefly.
+
+Watch temperature/humidity values labelled **report**, rather than **read response**
+or **unknown**, across two maximum intervals before declaring recurring reporting
+working. For the SNZB-02WD reference hourly policy, use a freshness margin such as
+4,500 seconds; the dashboard offers this after verified setup. Do not increase the
+threshold to disguise missing reports. Keep the existing network and pairing;
+factory reset or network erasure is not a commissioning troubleshooting shortcut.

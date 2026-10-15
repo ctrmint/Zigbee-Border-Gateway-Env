@@ -138,3 +138,59 @@ native SVG charts and fetch; no CDN or chart-library installation is required.
 Dense charts stop at 10,000 readings with a visible shorter-range notice. Fifty
 devices, one hundred widgets and long-duration concurrent-client load have not
 been load-tested. Firmware was not changed or reflashed for this dashboard work.
+
+## Reporting commissioning, issue #10, 2026-10-15
+
+- PASS: S3 build with ESP-IDF v5.5.4 / ESP-Zigbee 2.0.4, including remote binding,
+  Configure/Read Reporting Configuration callbacks and a Poll Control client.
+  Application size 0x1105f0 bytes; 36% of the application partition remains free.
+- PASS: native firmware tests under undefined-behavior sanitizer for existing
+  cursor/JSON logic, reporting policy limits/special intervals, response identity
+  matching (address/endpoint/cluster/transaction), and timeout boundaries.
+- PASS: all 36 API/integration tests. New coverage adds commissioning validation, authenticated HTTP,
+  readback agreement/unsupported behavior, correlation after an uncertain HTTP
+  submission, three-attempt limit, backoff/check-in wakeup, expiry, cancellation,
+  policy persistence/reboot recovery and report/read-response origins.
+- PASS: all ten Chromium cases. New coverage adds configure/cancel/retry/verified UI, recommended
+  freshness, mobile width, logout and controls disabled on older firmware, while
+  retaining all existing location/widget cases.
+- PASS: complete fresh 8 MiB S3 backup and SQLite snapshot saved privately before
+  deployment. Existing/built partition tables matched. Only the S3 application at
+  0x20000 was flashed, with esptool hash verification and watchdog reset. H2,
+  bootloader, partition table, NVS and Zigbee storage were not reprogrammed.
+- PASS: application restarts retained PAN 0xebc5/channel 20, coordinator IEEE
+  744dbdfffe67f12c, the paired SNZB-02WD registry entry, and closed pairing. The Pi
+  service reconnected and advertises reporting commissioning support.
+- NOT YET VERIFIED: the sensor did not answer the initial Poll Control binding
+  requests (SDK transport timeout 7), and retries stopped at three attempts.
+  No fresh sensor identity/readback/report has been claimed. Hardware validation
+  requires waking/reaching the sensor, completing setup, observing unsolicited
+  change-triggered and periodic reports over two maximum intervals, and checking
+  recurring delivery after a subsequent coordinator restart. No manual reads were
+  used to manufacture proof of unsolicited measurements.
+
+Backups and deployment logs are local in `backups/issue10-20261015T111959Z/`.
+Battery reporting and a general-purpose driver database remain out of scope.
+
+
+### SNZB-02WD follow-up hardware observations, 2026-10-15
+
+The sensor subsequently answered all seven commissioning steps with remote success,
+including Poll Control and measurement bindings. Readback matched minimum 5 seconds,
+maximum 3600 seconds, temperature delta 20 (0.2°C) and humidity delta 100 (1% RH).
+Basic reads confirmed SONOFF / SNZB-02WD. Before the restart test, at least 20
+temperature and 13 humidity unsolicited reports were recorded; their origin is
+explicitly `report`, separate from manual reads. Dashboard freshness is now 4500 seconds.
+
+A user-requested S3 restart test retained PAN 0xebc5, channel 20, coordinator identity
+and the paired device. The initial reset did not promptly restore API access; a
+second watchdog reset and startup inspection were needed before the gateway became
+reachable again (final boot 145c9fc62f3766ce). No flash or network erasure was performed.
+A fresh unsolicited temperature report was received in the final boot without
+re-pairing. The automatic bounded reconfiguration workflow also resumed; some
+requests timed out between sensor wake windows. Fresh unsolicited humidity reports subsequently also arrived after the restart.
+The automatic reconfiguration attempt exhausted retries at Configure Reporting,
+while both measurement streams continued using the previously verified policy.
+Two-hour periodic-report observation is still pending. Restart evidence is
+saved privately as restart-before.json / restart-after.json alongside deployment
+backups. These observations do not establish accuracy against a reference sensor.

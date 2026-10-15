@@ -12,4 +12,7 @@ cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \
   -I"$root/firmware/main" -I"$cjson" "$root/tests/firmware_json.c" \
   "$cjson/cJSON.c" -lm -o "$test_dir/json"
 "$test_dir/json"
-echo 'Firmware cursor and JSON tests passed.'
+cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \
+  -I"$root/firmware/main" "$root/tests/firmware_reporting.c" -o "$test_dir/reporting"
+"$test_dir/reporting"
+echo 'Firmware cursor, JSON and reporting policy tests passed.'

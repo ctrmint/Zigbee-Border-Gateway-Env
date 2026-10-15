@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.0.0"
+    "version": "2.1.0"
   },
   "servers": [
     {
@@ -15,6 +15,138 @@
     }
   ],
   "paths": {
+    "/api/v2/commissioning": {
+      "get": {
+        "operationId": "reporting_status",
+        "responses": {
+          "200": {
+            "description": "Durable reporting jobs, observed identity and measurement origins",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Commissioning"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "configure_or_cancel_reporting",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissioningRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Queued, not remotely completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissioningJob"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Cancelled; in-flight operations may complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissioningJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown device/job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid policy or endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unsupported/offline gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/configuration": {
       "get": {
         "operationId": "v2_configuration",
@@ -764,6 +896,13 @@
                         "minimum": 0,
                         "maximum": 65535
                       },
+                      "origin": {
+                        "enum": [
+                          "report",
+                          "read_response",
+                          "unknown"
+                        ]
+                      },
                       "label": {
                         "type": "string"
                       },
@@ -1006,12 +1145,16 @@
               },
               "dashboard_layouts": {
                 "const": true
+              },
+              "reporting_commissioning": {
+                "const": true
               }
             },
             "required": [
               "configuration",
               "history_query",
-              "dashboard_layouts"
+              "dashboard_layouts",
+              "reporting_commissioning"
             ]
           },
           "limits": {
@@ -1062,6 +1205,217 @@
           "widget_types",
           "features",
           "limits"
+        ]
+      },
+      "CommissioningPolicy": {
+        "type": "object",
+        "properties": {
+          "ieee": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "endpoint": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 240
+          },
+          "min_interval": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65534
+          },
+          "max_interval": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65534
+          },
+          "temperature_change": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 327.67,
+            "multipleOf": 0.01
+          },
+          "humidity_change": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 100,
+            "multipleOf": 0.01
+          },
+          "model_hint": {
+            "enum": [
+              "",
+              "SONOFF SNZB-02WD"
+            ]
+          }
+        },
+        "required": [
+          "ieee",
+          "endpoint",
+          "min_interval",
+          "max_interval",
+          "temperature_change",
+          "humidity_change",
+          "model_hint"
+        ],
+        "additionalProperties": false
+      },
+      "CommissioningJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ieee": {
+            "type": "string"
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "min_interval": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65534
+              },
+              "max_interval": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65534
+              },
+              "temperature_change": {
+                "type": "number",
+                "minimum": 0.01,
+                "maximum": 327.67,
+                "multipleOf": 0.01
+              },
+              "humidity_change": {
+                "type": "number",
+                "minimum": 0.01,
+                "maximum": 100,
+                "multipleOf": 0.01
+              },
+              "model_hint": {
+                "enum": [
+                  "",
+                  "SONOFF SNZB-02WD"
+                ]
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "min_interval",
+              "max_interval",
+              "temperature_change",
+              "humidity_change",
+              "model_hint"
+            ],
+            "additionalProperties": true
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "waiting",
+              "sending",
+              "verified",
+              "configured_unverified",
+              "failed",
+              "expired",
+              "cancelled"
+            ]
+          },
+          "step": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 7
+          },
+          "message": {
+            "type": "string"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 32
+          },
+          "created_at": {
+            "type": "number"
+          },
+          "expires_at": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "ieee",
+          "policy",
+          "state",
+          "step",
+          "attempt",
+          "steps",
+          "message",
+          "results",
+          "created_at",
+          "expires_at"
+        ]
+      },
+      "Commissioning": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissioningJob"
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "jobs"
+        ]
+      },
+      "CommissioningRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CommissioningPolicy"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "action": {
+                "const": "cancel"
+              }
+            },
+            "required": [
+              "ieee",
+              "action"
+            ],
+            "additionalProperties": false
+          }
         ]
       }
     }

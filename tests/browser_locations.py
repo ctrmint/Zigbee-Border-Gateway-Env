@@ -22,7 +22,7 @@ class BrowserLocationTests(unittest.TestCase):
         self.addCleanup(self.store.close)
         self.sim = Simulation()
         self.store.ingest(self.sim.boot, self.sim.events, self.sim.seq, self.sim.devices)
-        poller = Poller(None, self.store)
+        poller = self.poller = Poller(None, self.store)
         poller.status = dict(connected=True, ready=True, gap=False, mode='simulator')
         self.delay = threading.Event(); self.waiting = threading.Event(); self.release = threading.Event()
         handler = make_handler(self.store, poller, None, TOKEN)

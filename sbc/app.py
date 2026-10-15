@@ -57,6 +57,7 @@ def make_handler(store, poller, gateway, token):
             route = urlsplit(self.path)
             try:
                 if method == "GET":
+                    if route.path == "/api/v2/commissioning": return self.send(200, store.commissioning_document())
                     if route.path == "/api/v2/capabilities": return self.send(200, capabilities_v2())
                     if route.path == "/api/v2/openapi.json": return self.send(200, contract_v2())
                     if route.path == "/api/v2/configuration":
@@ -69,6 +70,14 @@ def make_handler(store, poller, gateway, token):
                         if any(len(values) != 1 for values in params.values()):
                             raise DashboardError("Repeated query parameters are not allowed.", 400, "invalid_query")
                         return self.send(200, store.measurement_history({key: values[0] for key, values in params.items()}))
+                if method == "POST" and route.path == "/api/v2/commissioning":
+                    body = self.read_body(4096)
+                    if set(body)=={'ieee','action'} and body['action']=='cancel':
+                        if not isinstance(body['ieee'],str) or not re.fullmatch('[0-9a-f]{16}',body['ieee']): raise DashboardError('Invalid IEEE address.',422)
+                        return self.send(200,store.cancel_commissioning(body['ieee']))
+                    if not poller.status.get('connected') or not poller.status.get('reporting_commissioning'):
+                        return self.v2_error(503,'gateway_unavailable','Update/connect a gateway supporting reporting commissioning first.')
+                    return self.send(202,store.start_commissioning(body))
                 if method == "PUT" and route.path == "/api/v2/configuration":
                     expected = self.headers.get("If-Match")
                     if expected is None: return self.v2_error(428, "revision_required", "Reload configuration before saving.")
@@ -143,6 +152,7 @@ def make_handler(store, poller, gateway, token):
             else:
                 self.send(404, {"error": "not found"})
         def do_POST(self):
+            if self.path.startswith("/api/v2/"): return self.v2("POST")
             if self.path.startswith('/api/v2/'): return self.v2("POST")
             if self.path == "/api/v1/locations":
                 return self.configuration("POST")

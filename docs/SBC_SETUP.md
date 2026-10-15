@@ -64,3 +64,11 @@ Back up the SQLite database before upgrading. Opening an existing database adds
 the configuration/history tables and backfills retained attribute events once.
 
 Call SBC `/api/v1/state` for the persistent projected registry. Send commands to `/api/v1/commands`. Your dashboard backend may instead call the board API directly with GATEWAY_TOKEN. The board has no browser CORS support, history database or dashboard. It does not ship with this project's API until you flash our S3 firmware.
+
+For paired temperature/humidity sensors, open **Configuration & Setup → Sensor
+reporting setup**, select the user-reported model if known and configure reporting.
+Briefly wake the sensor as requested. Check acknowledgements/readback, then observe
+unsolicited reports across at least two maximum intervals. See
+[compatibility and reporting](DEVICE_COMPATIBILITY.md) for retry, expiry and
+verification semantics. Existing gateway firmware must be upgraded before these
+controls become available; no re-pairing or network erasure is required.
