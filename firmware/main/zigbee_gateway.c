@@ -42,6 +42,8 @@
 #include "ezbee/zha.h"
 #include "zigbee_gateway.h"
 #include "gateway_api.h"
+#include "gateway_reporting.h"
+#include "ezbee/zcl/cluster/poll_control.h"
 
 static const char *TAG = "ZIGBEE_GATEWAY";
 
@@ -212,6 +214,7 @@ esp_err_t esp_zigbee_create_zha_gateway_device(void)
     ESP_ERROR_CHECK(ezb_af_endpoint_add_cluster_desc(ep_desc, ezb_zcl_basic_create_cluster_desc(NULL, EZB_ZCL_CLUSTER_CLIENT)));
     ESP_ERROR_CHECK(ezb_af_endpoint_add_cluster_desc(ep_desc, ezb_zcl_temperature_measurement_create_cluster_desc(NULL, EZB_ZCL_CLUSTER_CLIENT)));
     ESP_ERROR_CHECK(ezb_af_endpoint_add_cluster_desc(ep_desc, ezb_zcl_rel_humidity_measurement_create_cluster_desc(NULL, EZB_ZCL_CLUSTER_CLIENT)));
+    ESP_ERROR_CHECK(ezb_af_endpoint_add_cluster_desc(ep_desc, ezb_zcl_poll_control_create_cluster_desc(NULL, EZB_ZCL_CLUSTER_CLIENT)));
     ESP_ERROR_CHECK(ezb_af_device_add_endpoint_desc(dev_desc, ep_desc));
     ESP_ERROR_CHECK(ezb_af_device_desc_register(dev_desc));
 
@@ -255,6 +258,7 @@ static void esp_zigbee_stack_main_task(void *pvParameters)
     ESP_ERROR_CHECK(esp_zigbee_create_zha_gateway_device());
 
     ESP_ERROR_CHECK(esp_zigbee_start(false));
+    gateway_reporting_init();
 
     esp_zigbee_launch_mainloop();
 

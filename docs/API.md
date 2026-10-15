@@ -213,3 +213,41 @@ and stale measurements are distinct; gateway connectivity is shown separately.
 V2 errors use `{"error":{"code":"...","message":"...","details":[]},"request_id":"..."}`.
 V1 error envelopes and command acceptance semantics are unchanged. Device-specific
 discovery completion and durable command tracking remain future capabilities.
+
+### Reporting commissioning
+
+`GET /api/v2/commissioning` returns durable `jobs` (at most one per known device),
+desired policy, progress/results, sensor contact time, observed Basic identity,
+and latest measurement receipt/origin. `POST /api/v2/commissioning` accepts:
+
+```json
+{"ieee":"a4c13804d148ffff","endpoint":1,"min_interval":5,"max_interval":3600,"temperature_change":0.2,"humidity_change":1,"model_hint":"SONOFF SNZB-02WD"}
+```
+
+All fields are required. `model_hint` may also be empty. Changes are in °C / RH
+percentage points, exact hundredths; maximum must be 1–65534 seconds and at least
+the minimum (0–65534). This bounded policy does not support ZCL disable/reset
+intervals. A discovered active endpoint exposing both measurement clusters is
+required. Returns 202 queued, 409 already active, 422 invalid input/endpoint, or
+503 if gateway offline or firmware lacks `reporting_commissioning` in health.
+POST `{"ieee":"a4c13804d148ffff","action":"cancel"}` returns 200 and stops future
+attempts. Layout revisions are independent of this workflow. Existing v1 routes
+and token authentication remain available. The generated v2 contract describes
+job states; raw results include operation, status, phase and correlation ID.
+
+Gateway `/api/v1/commands` adds `bind`, `configure_reporting`, `read_reporting`
+and `reporting_window`, each requiring `ieee`, `endpoint` and a 36-character
+hex/dash `request_id`. Bind takes `cluster` (32, 1026 or 1029); reporting operations
+support clusters 1026/1029 and attribute 0. Configure also takes `min_interval`,
+`max_interval`, `reportable_change` in raw hundredths (positive, at most 32767 for
+temperature or 10000 for humidity). Window takes `seconds` 0–120. These commands
+accept exactly their documented fields and always bind to local coordinator
+IEEE/endpoint 10. 202 is local acceptance only. Correlated `commissioning` events
+carry `response`, `transport_error` or `timeout` phase; remote status zero is
+success only for a response. ZCL responses match source address, endpoint,
+cluster and confirmed transaction sequence; expired attempts are discarded.
+Readback carries attribute data type, intervals and raw delta when successful.
+The gateway bounds outstanding operations to 16, one per source/cluster, with a
+25-second deadline. Full end-to-end command tracking for other v1 operations is
+still unavailable. Attribute events add `origin: report|read_response`; retained
+older events are interpreted as `unknown`.

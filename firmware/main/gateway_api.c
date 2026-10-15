@@ -7,6 +7,7 @@
 #include "gateway_api.h"
 #include "gateway_cursor.h"
 #include "gateway_json.h"
+#include "gateway_reporting.h"
 #include "esp_http_server.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -30,10 +31,16 @@ static uint32_t dropped;
 static uint16_t pan_id;
 static uint8_t channel;
 
-static void emit(cJSON *o)
+void gateway_emit(cJSON *o)
 {
     if (!o) return;
     xSemaphoreTake(mutex, portMAX_DELAY);
+    if(!cJSON_GetObjectItemCaseSensitive(o,"ieee")){
+        cJSON *addr=cJSON_GetObjectItemCaseSensitive(o,"nwk");
+        if(cJSON_IsNumber(addr))for(int i=0;i<MAX_DEVICES;i++)if(devices[i].used&&devices[i].active&&devices[i].nwk==addr->valueint){
+            char value[17];snprintf(value,sizeof(value),"%016" PRIx64,devices[i].ieee);cJSON_AddStringToObject(o,"ieee",value);break;
+        }
+    }
     /* Start a new cursor epoch before uint32_t wraps; pollers reset by boot_id. */
     if(seq==UINT32_MAX){
         snprintf(boot_id,sizeof(boot_id),"%08" PRIx32 "%08" PRIx32,esp_random(),esp_random());
@@ -85,13 +92,13 @@ static void simple_cb(const ezb_zdo_simple_desc_req_result_t *res,void *ctx)
         for(int i=0;i<d->app_input_cluster_count;i++) cJSON_AddItemToArray(in,cJSON_CreateNumber(d->app_cluster_list[i]));
         for(int i=0;i<d->app_output_cluster_count;i++) cJSON_AddItemToArray(out,cJSON_CreateNumber(d->app_cluster_list[d->app_input_cluster_count+i]));
     }
-    emit(o); free(req);
+    gateway_emit(o); free(req);
 }
 static void active_cb(const ezb_zdo_active_ep_req_result_t *res,void *ctx)
 {
     ezb_zdo_active_ep_req_t *req=ctx;
     bool ok=res->error==EZB_ERR_NONE && res->rsp && res->rsp->status==0;
-    cJSON *o=event("discovery",req->dst_nwk_addr); cJSON_AddBoolToObject(o,"ok",ok); emit(o);
+    cJSON *o=event("discovery",req->dst_nwk_addr); cJSON_AddBoolToObject(o,"ok",ok); gateway_emit(o);
     if(ok) for(int i=0;i<res->rsp->active_ep_count;i++){
         ezb_zdo_simple_desc_req_t *s=calloc(1,sizeof(*s)); if(!s) break;
         s->dst_nwk_addr=req->dst_nwk_addr; s->field.nwk_addr_of_interest=req->dst_nwk_addr;
@@ -120,23 +127,24 @@ void gateway_announce(const ezb_zdo_signal_device_annce_params_t *p)
     }
     xSemaphoreGive(mutex);
     cJSON *o=event(slot>=0?"announce":"registry_full",p->short_addr);
-    cJSON_AddNumberToObject(o,"capability",p->capability); emit(o);
+    cJSON_AddNumberToObject(o,"capability",p->capability); gateway_emit(o);
     if(slot>=0) discover(p->short_addr);
 }
 void gateway_leave(uint16_t nwk)
 {
-    emit(event("leave",nwk));
+    gateway_emit(event("leave",nwk));
     xSemaphoreTake(mutex,portMAX_DELAY);
     for(int i=0;i<MAX_DEVICES;i++) if(devices[i].used && devices[i].nwk==nwk) devices[i].active=false;
     save_registry(); xSemaphoreGive(mutex);
 }
-static void attribute(const ezb_zcl_cmd_hdr_t *h,uint16_t id,uint8_t type,void *value)
+static void attribute(const ezb_zcl_cmd_hdr_t *h,uint16_t id,uint8_t type,void *value,const char *origin)
 {
     if(!h || !value || h->src_addr.addr_mode!=EZB_ADDR_MODE_SHORT) return;
     cJSON *o=event("attribute",h->src_addr.u.short_addr);
     cJSON_AddNumberToObject(o,"endpoint",h->src_ep); cJSON_AddNumberToObject(o,"cluster",h->cluster_id);
     cJSON_AddNumberToObject(o,"attribute",id); cJSON_AddNumberToObject(o,"data_type",type);
     cJSON_AddNumberToObject(o,"rssi",h->rssi);
+    cJSON_AddStringToObject(o,"origin",origin);
     /* Preserve raw standard scalar values; normalization is on the SBC. */
     double v=0; bool numeric=true;
     switch(type){
@@ -154,22 +162,23 @@ static void attribute(const ezb_zcl_cmd_hdr_t *h,uint16_t id,uint8_t type,void *
     default: numeric=false; cJSON_AddBoolToObject(o,"unsupported_type",true);break;
     }
     if(numeric) cJSON_AddNumberToObject(o,"raw",v);
-    emit(o);
+    gateway_emit(o);
 }
 void gateway_zcl_action(ezb_zcl_core_action_callback_id_t id,void *msg)
 {
     if(!msg) return;
+    gateway_reporting_action(id,msg);
     if(id==EZB_ZCL_CORE_REPORT_ATTR_CB_ID){
         ezb_zcl_cmd_report_attr_message_t *m=msg;
-        for(ezb_zcl_report_attr_variable_t *v=m->in.variables;v;v=v->next) attribute(m->in.header,v->attr_id,v->attr_type,v->attr_value);
+        for(ezb_zcl_report_attr_variable_t *v=m->in.variables;v;v=v->next) attribute(m->in.header,v->attr_id,v->attr_type,v->attr_value,"report");
     }else if(id==EZB_ZCL_CORE_READ_ATTR_RSP_CB_ID){
         ezb_zcl_cmd_read_attr_rsp_message_t *m=msg;
         for(ezb_zcl_read_attr_rsp_variable_t *v=m->in.variables;v;v=v->next)
-            if(v->status==0) attribute(m->in.header,v->attr_id,v->attr_type,v->attr_value);
+            if(v->status==0) attribute(m->in.header,v->attr_id,v->attr_type,v->attr_value,"read_response");
     }else if(id==EZB_ZCL_CORE_DEFAULT_RSP_CB_ID){
         ezb_zcl_cmd_default_rsp_message_t *m=msg;
         if(m->in.header){cJSON *o=event("zcl_response",m->in.header->src_addr.u.short_addr);
-            cJSON_AddNumberToObject(o,"status",m->in.status_code);cJSON_AddNumberToObject(o,"tsn",m->in.header->tsn);emit(o);}
+            cJSON_AddNumberToObject(o,"status",m->in.status_code);cJSON_AddNumberToObject(o,"tsn",m->in.header->tsn);gateway_emit(o);}
     }
 }
 static esp_err_t reply(httpd_req_t *req,cJSON *o)
@@ -213,7 +222,7 @@ static esp_err_t handle_get(httpd_req_t *req)
         cJSON_AddNumberToObject(o,"uptime_ms",esp_timer_get_time()/1000);
         cJSON_AddNumberToObject(o,"join_seconds",join_until>esp_timer_get_time()?(join_until-esp_timer_get_time())/1000000:0);
         cJSON_AddNumberToObject(o,"pan_id",pan_id);cJSON_AddNumberToObject(o,"channel",channel);
-        cJSON_AddNumberToObject(o,"dropped_events",dropped);cJSON_AddNumberToObject(o,"latest_seq",seq);
+        cJSON_AddBoolToObject(o,"reporting_commissioning",true);cJSON_AddNumberToObject(o,"dropped_events",dropped);cJSON_AddNumberToObject(o,"latest_seq",seq);
     }else if(inventory){
         cJSON *a=cJSON_AddArrayToObject(o,"devices");
         for(int i=0;i<MAX_DEVICES;i++) if(devices[i].used){
@@ -253,11 +262,12 @@ static esp_err_t command(httpd_req_t *req)
     int seconds=0,ep=0,cluster=0,attr=0;uint16_t nwk=0xffff;
     bool join=!strcmp(op->valuestring,"permit_join");
     bool disc=!strcmp(op->valuestring,"discover"), read=!strcmp(op->valuestring,"read"), onoff=!strcmp(op->valuestring,"on_off");
+    bool reporting=gateway_reporting_operation(op->valuestring);uint64_t device_ieee=0;
     bool valid=join?integer(o,"seconds",0,180,&seconds):false;
-    if(disc||read||onoff){
+    if(disc||read||onoff||reporting){
         cJSON *ieee=cJSON_GetObjectItemCaseSensitive(o,"ieee");
         if(cJSON_IsString(ieee) && strlen(ieee->valuestring)==16 && strspn(ieee->valuestring,"0123456789abcdefABCDEF")==16){
-            uint64_t id=strtoull(ieee->valuestring,NULL,16);xSemaphoreTake(mutex,portMAX_DELAY);
+            uint64_t id=strtoull(ieee->valuestring,NULL,16);device_ieee=id;xSemaphoreTake(mutex,portMAX_DELAY);
             for(int i=0;i<MAX_DEVICES;i++) if(devices[i].used && devices[i].active && devices[i].ieee==id) nwk=devices[i].nwk;
             xSemaphoreGive(mutex);
         }
@@ -266,10 +276,12 @@ static esp_err_t command(httpd_req_t *req)
         if(read) valid=valid&&integer(o,"cluster",0,65535,&cluster)&&integer(o,"attribute",0,65535,&attr);
         if(onoff){cJSON *state=cJSON_GetObjectItemCaseSensitive(o,"state");valid=valid&&cJSON_IsBool(state);}
     }
+    if(reporting) valid=valid&&gateway_reporting_valid(o);
     if(!valid){cJSON_Delete(o);return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"invalid command or unknown device");}
     if(!esp_zigbee_lock_acquire(pdMS_TO_TICKS(1000))){cJSON_Delete(o);return unavailable(req,"stack busy");}
     ezb_err_t e=EZB_ERR_FAIL;
     if(join){e=ezb_bdb_open_network(seconds);if(e==EZB_ERR_NONE){xSemaphoreTake(mutex,portMAX_DELAY);join_until=esp_timer_get_time()+(int64_t)seconds*1000000;xSemaphoreGive(mutex);}}
+    else if(reporting) e=gateway_reporting_command(o,device_ieee,nwk);
     else if(disc) e=discover(nwk);
     else if(onoff){
         ezb_zcl_on_off_cmd_t c={.cmd_ctrl={.dst_addr={.addr_mode=EZB_ADDR_MODE_SHORT,.u.short_addr=nwk},.dst_ep=ep,.src_ep=10}};
@@ -286,7 +298,7 @@ static esp_err_t command(httpd_req_t *req)
 void gateway_ready(void)
 {
     xSemaphoreTake(mutex,portMAX_DELAY);ready=true;pan_id=ezb_nwk_get_panid();channel=ezb_nwk_get_current_channel();xSemaphoreGive(mutex);
-    emit(event("network_ready",0));
+    gateway_emit(event("network_ready",0));
 }
 void gateway_permit_join_status(uint8_t seconds)
 {

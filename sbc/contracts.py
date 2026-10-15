@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .core import OPS
 
-CONTRACT_VERSION = "1.3.0"
+CONTRACT_VERSION = "1.4.0"
 
 
 def ref(name):
@@ -40,6 +40,13 @@ def schemas(strict_commands):
                 fields["endpoint"] = integer(1, 240)
             if op == "read":
                 fields.update(cluster=integer(0, 65535), attribute=integer(0, 65535))
+            if op in ('bind','configure_reporting','read_reporting','reporting_window'):
+                fields['request_id']={'type':'string','pattern':'^[0-9a-f-]{36}$'}
+                if op=='reporting_window':fields['seconds']=integer(0,120)
+                else:
+                    fields['cluster']={'enum':[32,1026,1029] if op=='bind' else [1026,1029]}
+                    if op!='bind':fields['attribute']={'const':0}
+                    if op=='configure_reporting':fields.update(min_interval=integer(0,65534),max_interval=integer(1,65534),reportable_change=integer(1,32767))
             if op == "on_off":
                 fields["state"] = {"type": "boolean"}
         commands.append(obj(fields, fields, additionalProperties=not strict_commands))
@@ -55,7 +62,10 @@ def schemas(strict_commands):
             "rssi": {"type": "integer"}, "ok": {"type": "boolean"},
             "profile_id": integer(0, 65535), "device_id": integer(0, 65535),
             "input_clusters": array(integer(0, 65535)), "output_clusters": array(integer(0, 65535)),
-            "status": integer(0, 255), "tsn": integer(0, 255), "capability": integer(0, 255),
+            "status": integer(-2147483648, 2147483647), "tsn": integer(0, 255), "capability": integer(0, 255),
+            "origin": {"enum": ["report","read_response","unknown"]},
+            "request_id": {"type":"string"}, "operation":{"type":"string"}, "phase":{"enum":["response","transport_error","timeout"]},
+            "min_interval":integer(0,65535),"max_interval":integer(0,65535),"reportable_change":integer(0,65535),
             "unsupported_type": {"type": "boolean"}}, ("type", "seq", "uptime_ms", "nwk"),
             allOf=[
                 {"if": {"properties": {"type": {"const": "attribute"}}},
@@ -73,14 +83,14 @@ def schemas(strict_commands):
             "events": array(ref("Event"), maxItems=16), "next_seq": integer(), "latest_seq": integer()},
             ("boot_id", "gap", "events", "next_seq", "latest_seq")),
         "Health": obj({"boot_id": {"type": "string"}, "ready": {"type": "boolean"},
-            "mode": {"enum": ["hardware", "simulator"]}, "join_seconds": integer(0, 180),
+            "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"}, "join_seconds": integer(0, 180),
             "latest_seq": integer(), "dropped_events": integer(), "uptime_ms": integer(),
             "pan_id": integer(0, 65535), "channel": dict(integer(0, 26), description="Zero before formation; 11–26 when ready.")},
             ("boot_id", "ready", "mode", "join_seconds", "latest_seq", "dropped_events")),
         "GatewayStatus": obj({"connected": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "gap": {"type": "boolean"}, "last_poll": timestamp,
             "boot_id": {"type": "string"}, "ready": {"type": "boolean"},
-                "mode": {"enum": ["hardware", "simulator"]}, "join_seconds": integer(0, 180),
+                "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"}, "join_seconds": integer(0, 180),
                 "latest_seq": integer(), "dropped_events": integer(), "uptime_ms": integer(),
                 "pan_id": integer(0, 65535), "channel": integer(0, 26)}, ("connected", "error", "gap")),
         "Endpoint": obj({"profile_id": integer(0, 65535), "device_id": integer(0, 65535),

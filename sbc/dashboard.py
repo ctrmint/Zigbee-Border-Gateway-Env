@@ -220,7 +220,7 @@ class DashboardStore:
                         value, received = a.get("value"), a.get("received")
                         quality = "missing" if not a else "invalid" if value is None else "stale" if now - received > setting["freshness_seconds"] else "valid"
                         measurements.append({"endpoint": endpoint, "cluster": cluster, "attribute": attribute,
-                            "label": label, "value": value, "unit": unit, "received_at": received, "quality": quality})
+                            "label": label, "value": value, "unit": unit, "received_at": received, "quality": quality, "origin": a.get("origin", "unknown")})
                 model = next((a.get("raw") for a in d["attributes"].values() if a["cluster"] == 0 and a["attribute"] == 5 and isinstance(a.get("raw"), str)), None)
                 views.append({"ieee": d["ieee"], "name": setting.get("name") or model or d["ieee"],
                     "location_id": d["location_id"], "registered": d.get("active", False),

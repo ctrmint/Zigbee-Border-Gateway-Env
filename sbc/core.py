@@ -8,8 +8,9 @@ import unicodedata
 import urllib.request
 import uuid
 from .dashboard import DashboardStore
+from .commissioning import CommissioningStore, drive_commissioning
 
-OPS = {"permit_join", "discover", "read", "on_off"}
+OPS = {"permit_join", "discover", "read", "on_off", "bind", "configure_reporting", "read_reporting", "reporting_window"}
 
 class ConfigurationError(ValueError):
     def __init__(self, message, status=400):
@@ -37,6 +38,19 @@ def validate_command(c):
         if op == "read":
             integer("cluster", 0, 65535)
             integer("attribute", 0, 65535)
+        if op in ("bind", "configure_reporting", "read_reporting", "reporting_window"):
+            if not isinstance(c.get("request_id"),str) or not re.fullmatch('[0-9a-f-]{36}',c['request_id']):
+                raise ValueError('request_id required')
+            fields.add('request_id')
+            if op == 'reporting_window':integer('seconds',0,120)
+            else:
+                integer('cluster',0,65535)
+                if c['cluster'] not in ((32,1026,1029) if op=='bind' else (1026,1029)):raise ValueError('unsupported cluster')
+                if op!='bind':integer('attribute',0,0)
+                if op=='configure_reporting':
+                    integer('min_interval',0,65534);integer('max_interval',1,65534)
+                    integer('reportable_change',1,32767 if c['cluster']==1026 else 10000)
+                    if c['min_interval']>c['max_interval']:raise ValueError('interval order')
         if op == "on_off":
             if type(c.get("state")) is not bool:
                 raise ValueError("state must be boolean")
@@ -67,7 +81,7 @@ class Gateway:
         with urllib.request.urlopen(req, timeout=5) as response:
             return json.load(response)
 
-class Store(DashboardStore):
+class Store(DashboardStore, CommissioningStore):
     def __init__(self, path):
         self.lock = threading.RLock()
         self.db = sqlite3.connect(path, check_same_thread=False)
@@ -85,6 +99,7 @@ class Store(DashboardStore):
         ''')
         self.db.commit()
         self._init_dashboard()
+        self._init_commissioning()
     def cursor(self):
         with self.lock:
             row = self.db.execute("SELECT boot,seq FROM cursor WHERE id=1").fetchone()
@@ -116,10 +131,13 @@ class Store(DashboardStore):
                     (boot, e["seq"], received, json.dumps(e))).rowcount
                 if not inserted or not e.get("ieee"):
                     continue
+                self.commissioning_event(e,received)
                 self._record_measurement(boot, e, received)
                 d = self._get(e["ieee"])
                 d["nwk"] = e["nwk"]
-                d["last_seen"] = time.time()
+                if e["type"] in ("announce","attribute","check_in","zcl_response") or (e["type"] in ("endpoint","discovery") and e.get("ok")) or (e["type"]=="commissioning" and e.get("phase")=="response"):
+                    d["last_seen"] = received
+                    d["last_contact"] = received
                 if e["type"] == "announce":
                     d["active"] = True
                 if e["type"] == "leave":
@@ -233,6 +251,7 @@ class Poller:
             gap_reason="gateway_restart" if changed else "history_gap" if batch.get("gap") else "connection_interrupted")
         self.status = dict(h, connected=True, error=None,
             gap=bool(batch.get("gap") or self.status.get("gap")), last_poll=time.time())
+        drive_commissioning(self.store,self.gateway,h)
         return batch["next_seq"] < batch["latest_seq"]
     def run(self):
         cycles = 0
