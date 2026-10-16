@@ -9,6 +9,7 @@ import secrets
 import time
 import unicodedata
 from .profiles import ProfilesStore
+from .all_layout import default_all_layout, validate_all_layout
 from .signal import SignalStore, SIGNAL_CLUSTER
 
 MEASUREMENTS = {(1026, 0): ("Temperature", "°C"), (1029, 0): ("Humidity", "%"),
@@ -127,9 +128,11 @@ class DashboardStore(SignalStore, ProfilesStore):
                 devices[d["ieee"]] = {"location_id": d["location_id"], "freshness_seconds": freshness}
                 if name:
                     devices[d["ieee"]]["name"] = name
+            layout = json.loads(data)
+            layout.setdefault("all_layout", default_all_layout())
             return {"schema_version": 1, "revision": revision,
                 "locations": [{"id": l["id"], "name": l["name"]} for l in self.locations()],
-                "devices": devices, "dashboard": json.loads(data)}
+                "devices": devices, "dashboard": layout}
 
     def replace_configuration(self, body, expected, profile='admin'):
         with self.lock, self.db:
@@ -172,8 +175,9 @@ class DashboardStore(SignalStore, ProfilesStore):
                 normalized_devices[ieee] = {"location_id": location_id, "freshness_seconds": freshness}
                 if "name" in setting:
                     normalized_devices[ieee]["name"] = text(setting["name"], path + ".name")
-            if not isinstance(dashboard, dict) or set(dashboard) != {"title", "temperature_unit", "widgets"}:
+            if not isinstance(dashboard, dict) or not {"title", "temperature_unit", "widgets"} <= set(dashboard) or set(dashboard) - {"title", "temperature_unit", "widgets", "all_layout"}:
                 raise DashboardError("Provide title, temperature_unit and widgets.", path="dashboard")
+            all_layout = validate_all_layout(dashboard.get("all_layout", current["dashboard"]["all_layout"]))
             title = text(dashboard["title"], "dashboard.title")
             if dashboard["temperature_unit"] not in ("celsius", "fahrenheit"):
                 raise DashboardError("Choose Celsius or Fahrenheit.", path="dashboard.temperature_unit")
@@ -222,7 +226,7 @@ class DashboardStore(SignalStore, ProfilesStore):
                 # The saving profile is advanced with its layout below; other contexts go stale.
                 if profile!='admin':self.db.execute("UPDATE dashboard_config SET revision=revision+1 WHERE id=1")
                 self.db.execute("UPDATE user_profiles SET revision=revision+1 WHERE id!='admin' AND id!=?",(profile,))
-            value = {"title": title, "temperature_unit": dashboard["temperature_unit"], "widgets": normalized_widgets}
+            value = {"title": title, "temperature_unit": dashboard["temperature_unit"], "widgets": normalized_widgets, "all_layout": all_layout}
             if profile=='admin':
                 self.db.execute("UPDATE dashboard_config SET data=?,revision=revision+1 WHERE id=1", (json.dumps(value),))
             else:self.db.execute("UPDATE user_profiles SET data=?,revision=revision+1 WHERE id=?",(json.dumps(value),profile))

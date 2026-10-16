@@ -1,5 +1,6 @@
 'use strict';
 let token='',session=0,timer=null,refreshing=false,online=false,saving=false;
+let allLayoutEdit=null;
 let activeProfile='admin',profiles=[],observedCookie='admin',profileSignature='';
 let displayJobs=[],sensorProfiles=null,commissioningJobs=[],config=null,etag='',state=null,views=[],activeTab=null,setupSignature='',widgetSignature='',editor=null,conflictEdit=null,chartEpoch=0;
 const requests=new Set(),chartRequests=new Set(),chartJobs=new Map(),historyCache=new Map();
@@ -55,14 +56,14 @@ async function manageProfile(path,body,method){
     $('profile-name').value='';document.activeElement?.blur();profileSignature='';await refresh();
   }catch(e){if(epoch===session)message(e);}
 }
-function draftActive(){return $('widget-dialog').open||!!document.activeElement?.closest('form,#location-list');}
+function draftActive(){return !!allLayoutEdit||$('widget-dialog').open||!!document.activeElement?.closest('form,#location-list');}
 async function loadConfiguration(){const r=await api('/api/v2/configuration');config=r.data;etag=r.etag;setupSignature='';widgetSignature='';return config;}
 async function saveConfig(mutate,base=config,revision=etag){
   if(saving)return false;const epoch=session;saving=true;
   try{const draft=clone(base);mutate(draft);const r=await api('/api/v2/configuration',{locations:draft.locations,devices:draft.devices,dashboard:draft.dashboard},'PUT',{'If-Match':revision});
-    config=r.data;etag=r.etag;conflictEdit=null;$('conflict').hidden=true;$('notice').textContent='Dashboard saved.';
+    config=r.data;etag=r.etag;if(mutate.allLayout)allLayoutEdit=null;conflictEdit=null;$('conflict').hidden=true;$('notice').textContent='Dashboard saved.';
     if($('widget-dialog').open)$('widget-dialog').close();editor=null;document.activeElement?.blur();setupSignature='';widgetSignature='';
-    await refresh();renderTabs();renderSetup();renderLocation();return true;
+    await refresh();renderTabs();renderSetup();renderLocation();renderAll();return true;
   }catch(e){if(epoch!==session||e.name==='AbortError')return false;if(e.status===412){conflictEdit=mutate;$('conflict').hidden=false;if($('widget-dialog').open)$('widget-dialog').close();editor=null;$('notice').textContent='Your edit is waiting for conflict resolution.';}else{message(e);if($('widget-dialog').open)$('widget-error').textContent=e.message;}return false;
   }finally{if(epoch===session)saving=false;}
 }
@@ -96,7 +97,33 @@ function renderTabs(){
 }
 // Read-only overview: reuse discovered data, never issue radio commands or history queries.
 function overviewSensors(){
-  return views.filter(d=>d.registered&&(d.measurements.some(m=>m.cluster!==6)||d.profile?.startsWith('SONOFF SNZB-02')||Object.values(state.devices.find(v=>v.ieee===d.ieee)?.endpoints||{}).some(ep=>ep.device_id===770||ep.input_clusters.some(c=>c===1026||c===1029)))).sort((a,b)=>a.ieee.localeCompare(b.ieee));
+  return views.filter(d=>d.registered&&(d.measurements.some(m=>m.cluster!==6)||d.profile?.startsWith('SONOFF SNZB-02')||Object.values(state.devices.find(v=>v.ieee===d.ieee)?.endpoints||{}).some(ep=>ep.device_id===770||ep.input_clusters.some(c=>c===1026||c===1029)))).sort((a,b)=>{const order=allLayout().order,ai=order.indexOf(a.ieee),bi=order.indexOf(b.ieee);return (ai<0?Infinity:ai)-(bi<0?Infinity:bi)||a.ieee.localeCompare(b.ieee);});
+}
+function allLayout(){return config?.dashboard.all_layout||{columns:0,min_tile_width:240,order:[]};}
+function allLayoutOrderIds(order){return [...new Set([...order,...overviewSensors().map(d=>d.ieee)])];}
+function ensureAllLayoutEdit(){
+  if(!allLayoutEdit)allLayoutEdit={base:clone(config),etag,settings:{...clone(allLayout()),order:allLayoutOrderIds(allLayout().order)}};
+  return allLayoutEdit;
+}
+function renderAllLayoutEditor(){
+  if(!config)return;const layout=allLayoutEdit?.settings||allLayout();
+  $('all-layout-heading').textContent='All dashboard layout · '+(profiles.find(p=>p.id===activeProfile)?.name||'Admin');
+  $('all-columns').value=String(layout.columns);$('all-tile-width').value=layout.min_tile_width;
+  const ids=allLayoutOrderIds(layout.order),shown=new Set(overviewSensors().map(d=>d.ieee)),list=$('all-tile-order');list.replaceChildren();
+  ids.forEach((id,index)=>{const d=views.find(d=>d.ieee===id),row=el('li'),label=el('span',(d?.name||id)+(!shown.has(id)?' · Not currently shown':'')),actions=el('div',undefined,'actions');
+    for(const [delta,title] of [[-1,'up'],[1,'down']]){const move=btn(title==='up'?'↑':'↓',()=>{const edit=ensureAllLayoutEdit(),order=allLayoutOrderIds(edit.settings.order),at=order.indexOf(id),to=at+delta;if(to<0||to>=order.length)return;[order[at],order[to]]=[order[to],order[at]];edit.settings.order=order;renderAllLayoutEditor();document.getElementById('tile-'+title+'-'+id)?.focus({preventScroll:true});},index+delta<0||index+delta>=ids.length);move.id='tile-'+title+'-'+id;move.setAttribute('aria-label','Move tile '+(d?.name||id)+' '+title);actions.append(move);}
+    row.append(label,actions);list.append(row);
+  });if(!ids.length)list.append(el('li','No sensors discovered yet. New sensors will appear automatically.'));
+}
+function applyAllGrid(){
+  if(!config||activeTab!=='all')return;const grid=$('all-grid'),width=grid.clientWidth;if(!width)return;
+  const layout=allLayout(),minimum=layout.min_tile_width/16+'rem';
+  // Native grid sizing reflows synchronously on rotation/text enlargement.
+  const template=layout.columns?`repeat(auto-fill, minmax(min(100%, max(${minimum}, calc((100% - ${layout.columns-1} * var(--all-gap)) / ${layout.columns}))), 1fr))`:`repeat(auto-fit, minmax(min(${minimum}, 100%), 1fr))`;
+  const signature=JSON.stringify([layout.columns,layout.min_tile_width]);
+  if(grid.dataset.layoutSignature!==signature){grid.style.gridTemplateColumns=template;grid.dataset.layoutSignature=signature;}
+  const count=Math.max(1,getComputedStyle(grid).gridTemplateColumns.split(/\s+/).filter(track=>parseFloat(track)>0).length);
+  grid.dataset.columns=String(count);$('all-layout-status').textContent=layout.columns&&count<layout.columns?`${count} of ${layout.columns} requested columns fit · Minimum tile width ${layout.min_tile_width} px`:`${layout.columns?'Selected layout':'Auto layout'} · ${count} column${count===1?'':'s'} · Minimum tile width ${layout.min_tile_width} px`;
 }
 function overviewQuality(m,freshness=3600){return m.quality==='missing'?'missing':m.value===null?'invalid':m.received_at&&Date.now()/1000-m.received_at>(m.freshness_seconds||freshness)?'stale':m.quality;}
 function signalText(d){
@@ -124,7 +151,7 @@ function renderAll(){
   sensors.forEach((d,i)=>{const candidate=overviewTile(d),signature=candidate.innerHTML;let tile=[...grid.children].find(n=>n.dataset.sensorId===d.ieee);
     if(!tile)tile=candidate;else if(tile._signature!==signature)tile.replaceChildren(...candidate.childNodes);
     tile._signature=signature;if(grid.children[i]!==tile)grid.insertBefore(tile,grid.children[i]||null);
-  });
+  });applyAllGrid();
 }
 async function reportingRequest(body){try{await api('/api/v2/commissioning',body);document.activeElement?.blur();setupSignature='';await refresh();$('notice').textContent=body.action?'Commissioning cancelled.':'Reporting setup queued. Briefly press the sensor button to wake it.';}catch(e){message(e);}}
 function reportingCard(d,card){
@@ -177,7 +204,7 @@ function deviceCard(d){
 function renderSetup(){
   if(!config||!state||activeTab!=='setup')return;$('gateway-state').textContent=online?'Connected':'Offline / starting';$('gateway-channel').textContent=state.gateway.channel||'—';$('pairing').textContent=state.gateway.join_seconds?`${state.gateway.join_seconds}s remaining`:'Closed';
   const signature=JSON.stringify([config,state.devices,views,online,commissioningJobs,displayJobs,sensorProfiles]);if(signature===setupSignature||document.activeElement?.closest('#setup-panel form,#location-list'))return;
-  setupSignature=signature;$('profile-list').replaceChildren();for(const p of sensorProfiles?.profiles||[]){$('profile-list').append(el('p',`${p.model} · ${p.hardware_status==='not_tested'?'Prepared in software; physical validation pending':'Reports previously observed'} · Maximum report interval ${p.defaults.max_interval/60} minutes`,'small'));}if(sensorProfiles)$('profile-list').append(el('p','SNZB-02UL remote-display/weather codecs are prepared; radio transport, weather providers and OTA are deferred. No unconnected sensor is added to the inventory.','small'));$('dashboard-title').value=config.dashboard.title;$('temperature-unit').value=config.dashboard.temperature_unit;$('location-list').replaceChildren();
+  setupSignature=signature;renderAllLayoutEditor();$('profile-list').replaceChildren();for(const p of sensorProfiles?.profiles||[]){$('profile-list').append(el('p',`${p.model} · ${p.hardware_status==='not_tested'?'Prepared in software; physical validation pending':'Reports previously observed'} · Maximum report interval ${p.defaults.max_interval/60} minutes`,'small'));}if(sensorProfiles)$('profile-list').append(el('p','SNZB-02UL remote-display/weather codecs are prepared; radio transport, weather providers and OTA are deferred. No unconnected sensor is added to the inventory.','small'));$('dashboard-title').value=config.dashboard.title;$('temperature-unit').value=config.dashboard.temperature_unit;$('location-list').replaceChildren();
   for(const l of state.locations){const row=el('div',undefined,'location-row'),label=el('label',`${l.device_count} device${l.device_count===1?'':'s'}`),input=el('input');input.value=l.name;input.maxLength=80;input.setAttribute('aria-label','Rename '+l.name);label.append(input);row.append(label,btn('Save name',async()=>{if(await legacy('locations/'+l.id,{name:input.value},'PUT','Location renamed.')){document.activeElement?.blur();setupSignature='';renderSetup();}}));const remove=btn('Delete',async()=>{if(await legacy('locations/'+l.id,null,'DELETE','Location deleted.')){document.activeElement?.blur();setupSignature='';renderSetup();}},l.device_count>0);remove.className='quiet';remove.title=l.device_count?'Move or unassign devices before deleting.':'Delete empty location';row.append(remove);$('location-list').append(row);}
   if(!config.locations.length)$('location-list').append(el('p','Create a location to start your dashboard.','small'));$('devices').replaceChildren();for(const d of state.devices)$('devices').append(deviceCard(d));if(!state.devices.length)$('devices').append(el('div','No devices yet. Open pairing, then put a device into pairing mode.','empty'));
 }
@@ -223,17 +250,23 @@ async function refresh(){
     $('status').textContent=(state.gateway.mode==='simulator'?'SIMULATOR · ':'')+(online?'Gateway connected':'Gateway offline / starting');$('sensor-count').textContent=`${state.devices.length} device${state.devices.length===1?'':'s'} registered`;$('home-title').textContent=config.dashboard.title;document.title=config.dashboard.title+' · Zigbee dashboard';$('join').disabled=!online;$('close').disabled=!online;$('welcome').hidden=true;$('token-label').hidden=true;$('connect').hidden=true;$('logout').hidden=false;renderTabs();renderSetup();renderProfiles();renderLocation();renderAll();if(state.gateway.gap&&!$('notice').textContent)$('notice').textContent='A history interruption was recorded. Charts mark known ingestion gaps.';
   }catch(e){if(epoch!==session||e.name==='AbortError')return;online=false;renderAll();$('status').textContent=e.message;$('join').disabled=true;$('close').disabled=true;for(const b of $('devices').querySelectorAll('.actions button'))b.disabled=true;}finally{if(epoch===session)refreshing=false;}
 }
-function endSession(){activeProfile='admin';profiles=[];profileSignature='';$('profile-control').hidden=true;$('profile-select').replaceChildren();delete $('profile-select').dataset.signature;$('user-profile-list').replaceChildren();document.body.classList.remove('overview-mode');session++;chartEpoch++;for(const c of requests)c.abort();clearTimeout(timer);refreshing=false;token='';commissioningJobs=[];displayJobs=[];sensorProfiles=null;$('profile-list').replaceChildren();online=false;config=null;state=null;views=[];etag='';saving=false;conflictEdit=null;editor=null;activeTab=null;setupSignature='';widgetSignature='';historyCache.clear();chartJobs.clear();if($('widget-dialog').open)$('widget-dialog').close();for(const id of ['devices','widgets','location-list','location-signals','tabs','all-grid'])$(id).replaceChildren();delete $('tabs').dataset.signature;for(const id of ['tabs','setup-panel','location-panel','all-panel','conflict','logout'])$(id).hidden=true;for(const id of ['welcome','token-label','connect'])$(id).hidden=false;$('notice').textContent='';$('status').textContent='Disconnected';$('sensor-count').textContent='';$('home-title').textContent='Home';$('events').textContent='Disconnected.';$('join').disabled=true;$('close').disabled=true;}
+function endSession(){allLayoutEdit=null;$('save-all-layout').disabled=false;activeProfile='admin';profiles=[];profileSignature='';$('profile-control').hidden=true;$('profile-select').replaceChildren();delete $('profile-select').dataset.signature;$('user-profile-list').replaceChildren();document.body.classList.remove('overview-mode');session++;chartEpoch++;for(const c of requests)c.abort();clearTimeout(timer);refreshing=false;token='';commissioningJobs=[];displayJobs=[];sensorProfiles=null;$('profile-list').replaceChildren();online=false;config=null;state=null;views=[];etag='';saving=false;conflictEdit=null;editor=null;activeTab=null;setupSignature='';widgetSignature='';historyCache.clear();chartJobs.clear();if($('widget-dialog').open)$('widget-dialog').close();for(const id of ['devices','widgets','location-list','location-signals','tabs','all-grid','all-tile-order'])$(id).replaceChildren();delete $('tabs').dataset.signature;delete $('all-grid').dataset.layoutSignature;for(const id of ['tabs','setup-panel','location-panel','all-panel','conflict','logout'])$(id).hidden=true;for(const id of ['welcome','token-label','connect'])$(id).hidden=false;$('notice').textContent='';$('status').textContent='Disconnected';$('sensor-count').textContent='';$('home-title').textContent='Home';$('events').textContent='Disconnected.';$('join').disabled=true;$('close').disabled=true;}
 async function tick(epoch=session){await refresh();if(epoch===session&&token)timer=setTimeout(()=>tick(epoch),online?3000:10000);}
 $('connect').onclick=()=>{const next=$('token').value.trim();endSession();activeProfile=readProfileCookie();observedCookie=activeProfile;token=next;$('token').value='';$('logout').hidden=false;tick();};$('logout').onclick=endSession;
 $('location-form').onsubmit=async e=>{e.preventDefault();const input=$('location-name'),button=$('add-location');button.disabled=true;if(await legacy('locations',{name:input.value},'POST','Location created.'))input.value='';button.disabled=false;document.activeElement?.blur();setupSignature='';renderSetup();};
 $('preferences-form').onsubmit=e=>{e.preventDefault();const title=$('dashboard-title').value,unit=$('temperature-unit').value;saveConfig(draft=>{draft.dashboard.title=title;draft.dashboard.temperature_unit=unit;});};
 $('widget-form').onsubmit=async e=>{e.preventDefault();if(!editor)return;const current=editor,w={id:current.widget?.id||widgetId(),type:$('widget-type').value,title:$('widget-title').value,source:JSON.parse($('widget-source').value),position:current.widget?.position??0,time_range:Number($('widget-range').value)};$('save-widget').disabled=true;await saveConfig(draft=>{if(current.widget){const i=draft.dashboard.widgets.findIndex(x=>x.id===current.widget.id);if(i<0)throw Error('This widget was removed in another session.');w.position=draft.dashboard.widgets[i].position;draft.dashboard.widgets[i]=w;}else{const used=new Set(draft.dashboard.widgets.map(x=>x.position));let position=0;while(used.has(position))position++;draft.dashboard.widgets.push({...w,position});}},current.base,current.etag);$('save-widget').disabled=false;};
 for(const id of ['cancel-widget','discard-widget'])$(id).onclick=()=>{$('widget-dialog').close();editor=null;};$('widget-dialog').oncancel=()=>{editor=null;};$('widget-source').onchange=()=>{if(!editor?.widget)$('widget-title').value=locate(JSON.parse($('widget-source').value)).measurement?.label||'Reading';};$('add-widget').onclick=()=>openEditor();$('suggest-widgets').onclick=suggestWidgets;
-$('reload-config').onclick=async()=>{try{await loadConfiguration();conflictEdit=null;$('conflict').hidden=true;if($('widget-dialog').open)$('widget-dialog').close();editor=null;document.activeElement?.blur();await refresh();}catch(e){message(e);}};
+$('reload-config').onclick=async()=>{try{await loadConfiguration();allLayoutEdit=null;conflictEdit=null;$('conflict').hidden=true;if($('widget-dialog').open)$('widget-dialog').close();editor=null;document.activeElement?.blur();await refresh();}catch(e){message(e);}};
 $('reapply-config').onclick=async()=>{const edit=conflictEdit;if(!edit)return;try{await loadConfiguration();await saveConfig(edit);}catch(e){message(e);}};
 $('join').onclick=()=>command({op:'permit_join',seconds:60});$('close').onclick=()=>command({op:'permit_join',seconds:0});$('join').disabled=true;$('close').disabled=true;
 
 $('profile-select').onchange=()=>switchProfile($('profile-select').value);
 $('profile-form').onsubmit=e=>{e.preventDefault();manageProfile('',{name:$('profile-name').value},'POST');};
 window.addEventListener('focus',()=>{if(token)syncProfileCookie();});
+
+for(const id of ['all-columns','all-tile-width'])$(id).addEventListener('input',()=>{const edit=ensureAllLayoutEdit();edit.settings.columns=Number($('all-columns').value);edit.settings.min_tile_width=Number($('all-tile-width').value);});
+$('all-layout-form').onsubmit=async e=>{e.preventDefault();const epoch=session,edit=ensureAllLayoutEdit();edit.settings.order=allLayoutOrderIds(edit.settings.order);const settings=clone(edit.settings),mutate=draft=>{draft.dashboard.all_layout=settings;};mutate.allLayout=true;$('save-all-layout').disabled=true;await saveConfig(mutate,edit.base,edit.etag);if(epoch===session)$('save-all-layout').disabled=false;};
+$('cancel-all-layout').onclick=async()=>{allLayoutEdit=null;document.activeElement?.blur();setupSignature='';await refresh();renderSetup();};
+window.addEventListener('resize',applyAllGrid);
+new ResizeObserver(applyAllGrid).observe($('all-grid'));

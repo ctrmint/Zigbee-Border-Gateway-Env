@@ -4,7 +4,7 @@ After connecting with your dashboard token, select **All** at the left of the ta
 
 Tiles contain data only: the sensor name, location, supported readings, units and the age/status of each reading. There are no tile controls, links, editing actions or radio-read buttons. Manage names, locations, units and freshness in Setup; existing location widgets remain independently configurable.
 
-Temperature-only sensors have no humidity placeholder. Battery percentage or voltage appears only when exposed by the device API; battery reporting/normalization is separate sensor work in #14. Multiple endpoints share a tile, with endpoint labels when needed. Sensors are ordered by their stable device address so renaming, assigning a location or receiving data does not reorder the page. Actuator-only devices and departed sensors are excluded. A device still awaiting discovery cannot be identified as a sensor until capabilities or a known sensor profile are available.
+Temperature-only sensors have no humidity placeholder. Battery percentage or voltage appears only when exposed by the device API; battery reporting/normalization is separate sensor work in #14. Multiple endpoints share a tile, with endpoint labels when needed. By default sensors are ordered by stable device address. Each profile can now set columns, preferred tile width and sensor order in Setup; see [All layout settings](ALL_LAYOUT.md). Renaming, assigning a location or receiving data does not reorder saved placement. Actuator-only devices and departed sensors are excluded. A device still awaiting discovery cannot be identified as a sensor until capabilities or a known sensor profile are available.
 
 **Stale**, **Invalid reading**, **No reading** and **Low battery** are explicit text labels. Each measurement retains its own timestamp/freshness; battery freshness is independent of temperature. A gateway outage is shown separately above the tiles, and cached readings keep their ages. Opening this page does not trigger radio measurements or download chart history.
 
@@ -18,7 +18,7 @@ Actual iPad Safari verification remains pending. Desktop automation and WebKit c
 
 ## Deployment and rollback
 
-This change modifies static dashboard assets and test/documentation files; it does not migrate the database, change firmware or alter saved widgets/policies. Refresh an already open dashboard page and reconnect with the existing token. No service or coordinator restart is required for the static assets. Local private backups contain the previous assets and a consistent snapshot of the configured hardware database; restore the assets to roll back the overview without reverting live history.
+The original overview modified static dashboard assets. Its subsequent [per-profile layout settings](ALL_LAYOUT.md) also extend the Pi configuration API; they require a Pi service restart, with no firmware or database schema change. Refresh an already open dashboard page and reconnect with the existing token. No service or coordinator restart is required for the static assets. Local private backups contain the previous assets and a consistent snapshot of the configured hardware database; restore the assets to roll back the overview without reverting live history.
 
 The nine All-tab/navigation cases also pass with Playwright WebKit and the `iPad (gen 7)` touch/device profile. To run these suites in a configured Playwright environment:
 

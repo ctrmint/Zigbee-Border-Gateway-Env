@@ -96,3 +96,5 @@ Select **All** after connecting to view compact, read-only tiles for every disco
 After connecting, choose **Profile** at the top right. Add profiles in Configuration & Setup → User profiles. Each has its own title, units and widgets; devices, locations and history stay shared. Admin keeps the existing layout. Selection uses a session cookie without an individual login. See [profile operation, API and rollback](USER_PROFILES.md).
 
 The dashboard records RSSI passively and displays last-known signal values and age. See [signal history](SIGNAL_HISTORY.md) for retention, widgets and migration/rollback.
+
+Adjust All tile columns, minimum widths and sensor order under Configuration & Setup → All dashboard layout. Preferences belong to the selected user profile; see [All layout settings](ALL_LAYOUT.md).

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.5.0"
+    "version": "2.6.0"
   },
   "servers": [
     {
@@ -1218,6 +1218,37 @@
                   "additionalProperties": false
                 },
                 "maxItems": 100
+              },
+              "all_layout": {
+                "type": "object",
+                "properties": {
+                  "columns": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  "min_tile_width": {
+                    "type": "integer",
+                    "minimum": 200,
+                    "maximum": 640,
+                    "multipleOf": 20
+                  },
+                  "order": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{16}$"
+                    },
+                    "maxItems": 50,
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "columns",
+                  "min_tile_width",
+                  "order"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -1381,6 +1412,37 @@
                   "additionalProperties": false
                 },
                 "maxItems": 100
+              },
+              "all_layout": {
+                "type": "object",
+                "properties": {
+                  "columns": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  "min_tile_width": {
+                    "type": "integer",
+                    "minimum": 200,
+                    "maximum": 640,
+                    "multipleOf": 20
+                  },
+                  "order": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{16}$"
+                    },
+                    "maxItems": 50,
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "columns",
+                  "min_tile_width",
+                  "order"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -1868,6 +1930,9 @@
               },
               "signal_history": {
                 "const": true
+              },
+              "all_overview_layout": {
+                "const": true
               }
             },
             "required": [
@@ -1877,7 +1942,8 @@
               "reporting_commissioning",
               "sensor_extensions",
               "user_profiles",
-              "signal_history"
+              "signal_history",
+              "all_overview_layout"
             ]
           },
           "limits": {
@@ -1904,6 +1970,15 @@
               "history_retention_days": {
                 "type": "integer"
               },
+              "all_columns": {
+                "type": "integer"
+              },
+              "all_min_tile_width": {
+                "type": "integer"
+              },
+              "all_max_tile_width": {
+                "type": "integer"
+              },
               "profiles": {
                 "type": "integer"
               },
@@ -1925,6 +2000,9 @@
               "history_page",
               "history_days",
               "history_retention_days",
+              "all_columns",
+              "all_min_tile_width",
+              "all_max_tile_width",
               "profiles",
               "profile_name_chars",
               "chart_ranges"

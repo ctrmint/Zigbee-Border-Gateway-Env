@@ -5,10 +5,10 @@ from .dashboard import RANGES
 
 def capabilities_v2():
     return {"api_version": "2", "widget_types": ["numeric", "chart"],
-        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True},
+        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True},
         "limits": {"configuration_bytes": 65536, "widgets": 100, "locations": 50,
             "device_overrides": 50, "history_page": 500, "history_days": 31,
-            "history_retention_days": 30,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
+            "history_retention_days": 30,"all_columns":6,"all_min_tile_width":200,"all_max_tile_width":640,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
 
 
 def contract_v2():
@@ -25,7 +25,10 @@ def contract_v2():
     editable = obj({"locations": array(obj({"id": {"type": "string"}, "name": {"type": "string", "minLength": 1, "maxLength": 80}}, ("id", "name"), additionalProperties=False), maxItems=50),
         "devices": {"type": "object", "maxProperties": 50, "propertyNames": {"pattern": "^[0-9a-f]{16}$"}, "additionalProperties": settings},
         "dashboard": obj({"title": {"type": "string", "minLength": 1, "maxLength": 80},
-            "temperature_unit": {"enum": ["celsius", "fahrenheit"]}, "widgets": array(widget, maxItems=100)},
+            "temperature_unit": {"enum": ["celsius", "fahrenheit"]}, "widgets": array(widget, maxItems=100),
+            "all_layout": obj({"columns":integer(0,6),"min_tile_width":dict(integer(200,640),multipleOf=20),
+                "order":array({"type":"string","pattern":"^[0-9a-f]{16}$"},maxItems=50,uniqueItems=True)},
+                ("columns","min_tile_width","order"),additionalProperties=False)},
             ("title", "temperature_unit", "widgets"), additionalProperties=False)},
         ("locations", "devices", "dashboard"), additionalProperties=False)
     measurement = obj({"endpoint": integer(1, 240), "cluster": integer(0, 65535), "attribute": integer(0, 65535),
@@ -66,8 +69,8 @@ def contract_v2():
         "Gateway": obj({"connected": {"type": "boolean"}, "ready": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "mode": {"enum": ["hardware", "simulator"]}}, ("connected", "error")),
         "Capabilities": obj({"api_version": {"const": "2"}, "widget_types": array({"enum": ["numeric", "chart"]}),
-            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history")},
-                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history")),
+            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout")},
+                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout")),
             "limits": obj({k: ({"type": "array", "items": {"type": "integer"}} if k == "chart_ranges" else {"type": "integer"}) for k in capabilities_v2()["limits"]}, capabilities_v2()["limits"])},
             ("api_version", "widget_types", "features", "limits"))}
     policy = obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"}, "endpoint":integer(1,240),
@@ -139,6 +142,6 @@ def contract_v2():
         op=paths['/api/v2/configuration'][method];op.setdefault('parameters',[]).extend(selection)
         op['responses']['200']['headers']={'ETag':{'schema':{'type':'string'}},'X-Dashboard-Profile':{'schema':profile_id}}
     paths['/api/v2/configuration']['put']['responses']['409']=response('Selected profile was removed; never save into fallback Admin',ref('Error'))
-    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.5.0"},
+    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.6.0"},
         "servers": [{"url": "/"}], "security": [{"bearerAuth": []}], "paths": paths,
         "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": definitions}}
