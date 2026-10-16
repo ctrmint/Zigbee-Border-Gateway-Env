@@ -308,3 +308,18 @@ Firmware images, full flash backup, credentials, database snapshots and exact so
 - PASS: live desktop/tablet/mobile All/Setup/location summaries and a browser-only real-data signal-chart preview (not saved into user layouts), no horizontal overflow, no JavaScript errors and GET requests only. Database/source backups, screenshots and validation logs are private under the ignored backups directory.
 
 See [signal history](SIGNAL_HISTORY.md) for the dashboard-only source identifier, event association, 30-day retention and rollback. No firmware change is required.
+
+## Issue #25 All dashboard layout, 16 October 2026
+
+- PASS: 68 API/integration tests, including five All-layout cases covering default projection without database rewrites, older clients omitting the new field, invalid/atomic settings, If-Match conflicts, independent profiles, restart persistence and retained absent addresses. Generated API contracts and Git whitespace checks pass; v2 contract is 2.6.0.
+- PASS: 38 distinct Chromium browser cases across the existing 33-case dashboard suite and five new All-layout cases (split runs). New coverage includes Auto and all 1–6 explicit counts, widths, rotation/Split View, ordering/new/departed/returning sensors, independent profiles, discard, conflict reapply and text enlargement. Final native-grid All/layout suites pass ten cases together.
+- Grid sizing uses native CSS auto-fit/auto-fill with minimum widths and requested counts; this fixes a rotation/scroll jump found with an earlier delayed JavaScript sizing approach. JavaScript reports the effective count without resizing tracks after reflow.
+- Startup rehearsal against the actual configured database preserves every existing table row and all three profiles, including their existing location widgets and saved signal history. No schema migration, firmware change or sensor command is needed.
+- Physical iPad Safari remains pending; see the issue record for WebKit emulation and live deployment results.
+
+
+- PASS: ten distinct WebKit/iPad-emulation cases across final All-layout and All suites (split runs). Reload coverage now uses the standard UL simulator directly; an intercepted battery-fixture request during navigation caused a test-only access-control error in an earlier run. All five layout cases pass together with the direct fixture, and the five existing All cases pass with native grid sizing.
+- PASS: live Pi deployment retained every existing table row at startup, all three profiles and their 14/14/0 location-widget counts. Defaults remain Auto/240/empty-order. SQLite integrity OK; Pi service connected/ready with the same gateway boot, and no firmware change.
+- PASS: live browser inspected all three real sensor tiles, Setup controls, one-through-six requested columns, reversed-order previews, 1180/768/507/390-pixel widths and reload. All requests were GET, no preview was saved into user profiles, no JavaScript errors or horizontal overflow; actual sensor telemetry and RSSI remain visible. Private snapshots, screenshots, logs and source hashes accompany deployment.
+
+See [All layout settings](ALL_LAYOUT.md) for width/count precedence, order retention, profiles, API compatibility and rollback.

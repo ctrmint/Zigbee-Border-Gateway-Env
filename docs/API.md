@@ -265,3 +265,5 @@ See [SNZB-02UL preparation](SNZB_02UL.md) for profile defaults, battery scaling,
 The v2 API supports `GET/POST /api/v2/profiles` and `PUT/DELETE /api/v2/profiles/{profile_id}`. Configuration resolves `X-Dashboard-Profile` before the `dashboard_profile` session cookie and returns the resolved profile header plus a profile-scoped ETag. Admin remains the backward-compatible default. Profile IDs are presentation selectors, not credentials. See [profile semantics and errors](USER_PROFILES.md).
 
 Signal history and latest RSSI are available through the authenticated v2 devices/history APIs; see [signal history](SIGNAL_HISTORY.md) for the dashboard-only source identifier and event correlation.
+
+Per-profile All layout preferences are part of v2 configuration; see [All layout API and compatibility](ALL_LAYOUT.md).

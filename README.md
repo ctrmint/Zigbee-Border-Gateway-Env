@@ -100,3 +100,5 @@ The read-only [All sensors overview](docs/DASHBOARD_ALL.md) displays compact sen
 [User profiles](docs/USER_PROFILES.md) provide session-cookie selection and separate dashboard preferences/layouts without individual logins.
 
 [Sensor signal strength and history](docs/SIGNAL_HISTORY.md) describes passive RSSI logging and dashboard widgets.
+
+[All dashboard layout settings](docs/ALL_LAYOUT.md) provide per-profile columns, minimum tile widths and sensor ordering.
