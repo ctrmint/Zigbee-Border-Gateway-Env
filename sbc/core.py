@@ -42,6 +42,8 @@ def validate_command(c):
         if op == "read":
             integer("cluster", 0, 65535)
             integer("attribute", 0, 65535)
+            if c["cluster"] == 65535:
+                raise ValueError("Signal strength is passive dashboard telemetry, not a Zigbee read.")
         if op in ("bind", "configure_reporting", "read_reporting", "reporting_window", "write_display", "read_display"):
             if not isinstance(c.get("request_id"),str) or not re.fullmatch('[0-9a-f-]{36}',c['request_id']):
                 raise ValueError('request_id required')
@@ -154,6 +156,7 @@ class Store(DashboardStore, CommissioningStore, DisplayStore):
                 self.commissioning_event(e,received)
                 self.display_event(e,received)
                 self._record_measurement(boot, e, received)
+                self._record_signal(boot, e, received)
                 d = self._get(e["ieee"])
                 d["nwk"] = e["nwk"]
                 if e["type"] in ("announce","attribute","check_in","zcl_response") or (e["type"] in ("endpoint","discovery") and e.get("ok")) or (e["type"]=="commissioning" and e.get("phase")=="response"):
@@ -240,6 +243,7 @@ class Store(DashboardStore, CommissioningStore, DisplayStore):
                 self.db.execute("SELECT data,received,boot FROM events ORDER BY received DESC LIMIT ?", (limit,))]
     def prune(self, days):
         with self.lock, self.db:
+            self._prune_signal(time.time())
             self.db.execute("DELETE FROM events WHERE received < ?", (time.time()-days*86400,))
             self.db.execute("DELETE FROM measurements WHERE received < ?", (time.time()-days*86400,))
             self.db.execute("DELETE FROM ingestion_gaps WHERE end < ?", (time.time()-days*86400,))
