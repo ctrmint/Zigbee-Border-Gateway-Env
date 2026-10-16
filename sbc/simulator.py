@@ -20,12 +20,27 @@ class Simulation:
                         {"ieee": "00124b0000000002", "nwk": 0x2345, "active": True}]
         self.reporting = {}
         self.reporting_failures = {}
+        self.display_values={}
+        self.display_failures={}
+        self.clock=None
         self.on = False
         for d in self.devices:
             self.emit(dict(d, type="announce"))
             self.emit(dict(d, type="endpoint", endpoint=1, ok=True, profile_id=0x104,
                 device_id=0, input_clusters=[0x0006] if d == self.devices[0] else [0x0402,0x0405], output_clusters=[]))
         self.measure()
+    def add_snzb02ul(self, voltage=False, vendor_cluster=True, on_off=True):
+        """Synthetic reference fixture, not a capture from a physical SNZB-02UL."""
+        d={'ieee':'00124b0000000014','nwk':0x3414,'active':True};self.devices.append(d)
+        self.emit(dict(d,type='announce'))
+        clusters=[0,1,3,1026,1029,32]+([64529] if vendor_cluster else [])+([6] if on_off else [])
+        self.emit(dict(d,type='endpoint',endpoint=1,ok=True,profile_id=260,device_id=770,input_clusters=clusters,output_clusters=[10,25]))
+        i=len(self.devices)-1
+        for attr,raw in [(4,'SONOFF'),(5,'SNZB-02UL'),(0x4000,'synthetic-1.0')]:self.attr(i,0,0x42,raw,attr,origin='read_response')
+        self.attr(i,1026,0x29,2150);self.attr(i,1029,0x21,4820);self.attr(i,1,0x20,160,33)
+        if voltage:self.attr(i,1,0x20,30,32)
+        self.display_values.update({(d['ieee'],attr):value for attr,value in [(3,2600),(4,1800),(5,3000),(6,6000),(7,0),(0x2003,0),(0x2004,0)]})
+        return d
     def emit(self, e):
         with self.lock:
             self.seq += 1
@@ -41,21 +56,36 @@ class Simulation:
     def command(self, c):
         validate_command(c)
         with self.lock:
+            if c['op']=='sync_clock':
+                self.clock=dict(c,synced=time.monotonic());return {'accepted':True,'stack_result':0}
             if c["op"] == "permit_join":
                 self.join_until = time.time() + c["seconds"]
             else:
                 if c["ieee"] not in {d["ieee"] for d in self.devices}:
                     raise ValueError("unknown device")
-                if c['op'] in ('bind','configure_reporting','read_reporting'):
+                if c['op'] in ('write_display','read_display'):
+                    from .sensors import DISPLAY_FIELDS
+                    d=next(d for d in self.devices if d['ieee']==c['ieee']);attr=c['attribute']
+                    status=self.display_failures.get((c['op'],attr),0)
+                    e=dict(d,type='commissioning',endpoint=c['endpoint'],cluster=64529,attribute=attr,request_id=c['request_id'],operation=c['op'],phase='response',status=status,tsn=43)
+                    if (d['ieee'],attr) not in self.display_values:e['status']=0x86
+                    elif status==0:
+                        dtype=next(v[1] for v in DISPLAY_FIELDS.values() if v[0]==attr)
+                        if c['op']=='write_display':self.display_values[(d['ieee'],attr)]=c['value']
+                        else:
+                            e.update(raw=self.display_values[(d['ieee'],attr)],data_type=dtype)
+                            self.attr(self.devices.index(d),64529,dtype,e['raw'],attr,origin='read_response')
+                    self.emit(e)
+                elif c['op'] in ('bind','configure_reporting','read_reporting'):
                     d=next(d for d in self.devices if d['ieee']==c['ieee'])
                     key=(c['ieee'],c['endpoint'],c['cluster'])
                     status=self.reporting_failures.get((c['op'],c['cluster']),0)
-                    e=dict(d,type='commissioning',endpoint=c['endpoint'],cluster=c['cluster'],attribute=0,
+                    e=dict(d,type='commissioning',endpoint=c['endpoint'],cluster=c['cluster'],attribute=c.get('attribute',0),
                         request_id=c['request_id'],operation=c['op'],phase='response',status=status,tsn=42)
                     if c['op']=='configure_reporting' and status==0:self.reporting[key]={k:c[k] for k in ('min_interval','max_interval','reportable_change')}
                     if c['op']=='read_reporting' and status==0:
                         if key not in self.reporting:e['status']=0x8b
-                        else:e.update(self.reporting[key],data_type=0x29 if c['cluster']==1026 else 0x21)
+                        else:e.update(self.reporting[key],data_type=0x29 if c['cluster']==1026 else 0x20 if c['cluster']==1 else 0x21)
                     self.emit(e)
                 elif c["op"] == "on_off":
                     if c["ieee"] != self.devices[0]["ieee"] or c["endpoint"] != 1:
@@ -64,7 +94,14 @@ class Simulation:
                     self.attr(0, 6, 0x10, int(self.on))
                 elif c["op"] == "read":
                     index=next(i for i,d in enumerate(self.devices) if d['ieee']==c['ieee'])
-                    if c['cluster']==0 and c['attribute'] in (4,5):self.attr(index,0,0x42,'SONOFF' if c['attribute']==4 else 'SNZB-02WD',c['attribute'],origin='read_response')
+                    if c['ieee']=='00124b0000000014':
+                        attributes={(0,4):(0x42,'SONOFF'),(0,5):(0x42,'SNZB-02UL'),(0,0x4000):(0x42,'synthetic-1.0')}
+                        for event in self.events:
+                            if event.get('ieee')==c['ieee'] and event.get('type')=='attribute':attributes[(event['cluster'],event['attribute'])]=(event['data_type'],event.get('raw'))
+                        value=attributes.get((c['cluster'],c['attribute']))
+                        if value:self.attr(index,c['cluster'],*value,c['attribute'],origin='read_response')
+                        else:self.emit(dict(self.devices[index],type='zcl_response',status=0x86,tsn=42))
+                    elif c['cluster']==0 and c['attribute'] in (4,5):self.attr(index,0,0x42,'SONOFF' if c['attribute']==4 else 'SNZB-02WD',c['attribute'],origin='read_response')
                     else:self.attr(index,c['cluster'],0x29 if c['cluster']==1026 else 0x21 if c['cluster']==1029 else 0x10,2050 if c['cluster']==1026 else 4800 if c['cluster']==1029 else int(self.on),c['attribute'],origin='read_response')
                 elif c["op"] == "discover":
                     index = next(i for i,d in enumerate(self.devices) if d["ieee"]==c["ieee"])
@@ -86,7 +123,7 @@ def make_handler(sim, token):
             p=urlparse(self.path)
             with sim.lock:
                 if p.path == "/api/v1/health":
-                    obj={"reporting_commissioning":True,"mode":"simulator","boot_id":sim.boot,"ready":True,"latest_seq":sim.seq,
+                    obj={"sensor_extensions":True,"time_server_valid":bool(sim.clock and time.monotonic()-sim.clock["synced"]<900),"reporting_commissioning":True,"mode":"simulator","boot_id":sim.boot,"ready":True,"latest_seq":sim.seq,
                          "join_seconds":max(0,int(sim.join_until-time.time())),"dropped_events":0}
                 elif p.path == "/api/v1/devices": obj={"boot_id":sim.boot,"devices":sim.devices}
                 elif p.path == "/api/v1/events":

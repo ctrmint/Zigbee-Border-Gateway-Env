@@ -6,9 +6,9 @@
  * periodic sensor policy; they must never silently disable the heartbeat. */
 static inline bool gateway_reporting_policy(int cluster,int attr,int min,int max,int change)
 {
-    return (cluster==0x0402 || cluster==0x0405) && attr==0 && min>=0 && min<=65534 &&
-        max>=1 && max<=65534 && min<=max && change>=1 &&
-        change<=(cluster==0x0402?32767:10000);
+    bool source=((cluster==0x0402||cluster==0x0405)&&attr==0)||(cluster==1&&(attr==32||attr==33));
+    int limit=cluster==0x0402?32767:cluster==0x0405?10000:254;
+    return source && min>=0 && min<=65534 && max>=1 && max<=65534 && min<=max && change>=1 && change<=limit;
 }
 
 typedef struct {uint16_t nwk,cluster;uint8_t ep,tsn;} gateway_reporting_source_t;

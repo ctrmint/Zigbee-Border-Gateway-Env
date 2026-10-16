@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .core import OPS
 
-CONTRACT_VERSION = "1.4.0"
+CONTRACT_VERSION = "1.5.0"
 
 
 def ref(name):
@@ -32,7 +32,9 @@ def schemas(strict_commands):
     commands = []
     for op in sorted(OPS):
         fields = {"op": {"const": op}}
-        if op == "permit_join":
+        if op == "sync_clock":
+            fields.update(unix_time=integer(1577836800,4102444800),utc_offset=integer(-50400,50400))
+        elif op == "permit_join":
             fields["seconds"] = integer(0, 180)
         else:
             fields["ieee"] = ieee
@@ -40,12 +42,13 @@ def schemas(strict_commands):
                 fields["endpoint"] = integer(1, 240)
             if op == "read":
                 fields.update(cluster=integer(0, 65535), attribute=integer(0, 65535))
-            if op in ('bind','configure_reporting','read_reporting','reporting_window'):
+            if op in ('bind','configure_reporting','read_reporting','reporting_window','write_display','read_display'):
                 fields['request_id']={'type':'string','pattern':'^[0-9a-f-]{36}$'}
                 if op=='reporting_window':fields['seconds']=integer(0,120)
                 else:
-                    fields['cluster']={'enum':[32,1026,1029] if op=='bind' else [1026,1029]}
-                    if op!='bind':fields['attribute']={'const':0}
+                    fields['cluster']={'enum':[1,6,32,1026,1029] if op=='bind' else [64529] if op in ('write_display','read_display') else [1,1026,1029]}
+                    if op!='bind':fields['attribute']={'enum':[0,32,33]} if op in ('configure_reporting','read_reporting') else {'enum':[3,4,5,6,7,8195,8196]}
+                    if op=='write_display':fields['value']=integer(-5000,9500)
                     if op=='configure_reporting':fields.update(min_interval=integer(0,65534),max_interval=integer(1,65534),reportable_change=integer(1,32767))
             if op == "on_off":
                 fields["state"] = {"type": "boolean"}
@@ -83,21 +86,21 @@ def schemas(strict_commands):
             "events": array(ref("Event"), maxItems=16), "next_seq": integer(), "latest_seq": integer()},
             ("boot_id", "gap", "events", "next_seq", "latest_seq")),
         "Health": obj({"boot_id": {"type": "string"}, "ready": {"type": "boolean"},
-            "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"}, "join_seconds": integer(0, 180),
+            "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"},"sensor_extensions":{"type":"boolean"},"time_server_valid":{"type":"boolean"}, "join_seconds": integer(0, 180),
             "latest_seq": integer(), "dropped_events": integer(), "uptime_ms": integer(),
             "pan_id": integer(0, 65535), "channel": dict(integer(0, 26), description="Zero before formation; 11–26 when ready.")},
             ("boot_id", "ready", "mode", "join_seconds", "latest_seq", "dropped_events")),
         "GatewayStatus": obj({"connected": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "gap": {"type": "boolean"}, "last_poll": timestamp,
             "boot_id": {"type": "string"}, "ready": {"type": "boolean"},
-                "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"}, "join_seconds": integer(0, 180),
+                "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"},"sensor_extensions":{"type":"boolean"},"time_server_valid":{"type":"boolean"}, "join_seconds": integer(0, 180),
                 "latest_seq": integer(), "dropped_events": integer(), "uptime_ms": integer(),
                 "pan_id": integer(0, 65535), "channel": integer(0, 26)}, ("connected", "error", "gap")),
         "Endpoint": obj({"profile_id": integer(0, 65535), "device_id": integer(0, 65535),
             "input_clusters": array(integer(0, 65535)), "output_clusters": array(integer(0, 65535))},
             ("profile_id", "device_id", "input_clusters", "output_clusters")),
         "Attribute": {"allOf": [ref("Event"), obj({"received": timestamp,
-            "value": {"type": ["number", "boolean", "null"]}, "unit": {"enum": ["°C", "%", "on/off", None]}},
+            "value": {"type": ["number", "boolean", "null"]}, "unit": {"enum": ["°C", "%", "on/off", "V", None]}},
             ("received", "value", "unit"))]},
         "Device": obj({"ieee": ieee, "nwk": integer(0, 65535), "active": {"type": "boolean"},
             "location_id": {"type": ["string", "null"], "format": "uuid"},

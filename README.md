@@ -93,6 +93,8 @@ Do not commit `.env`, generated `sdkconfig`, build artifacts or network/database
 
 Automatic binding/report configuration, IAS Zone enrolment, manufacturer quirks, OTA updates, MQTT, automation rules and Zigbee-network backup/restore are future work. Reads are available now; reports are received when devices send them to endpoint 10. Do not assume pairing alone configures reporting. See [device compatibility](docs/DEVICE_COMPATIBILITY.md).
 
+See [SNZB-02UL preparation](docs/SNZB_02UL.md) for the advance sensor-support milestone and pending hardware validation.
+
 The read-only [All sensors overview](docs/DASHBOARD_ALL.md) displays compact sensor tiles across every location, with responsive tablet layouts.
 
 [User profiles](docs/USER_PROFILES.md) provide session-cookie selection and separate dashboard preferences/layouts without individual logins.

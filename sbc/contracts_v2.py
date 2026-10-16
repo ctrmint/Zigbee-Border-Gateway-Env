@@ -5,7 +5,7 @@ from .dashboard import RANGES
 
 def capabilities_v2():
     return {"api_version": "2", "widget_types": ["numeric", "chart"],
-        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True},
+        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True},
         "limits": {"configuration_bytes": 65536, "widgets": 100, "locations": 50,
             "device_overrides": 50, "history_page": 500, "history_days": 31,
             "history_retention_days": 30,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
@@ -29,7 +29,7 @@ def contract_v2():
             ("title", "temperature_unit", "widgets"), additionalProperties=False)},
         ("locations", "devices", "dashboard"), additionalProperties=False)
     measurement = obj({"endpoint": integer(1, 240), "cluster": integer(0, 65535), "attribute": integer(0, 65535),
-        "origin":{"enum":["report","read_response","unknown"]}, "label": {"type": "string"}, "value": {"type": ["number", "boolean", "null"]}, "unit": {"type": "string"},
+        "origin":{"enum":["report","read_response","unknown"]}, "freshness_seconds":integer(60,604800),"low_battery":{"type":"boolean"}, "label": {"type": "string"}, "value": {"type": ["number", "boolean", "null"]}, "unit": {"type": "string"},
         "received_at": {"type": ["number", "null"]}, "quality": {"enum": ["valid", "invalid", "missing", "stale"]}},
         ("endpoint", "cluster", "attribute", "label", "value", "unit", "received_at", "quality"))
     definitions = {
@@ -38,7 +38,7 @@ def contract_v2():
             ("schema_version", "revision", "locations", "devices", "dashboard"), additionalProperties=False),
         "Devices": obj({"devices": array(obj({"ieee": {"type": "string"}, "name": {"type": "string"},
             "location_id": {"type": ["string", "null"]}, "registered": {"type": "boolean"},
-            "discovery": {"enum": ["unknown", "partial"]}, "freshness_seconds": integer(60, 604800),
+            "profile":{"enum":[None,"SONOFF SNZB-02WD","SONOFF SNZB-02LD","SONOFF SNZB-02UL"]}, "discovery": {"enum": ["unknown", "partial"]}, "freshness_seconds": integer(60, 604800),
             "measurements": array(measurement)}, ("ieee", "name", "location_id", "registered", "discovery", "freshness_seconds", "measurements")))}, ("devices",)),
         "History": obj({"items": array(obj({"id": integer(1), "received_at": {"type": "number"},
             "value": {"type": ["number", "boolean", "null"]}, "unit": {"type": "string"}, "quality": {"enum": ["valid", "invalid"]}},
@@ -51,32 +51,50 @@ def contract_v2():
         "Gateway": obj({"connected": {"type": "boolean"}, "ready": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "mode": {"enum": ["hardware", "simulator"]}}, ("connected", "error")),
         "Capabilities": obj({"api_version": {"const": "2"}, "widget_types": array({"enum": ["numeric", "chart"]}),
-            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "user_profiles")},
-                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "user_profiles")),
+            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles")},
+                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles")),
             "limits": obj({k: ({"type": "array", "items": {"type": "integer"}} if k == "chart_ranges" else {"type": "integer"}) for k in capabilities_v2()["limits"]}, capabilities_v2()["limits"])},
             ("api_version", "widget_types", "features", "limits"))}
     policy = obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"}, "endpoint":integer(1,240),
         "min_interval":integer(0,65534),"max_interval":integer(1,65534),
         "temperature_change":{"type":"number","minimum":0.01,"maximum":327.67,"multipleOf":0.01},
         "humidity_change":{"type":"number","minimum":0.01,"maximum":100,"multipleOf":0.01},
-        "model_hint":{"enum":["","SONOFF SNZB-02WD","SONOFF SNZB-02LD"]}},
+        "model_hint":{"enum":["","SONOFF SNZB-02WD","SONOFF SNZB-02LD","SONOFF SNZB-02UL"]}},
         ("ieee","endpoint","min_interval","max_interval","model_hint"),additionalProperties=False,
         anyOf=[{"required":["temperature_change"]},{"required":["humidity_change"]}])
     job = obj({"id":{"type":"string"},"ieee":{"type":"string"},"policy":dict(policy,additionalProperties=True),
         "state":{"enum":["queued","waiting","sending","verified","configured_unverified","failed","expired","cancelled"]},
-        "step":integer(),"attempt":integer(0,3),"steps":array({"type":"object"},maxItems=7),
+        "step":integer(),"attempt":integer(0,3),"steps":array({"type":"object"},maxItems=11),
         "message":{"type":"string"},"results":array({"type":"object"},maxItems=32),
         "created_at":{"type":"number"},"expires_at":{"type":"number"}},
         ("id","ieee","policy","state","step","attempt","steps","message","results","created_at","expires_at"))
     definitions.update(CommissioningPolicy=policy,CommissioningJob=job,
         Commissioning=obj({"jobs":array(ref("CommissioningJob"),maxItems=50)},("jobs",)),
         CommissioningRequest={"oneOf":[ref("CommissioningPolicy"),obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"},"action":{"const":"cancel"}},("ieee","action"),additionalProperties=False)]})
+    display_fields={"temperature_units":{"enum":["celsius","fahrenheit"]},
+        **{k:{"type":"number","minimum":low,"maximum":high,"multipleOf":.1} for k,low,high in (
+            ("comfort_temperature_min",0,50),("comfort_temperature_max",0,50),("comfort_humidity_min",5,95),
+            ("comfort_humidity_max",5,95),("temperature_calibration",-50,50),("humidity_calibration",-50,50))}}
+    display_input=obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"},"endpoint":integer(1,240),
+        "settings":obj(display_fields,minProperties=1,maxProperties=7,additionalProperties=False)},("ieee","endpoint","settings"),additionalProperties=False)
+    display_job=obj({"id":{"type":"string"},"ieee":{"type":"string"},"endpoint":integer(1,240),"settings":display_input['properties']['settings'],
+        "state":{"enum":["queued","sending","waiting","failed","expired","cancelled","verified"]},"step":integer(0,14),"attempt":integer(0,3),
+        "steps":array({"type":"object"},maxItems=14),"results":array({"type":"object"},maxItems=48),"message":{"type":"string"}},
+        ("id","ieee","endpoint","settings","state","step","attempt","steps","results","message"))
+    definitions.update(DisplayInput=display_input,DisplayJob=display_job,DisplayJobs=obj({"jobs":array(ref("DisplayJob"),maxItems=50)},("jobs",)),
+        SensorProfiles=obj({"reference_revision":{"type":"string"},"reference_url":{"type":"string"},"profiles":array({"type":"object"},maxItems=3)},("reference_revision","reference_url","profiles")))
     paths = {"/api/v2/commissioning":{
         "get":{"operationId":"reporting_status","responses":{"200":response("Durable reporting jobs, observed identity and measurement origins",ref("Commissioning")),"401":response("Unauthorized",ref("Error"))}},
         "post":{"operationId":"configure_or_cancel_reporting","requestBody":{"required":True,"content":{"application/json":{"schema":ref("CommissioningRequest")}}},
             "responses":{"202":response("Queued, not remotely completed",ref("CommissioningJob")),"200":response("Cancelled; in-flight operations may complete",ref("CommissioningJob")),
                 **{str(code):response(text,ref("Error")) for code,text in ((400,"Malformed body"),(401,"Unauthorized"),(404,"Unknown device/job"),(409,"Already running"),(413,"Body too large"),(422,"Invalid policy or endpoint"),(503,"Unsupported/offline gateway"))}}}}}
 
+    cancel=obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"},"action":{"const":"cancel"}},("ieee","action"),additionalProperties=False)
+    display_responses={"202":response("Queued; not yet confirmed by device",ref("DisplayJob")),"200":response("Cancelled",ref("DisplayJob"))}
+    display_responses.update({str(n):response("Invalid, unavailable or busy",ref("Error")) for n in (400,401,404,409,413,422,503)})
+    paths['/api/v2/display']={"get":{"operationId":"display_jobs","responses":{"200":response("Persisted desired display settings and readback progress",ref("DisplayJobs")),"401":response("Unauthorized",ref("Error"))}}}
+    paths['/api/v2/display']['post']={"operationId":"set_display_settings","requestBody":{"required":True,"content":{"application/json":{"schema":{"oneOf":[ref("DisplayInput"),cancel]}}}},"responses":display_responses}
+    paths['/api/v2/sensor-profiles']={"get":{"operationId":"sensor_profiles","responses":{"200":response("Reference profiles; not paired devices",ref("SensorProfiles")),"401":response("Unauthorized",ref("Error"))}}}
     for route, name in (("configuration", "Configuration"), ("devices", "Devices"), ("history", "History"), ("gateway", "Gateway"), ("capabilities", "Capabilities")):
         paths['/api/v2/' + route] = {"get": {"operationId": "v2_" + route,
             "responses": {"200": response("Current " + route, ref(name)), "401": response("Unauthorized", ref("Error"))}}}
@@ -106,6 +124,6 @@ def contract_v2():
         op=paths['/api/v2/configuration'][method];op.setdefault('parameters',[]).extend(selection)
         op['responses']['200']['headers']={'ETag':{'schema':{'type':'string'}},'X-Dashboard-Profile':{'schema':profile_id}}
     paths['/api/v2/configuration']['put']['responses']['409']=response('Selected profile was removed; never save into fallback Admin',ref('Error'))
-    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.3.0"},
+    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.4.0"},
         "servers": [{"url": "/"}], "security": [{"bearerAuth": []}], "paths": paths,
         "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": definitions}}

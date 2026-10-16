@@ -7,6 +7,7 @@ import time
 import uuid
 from decimal import Decimal, InvalidOperation
 from .dashboard import DashboardError
+from .sensors import MODELS,UL,device_model
 
 ACTIVE = {'queued', 'waiting', 'sending'}
 
@@ -35,7 +36,7 @@ def policy_input(body):
         except InvalidOperation:
             raise DashboardError(key+' must be positive, in hundredths, within the supported range.',422)
         result[key+'_raw'] = int(raw)
-    if body['model_hint'] not in ('', 'SONOFF SNZB-02WD', 'SONOFF SNZB-02LD'):
+    if body['model_hint'] not in MODELS:
         raise DashboardError('Unsupported model hint; this is user-supplied identity.',422)
     return result
 
@@ -63,7 +64,10 @@ class CommissioningStore:
             for job in jobs:
                 d=self._get(job['ieee'])
                 job['last_contact']=d.get('last_contact') or max((a.get('received',0) for a in d.get('attributes',{}).values()),default=0) or None
-                job['identity']={key:d.get('attributes',{}).get(f"{job['policy']['endpoint']}:0:{aid}",{}).get('raw') for key,aid in [('manufacturer',4),('model',5)]}
+                job['identity']={}
+                for key,aid in [('manufacturer',4),('model',5),('software_build',0x4000)]:
+                    value=d.get('attributes',{}).get(f"{job['policy']['endpoint']}:0:{aid}",{}).get('raw')
+                    job['identity'][key]=value if isinstance(value,str) else None
                 job['measurements']=[{'cluster':c,'received_at':a.get('received'), 'origin':a.get('origin','unknown')}
                     for c in (1026,1029) if (a:=d.get('attributes',{}).get(f"{job['policy']['endpoint']}:{c}:0"))]
             return {'jobs':jobs}
@@ -79,6 +83,8 @@ class CommissioningStore:
                 raise DashboardError('Discover an active endpoint with temperature or humidity measurements first.',422)
             if requested != supported:
                 raise DashboardError('Provide change thresholds only for all measurements supported by this endpoint: '+', '.join(sorted(supported))+'.',422)
+            display=self.db.execute('SELECT data FROM display_jobs WHERE ieee=?',(d['ieee'],)).fetchone()
+            if display and json.loads(display[0])['state'] in ACTIVE:raise DashboardError('Cancel or finish the active display setup first.',409)
             old=self.db.execute('SELECT data FROM commissioning WHERE ieee=?',(policy['ieee'],)).fetchone()
             if old and json.loads(old[0])['state'] in ACTIVE:
                 raise DashboardError('Commissioning already in progress. Cancel before changing policy.',409)
@@ -86,6 +92,14 @@ class CommissioningStore:
                 'state':'queued','step':0,'attempt':0,'created_at':now,'expires_at':now+300,'next_attempt':now,
                 'request_id':None,'deadline':None,'results':[],'gateway_boot':None,
                 'message':'Wake the sensor with a brief button press; setup expires after five minutes.'}
+            job['model_profile']=device_model(d,policy['model_hint'])
+            if job['model_profile']==UL:
+                # Optional model-specific and battery operations must not block core reports.
+                for cluster in (6,1):
+                    if cluster in desc.get('input_clusters',[]):job['steps'].append({'op':'bind','cluster':cluster,'optional':True})
+                if 1 in desc.get('input_clusters',[]):
+                    job['steps'].extend([{'op':'configure_reporting','cluster':1,'attribute':33,'min_interval':3600,'max_interval':21600,'reportable_change':2,'optional':True},
+                        {'op':'read_reporting','cluster':1,'attribute':33,'optional':True}])
             self._save_job(job)
             return job
     def cancel_commissioning(self, ieee):
@@ -110,12 +124,18 @@ class CommissioningStore:
             unsupported=expected['op']=='read_reporting' and e.get('phase')=='response' and e.get('status') in (0x82,0x86,0x8c)
             if success and expected['op']=='read_reporting':
                 policy=job['policy'];key='temperature_change_raw' if expected['cluster']==1026 else 'humidity_change_raw'
-                success=all(e.get(k)==v for k,v in {'data_type':0x29 if expected['cluster']==1026 else 0x21,'min_interval':policy['min_interval'],'max_interval':policy['max_interval'],'reportable_change':policy[key]}.items())
+                wanted={'data_type':0x20,'min_interval':3600,'max_interval':21600,'reportable_change':2} if expected['cluster']==1 else {'data_type':0x29 if expected['cluster']==1026 else 0x21,'min_interval':policy['min_interval'],'max_interval':policy['max_interval'],'reportable_change':policy[key]}
+                success=all(e.get(k)==v for k,v in wanted.items())
                 if not success:job['message']='Reporting readback differs from requested settings.'
             job['request_id']=None
-            if success or unsupported:
-                if unsupported:record['verification']='unsupported';job['readback_unsupported']=True
+            optional_skip=expected.get('optional') and not success and (e.get('phase')=='response' or job['attempt']>=3)
+            if optional_skip:
+                job.setdefault('warnings',[]).append('Optional '+expected['op']+' for cluster '+str(expected['cluster'])+' was not verified.')
+                record['verification']='optional_skipped'
+            if success or unsupported or optional_skip:
+                if unsupported and not expected.get('optional'):record['verification']='unsupported';job['readback_unsupported']=True
                 job['step']+=1;job['attempt']=0;job['next_attempt']=received
+                if all(s.get('optional') for s in job['steps'][job['step']:]):job['core_verified']=True
                 job['state']='queued' if job['step']<len(job['steps']) else 'configured_unverified' if job.get('readback_unsupported') else 'verified'
                 job['message']='Reporting setup in progress.' if job['state']=='queued' else 'Device acknowledged setup; observe unsolicited reports to prove delivery.'
             else:
@@ -137,18 +157,22 @@ def drive_commissioning(store,gateway,health,now=None):
         for job in jobs:
             # A completed policy is rechecked/reapplied once after a gateway reboot.
             if job['gateway_boot'] and job['gateway_boot']!=health['boot_id'] and job['state'] in (ACTIVE | {'verified','configured_unverified'}):
-                job.update(state='queued',step=0,attempt=0,request_id=None,expires_at=now+300,next_attempt=now,readback_unsupported=False)
+                job.update(state='queued',step=0,attempt=0,request_id=None,expires_at=now+300,next_attempt=now,readback_unsupported=False,core_verified=False)
             job['gateway_boot']=health['boot_id']
             if job['state'] not in ACTIVE:
                 store._save_job(job);continue
             if now>=job['expires_at']:
-                job.update(state='expired',request_id=None,message='Setup expired. Wake the sensor, check its battery/range and retry.')
+                job.update(state=('configured_unverified' if job.get('readback_unsupported') else 'verified') if job.get('core_verified') else 'expired',request_id=None,message='Core reporting verified; optional setup expired.' if job.get('core_verified') else 'Setup expired. Wake the sensor, check its battery/range and retry.')
             elif health.get('ready') is False:
                 store._save_job(job);continue
             elif not health.get('reporting_commissioning'):
                 job.update(state='failed',message='Gateway firmware does not support reporting commissioning. Update it first.')
             elif job['state']=='sending' and now>=job['deadline']:
-                job.update(state='waiting' if job['attempt']<3 else 'failed',request_id=None,next_attempt=now+30,
+                if job['steps'][job['step']].get('optional') and job['attempt']>=3:
+                    job.setdefault('warnings',[]).append('Optional operation timed out.')
+                    job['step']+=1;job['attempt']=0
+                    job.update(state='queued' if job['step']<len(job['steps']) else 'configured_unverified' if job.get('readback_unsupported') else 'verified',request_id=None,next_attempt=now,message='Core reporting configured; inspect optional-operation warnings.')
+                else:job.update(state='waiting' if job['attempt']<3 else 'failed',request_id=None,next_attempt=now+30,
                     message='No device acknowledgement. Wake the sensor or check battery/range, then retry.')
             if command is None and job['state'] in ('queued','waiting') and now>=job['next_attempt']:
                 rid=str(uuid.uuid4());command=dict(job['steps'][job['step']],ieee=job['ieee'],endpoint=job['policy']['endpoint'],request_id=rid)
@@ -160,8 +184,13 @@ def drive_commissioning(store,gateway,health,now=None):
         try:gateway.request('/api/v1/commands',{'op':'reporting_window','ieee':selected['ieee'],'endpoint':selected['policy']['endpoint'],'request_id':str(uuid.uuid4()),'seconds':120})
         except Exception:pass
         if selected['step']==0 and selected['attempt']==1:
-            for attribute in (4,5):
+            for attribute in (4,5,0x4000):
                 try:gateway.request('/api/v1/commands',{'op':'read','ieee':selected['ieee'],'endpoint':selected['policy']['endpoint'],'cluster':0,'attribute':attribute})
+                except Exception:pass
+        command.pop('optional',None)
+        if selected['step']==0 and selected['attempt']==1 and selected.get('model_profile',selected['policy']['model_hint'])==UL:
+            for attribute in (32,33):
+                try:gateway.request('/api/v1/commands',{'op':'read','ieee':selected['ieee'],'endpoint':selected['policy']['endpoint'],'cluster':1,'attribute':attribute})
                 except Exception:pass
         try:
             response=gateway.request('/api/v1/commands',command)

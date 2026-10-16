@@ -35,7 +35,7 @@ class CommissioningTests(contracts.ContractTests):
         self.assertEqual(job['state'],'queued')
         self.drain();job=self.job()
         self.assertEqual(job['state'],'verified');self.assertEqual(len(job['results']),6)
-        self.assertEqual(job['identity'],{'manufacturer':'SONOFF','model':'SNZB-02WD'})
+        self.assertEqual(job['identity'],{'manufacturer':'SONOFF','model':'SNZB-02WD','software_build':None})
         doc=contract_v2();schema=dict(doc['components']['schemas']['Commissioning'],components=doc['components'])
         Draft202012Validator(schema).validate(self.dashboard.request('/api/v2/commissioning'))
         self.gateway.request('/api/v1/commands',dict(op='read',ieee=IEEE,endpoint=1,cluster=1026,attribute=0))

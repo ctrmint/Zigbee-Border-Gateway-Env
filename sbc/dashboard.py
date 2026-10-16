@@ -11,7 +11,7 @@ import unicodedata
 from .profiles import ProfilesStore
 
 MEASUREMENTS = {(1026, 0): ("Temperature", "°C"), (1029, 0): ("Humidity", "%"),
-                (6, 0): ("Reported state", "on/off")}
+                (6, 0): ("Reported state", "on/off"), (1,33): ("Battery", "%"), (1,32): ("Battery voltage", "V")}
 RANGES = (3600, 21600, 86400, 604800, 2592000)
 
 
@@ -31,6 +31,12 @@ def text(value, path, maximum=80):
 
 
 def source_supported(device, endpoint, cluster, attribute):
+    # A sensor's On/Off binding serves its protocol, not an appliance control.
+    if cluster==6:
+        from .sensors import sensor_endpoint
+        if sensor_endpoint(device,endpoint):return False
+    # A power cluster does not prove the device implements either battery attribute.
+    if cluster==1:return f"{endpoint}:{cluster}:{attribute}" in device.get('attributes',{}) and (cluster,attribute) in MEASUREMENTS
     return (cluster, attribute) in MEASUREMENTS and (
         cluster in device.get("endpoints", {}).get(str(endpoint), {}).get("input_clusters", []) or
         f"{endpoint}:{cluster}:{attribute}" in device.get("attributes", {}))
@@ -86,6 +92,9 @@ class DashboardStore(ProfilesStore):
             return
         from .core import normalize
         cluster, attribute = event.get("cluster"), event.get("attribute")
+        if cluster==6:
+            from .sensors import sensor_endpoint
+            if sensor_endpoint(self._get(event['ieee']),event.get('endpoint')):return
         if (cluster, attribute) not in MEASUREMENTS:
             return
         value, unit = normalize(cluster, attribute, event.get("data_type"), event.get("raw"))
@@ -221,6 +230,8 @@ class DashboardStore(ProfilesStore):
             views = []
             now = time.time()
             for d in self.snapshot():
+                from .sensors import device_model
+                model_profile=device_model(d,self._model_hint(d["ieee"]))
                 setting = config["devices"][d["ieee"]]
                 measurements = []
                 endpoints = set(map(int, d["endpoints"])) | {a["endpoint"] for a in d["attributes"].values()}
@@ -230,14 +241,15 @@ class DashboardStore(ProfilesStore):
                             continue
                         a = d["attributes"].get(f"{endpoint}:{cluster}:{attribute}", {})
                         value, received = a.get("value"), a.get("received")
-                        quality = "missing" if not a else "invalid" if value is None else "stale" if now - received > setting["freshness_seconds"] else "valid"
+                        freshness = 172800 if cluster==1 else setting["freshness_seconds"]
+                        quality = "missing" if not a else "invalid" if value is None else "stale" if now - received > freshness else "valid"
                         measurements.append({"endpoint": endpoint, "cluster": cluster, "attribute": attribute,
-                            "label": label, "value": value, "unit": unit, "received_at": received, "quality": quality, "origin": a.get("origin", "unknown")})
+                            "label": label, "value": value, "unit": unit, "received_at": received, "quality": quality, "origin": a.get("origin", "unknown"), "freshness_seconds": freshness, "low_battery": cluster==1 and attribute==33 and value is not None and value<=20})
                 model = next((a.get("raw") for a in d["attributes"].values() if a["cluster"] == 0 and a["attribute"] == 5 and isinstance(a.get("raw"), str)), None)
                 views.append({"ieee": d["ieee"], "name": setting.get("name") or model or d["ieee"],
                     "location_id": d["location_id"], "registered": d.get("active", False),
                     "discovery": "partial" if d["endpoints"] else "unknown", "freshness_seconds": setting["freshness_seconds"],
-                    "measurements": measurements})
+                    "measurements": measurements, "profile": model_profile or None})
             return {"devices": views}
 
     def measurement_history(self, query):

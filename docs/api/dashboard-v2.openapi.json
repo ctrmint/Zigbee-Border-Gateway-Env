@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.3.0"
+    "version": "2.4.0"
   },
   "servers": [
     {
@@ -136,6 +136,186 @@
           },
           "503": {
             "description": "Unsupported/offline gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/display": {
+      "get": {
+        "operationId": "display_jobs",
+        "responses": {
+          "200": {
+            "description": "Persisted desired display settings and readback progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisplayJobs"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "set_display_settings",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/DisplayInput"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "ieee": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{16}$"
+                      },
+                      "action": {
+                        "const": "cancel"
+                      }
+                    },
+                    "required": [
+                      "ieee",
+                      "action"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Queued; not yet confirmed by device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisplayJob"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisplayJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid, unavailable or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid, unavailable or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid, unavailable or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid, unavailable or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Invalid, unavailable or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid, unavailable or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid, unavailable or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/sensor-profiles": {
+      "get": {
+        "operationId": "sensor_profiles",
+        "responses": {
+          "200": {
+            "description": "Reference profiles; not paired devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SensorProfiles"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
@@ -1250,6 +1430,14 @@
                 "registered": {
                   "type": "boolean"
                 },
+                "profile": {
+                  "enum": [
+                    null,
+                    "SONOFF SNZB-02WD",
+                    "SONOFF SNZB-02LD",
+                    "SONOFF SNZB-02UL"
+                  ]
+                },
                 "discovery": {
                   "enum": [
                     "unknown",
@@ -1287,6 +1475,14 @@
                           "read_response",
                           "unknown"
                         ]
+                      },
+                      "freshness_seconds": {
+                        "type": "integer",
+                        "minimum": 60,
+                        "maximum": 604800
+                      },
+                      "low_battery": {
+                        "type": "boolean"
                       },
                       "label": {
                         "type": "string"
@@ -1534,6 +1730,9 @@
               "reporting_commissioning": {
                 "const": true
               },
+              "sensor_extensions": {
+                "const": true
+              },
               "user_profiles": {
                 "const": true
               }
@@ -1543,6 +1742,7 @@
               "history_query",
               "dashboard_layouts",
               "reporting_commissioning",
+              "sensor_extensions",
               "user_profiles"
             ]
           },
@@ -1642,7 +1842,8 @@
             "enum": [
               "",
               "SONOFF SNZB-02WD",
-              "SONOFF SNZB-02LD"
+              "SONOFF SNZB-02LD",
+              "SONOFF SNZB-02UL"
             ]
           }
         },
@@ -1714,7 +1915,8 @@
                 "enum": [
                   "",
                   "SONOFF SNZB-02WD",
-                  "SONOFF SNZB-02LD"
+                  "SONOFF SNZB-02LD",
+                  "SONOFF SNZB-02UL"
                 ]
               }
             },
@@ -1765,7 +1967,7 @@
             "items": {
               "type": "object"
             },
-            "maxItems": 7
+            "maxItems": 11
           },
           "message": {
             "type": "string"
@@ -1835,6 +2037,232 @@
             ],
             "additionalProperties": false
           }
+        ]
+      },
+      "DisplayInput": {
+        "type": "object",
+        "properties": {
+          "ieee": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "endpoint": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 240
+          },
+          "settings": {
+            "type": "object",
+            "properties": {
+              "temperature_units": {
+                "enum": [
+                  "celsius",
+                  "fahrenheit"
+                ]
+              },
+              "comfort_temperature_min": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 50,
+                "multipleOf": 0.1
+              },
+              "comfort_temperature_max": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 50,
+                "multipleOf": 0.1
+              },
+              "comfort_humidity_min": {
+                "type": "number",
+                "minimum": 5,
+                "maximum": 95,
+                "multipleOf": 0.1
+              },
+              "comfort_humidity_max": {
+                "type": "number",
+                "minimum": 5,
+                "maximum": 95,
+                "multipleOf": 0.1
+              },
+              "temperature_calibration": {
+                "type": "number",
+                "minimum": -50,
+                "maximum": 50,
+                "multipleOf": 0.1
+              },
+              "humidity_calibration": {
+                "type": "number",
+                "minimum": -50,
+                "maximum": 50,
+                "multipleOf": 0.1
+              }
+            },
+            "required": [],
+            "minProperties": 1,
+            "maxProperties": 7,
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ieee",
+          "endpoint",
+          "settings"
+        ],
+        "additionalProperties": false
+      },
+      "DisplayJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ieee": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 240
+          },
+          "settings": {
+            "type": "object",
+            "properties": {
+              "temperature_units": {
+                "enum": [
+                  "celsius",
+                  "fahrenheit"
+                ]
+              },
+              "comfort_temperature_min": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 50,
+                "multipleOf": 0.1
+              },
+              "comfort_temperature_max": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 50,
+                "multipleOf": 0.1
+              },
+              "comfort_humidity_min": {
+                "type": "number",
+                "minimum": 5,
+                "maximum": 95,
+                "multipleOf": 0.1
+              },
+              "comfort_humidity_max": {
+                "type": "number",
+                "minimum": 5,
+                "maximum": 95,
+                "multipleOf": 0.1
+              },
+              "temperature_calibration": {
+                "type": "number",
+                "minimum": -50,
+                "maximum": 50,
+                "multipleOf": 0.1
+              },
+              "humidity_calibration": {
+                "type": "number",
+                "minimum": -50,
+                "maximum": 50,
+                "multipleOf": 0.1
+              }
+            },
+            "required": [],
+            "minProperties": 1,
+            "maxProperties": 7,
+            "additionalProperties": false
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "sending",
+              "waiting",
+              "failed",
+              "expired",
+              "cancelled",
+              "verified"
+            ]
+          },
+          "step": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 14
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 14
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 48
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ieee",
+          "endpoint",
+          "settings",
+          "state",
+          "step",
+          "attempt",
+          "steps",
+          "results",
+          "message"
+        ]
+      },
+      "DisplayJobs": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DisplayJob"
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "jobs"
+        ]
+      },
+      "SensorProfiles": {
+        "type": "object",
+        "properties": {
+          "reference_revision": {
+            "type": "string"
+          },
+          "reference_url": {
+            "type": "string"
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 3
+          }
+        },
+        "required": [
+          "reference_revision",
+          "reference_url",
+          "profiles"
         ]
       },
       "UserProfile": {

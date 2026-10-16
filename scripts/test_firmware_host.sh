@@ -15,4 +15,7 @@ cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \
 cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \
   -I"$root/firmware/main" "$root/tests/firmware_reporting.c" -o "$test_dir/reporting"
 "$test_dir/reporting"
-echo 'Firmware cursor, JSON and reporting policy tests passed.'
+cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \
+  -I"$root/firmware/main" "$root/tests/firmware_sensor.c" -o "$test_dir/sensor"
+"$test_dir/sensor"
+echo 'Firmware cursor, JSON, reporting and sensor policy tests passed.'

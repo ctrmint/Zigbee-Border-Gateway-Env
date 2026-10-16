@@ -246,6 +246,16 @@ in the temperature-only deployment backup directory.
   source/database backup; no service or coordinator restart was required. Local
   evidence is in backups/dashboard-issue13-20261015T140719Z/.
 
+## Issue #14 advance preparation, 2026-10-15
+
+- PASS: 50 API/integration tests, including synthetic UL identity, reporting, battery, optional failures, scalar display readback, persistence, clock resynchronization and old-model regression cases. An additional targeted regression confirms observed UL identity cannot bypass the old-firmware gate with an empty hint.
+- PASS: 18 Chromium browser tests, including three UL preparation cases and all prior dashboard regression cases.
+- PASS: native C validation under undefined-behavior sanitizer and S3 ESP-IDF v5.5.4 build (image 0x111e10, 36% application partition free). H2 sources unchanged.
+- NOT TESTED: physical UL pairing, RF timing, actual manufacturer framing/readback, sensor Time consumption, E-Ink effects and sustained reporting.
+- Prepared S3 image is private because it contains deployment credentials. It has not been flashed as part of advance preparation.
+
+See [the capability matrix and first-pairing checklist](SNZB_02UL.md). Simulator descriptors are synthetic, and remote/weather transport plus OTA remain explicit linked follow-ups.
+
 ## Issue #18 All sensors overview, 2026-10-15
 
 - PASS: 23 Chromium dashboard browser tests during combined development with #14. The independently reviewable #18 branch additionally passes its 20 Chromium cases (five All-tab cases plus all 15 existing navigation/location/reporting/widget cases), with a targeted regression for saved device freshness on the existing API. #18 does not require the unmerged #14 backend.
@@ -269,3 +279,21 @@ See [All sensors overview](DASHBOARD_ALL.md) for operation and rollback. Optiona
 - PENDING: physical iPad Safari verification. Device emulation does not establish physical browser behavior.
 
 See [user profiles](USER_PROFILES.md) for cookie lifecycle, shared versus personal settings, request-context handling, API and rollback. No firmware/network change is part of this feature.
+
+## SNZB-02UL gateway preparation completed, 2026-10-16
+
+- PASS: fresh S3 SDK build, application `0x111e10` bytes in a `0x1ab000`-byte partition (36% free); native cursor/JSON/reporting/sensor policy tests; 57 API/integration cases; six targeted UL/reporting Chromium cases; generated contracts and syntax/whitespace checks. V2 contract advanced to 2.4.0 for sensor extensions after the published 2.3 profile release.
+- PASS: fixed and regression-tested observed-UL onboarding with an unspecified model hint: battery probes follow resolved device identity, while the user hint remains separate.
+- PASS: USB identified S3 MAC `b8:f8:62:62:ff:08`; fresh full 8 MiB flash backup saved privately and size/hash recorded. The device partition table matched the fresh build exactly. Wrote only the factory application at `0x20000`; esptool verified its hash and used watchdog reset. Bootloader, partition table, NVS, Zigbee storage and H2 were not flashed/erased.
+- PASS: live gateway ready with `sensor_extensions=true`, unchanged PAN `0xebc5` / channel 20 and both prior registered sensor IEEE/short addresses. Pairing remains closed. Invalid clock/vendor commands rejected with HTTP 400; valid Pi clock sync accepted and Time-service lease valid.
+- PASS: live Pi connected/ready; location/assignment/device-settings/Admin-layout and all user-profile rows match the immediate pre-flash backup; SQLite integrity OK. Live browser checks retain both sensors, profile navigation, pairing controls and UL metadata without JavaScript errors at desktop/mobile widths.
+- PENDING: genuine post-upgrade reports from sleeping devices and physical UL pairing/descriptors/manufacturer/display/Time-consumption/periodic-report acceptance. Both existing reporting-setup jobs show failed bounded rechecks; registration and historical measurements do not prove fresh RF delivery. No existing sensor has been reset or re-paired.
+
+Firmware images, full flash backup, credentials, database snapshots and exact source hashes are private under the ignored backups directory. Sensor weather/remote-display transport and OTA remain the separate #16/#17 follow-ups; they are not advertised as ready for radio use.
+
+## SNZB-02UL first physical pairing, 2026-10-16
+
+- PASS: observed SONOFF / SNZB-02UL Basic identity, build 1.0.3 and endpoint/cluster descriptors; battery reads 100% / 3.2 V.
+- PASS: all ten applicable setup steps acknowledged and reporting readback matched the actual saved 5/3600-second policy with 0.2°C / 1% RH changes; battery reporting readback also matched. Optional On/Off input cluster absent, so its binding was skipped.
+- PASS: multiple real unsolicited temperature and humidity reports after setup. This supersedes the earlier unconnected-unit status for core telemetry only.
+- PENDING: two maximum intervals, restart preservation/reporting, physical stale/offline behavior, display controls and Time consumption. Existing Garage/Fish Tank failed rechecks remain visible; their post-upgrade reports are not yet established. Remote/weather and OTA remain #16/#17.

@@ -12,6 +12,7 @@ from .core import ConfigurationError, Gateway, Store, Poller, validate_command
 from .contracts import capabilities, contract
 from .profiles import requested_profile
 from .dashboard import DashboardError
+from .sensors import profile_document,UL,device_model,sensor_endpoint
 from .contracts_v2 import contract_v2, capabilities_v2
 
 STATIC = Path(__file__).parent / "static"
@@ -68,6 +69,8 @@ def make_handler(store, poller, gateway, token):
                     if method=='DELETE':
                         store.delete_profile(profile_route[1]);return self.send(200,{'deleted':True})
                 if method == "GET":
+                    if route.path == "/api/v2/sensor-profiles":return self.send(200,profile_document())
+                    if route.path == "/api/v2/display":return self.send(200,store.display_document())
                     if route.path == "/api/v2/commissioning": return self.send(200, store.commissioning_document())
                     if route.path == "/api/v2/capabilities": return self.send(200, capabilities_v2())
                     if route.path == "/api/v2/openapi.json": return self.send(200, contract_v2())
@@ -82,6 +85,11 @@ def make_handler(store, poller, gateway, token):
                         if any(len(values) != 1 for values in params.values()):
                             raise DashboardError("Repeated query parameters are not allowed.", 400, "invalid_query")
                         return self.send(200, store.measurement_history({key: values[0] for key, values in params.items()}))
+                if method == "POST" and route.path == "/api/v2/display":
+                    body=self.read_body(4096)
+                    if set(body)=={'ieee','action'} and body['action']=='cancel':return self.send(200,store.cancel_display(body['ieee']))
+                    if not poller.status.get('connected') or not poller.status.get('sensor_extensions'):return self.v2_error(503,'gateway_upgrade_required','Update/connect gateway firmware with sensor extensions first.')
+                    return self.send(202,store.start_display(body))
                 if method == "POST" and route.path == "/api/v2/commissioning":
                     body = self.read_body(4096)
                     if set(body)=={'ieee','action'} and body['action']=='cancel':
@@ -89,6 +97,10 @@ def make_handler(store, poller, gateway, token):
                         return self.send(200,store.cancel_commissioning(body['ieee']))
                     if not poller.status.get('connected') or not poller.status.get('reporting_commissioning'):
                         return self.v2_error(503,'gateway_unavailable','Update/connect a gateway supporting reporting commissioning first.')
+                    effective_model=body.get('model_hint')
+                    if isinstance(body.get('ieee'),str) and re.fullmatch('[0-9a-f]{16}',body['ieee']):
+                        with store.lock: effective_model=device_model(store._get(body['ieee']),effective_model)
+                    if effective_model==UL and not poller.status.get('sensor_extensions'):return self.v2_error(503,'gateway_upgrade_required','SNZB-02UL preparation requires the new sensor extension firmware.')
                     return self.send(202,store.start_commissioning(body))
                 if method == "PUT" and route.path == "/api/v2/configuration":
                     expected = self.headers.get("If-Match")
@@ -182,6 +194,9 @@ def make_handler(store, poller, gateway, token):
             if not poller.status.get("connected"):
                 return self.send(503, {"error": "gateway offline"})
             try:
+                if c['op']=='on_off':
+                    with store.lock:
+                        if sensor_endpoint(store._get(c['ieee'].lower()),c['endpoint']):return self.send(400,{'error':'A sensor On/Off binding is not an appliance control.'})
                 result = gateway.request("/api/v1/commands", c)
                 self.send(202 if result.get("accepted") else 503, result)
             except Exception:
