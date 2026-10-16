@@ -9,6 +9,7 @@ import secrets
 import time
 import unicodedata
 from .profiles import ProfilesStore
+from .signal import SignalStore, SIGNAL_CLUSTER
 
 MEASUREMENTS = {(1026, 0): ("Temperature", "°C"), (1029, 0): ("Humidity", "%"),
                 (6, 0): ("Reported state", "on/off"), (1,33): ("Battery", "%"), (1,32): ("Battery voltage", "V")}
@@ -31,6 +32,8 @@ def text(value, path, maximum=80):
 
 
 def source_supported(device, endpoint, cluster, attribute):
+    if cluster == SIGNAL_CLUSTER:
+        return endpoint == 1 and attribute == 0
     # A sensor's On/Off binding serves its protocol, not an appliance control.
     if cluster==6:
         from .sensors import sensor_endpoint
@@ -42,7 +45,7 @@ def source_supported(device, endpoint, cluster, attribute):
         f"{endpoint}:{cluster}:{attribute}" in device.get("attributes", {}))
 
 
-class DashboardStore(ProfilesStore):
+class DashboardStore(SignalStore, ProfilesStore):
     def _init_dashboard(self):
         self.db.executescript('''
           CREATE TABLE IF NOT EXISTS dashboard_config(
@@ -86,6 +89,7 @@ class DashboardStore(ProfilesStore):
                 self.db.execute("UPDATE dashboard_config SET history_migrated=1 WHERE id=1")
 
         self._init_profiles()
+        self._init_signal()
 
     def _record_measurement(self, boot, event, received):
         if event.get("type") != "attribute" or not event.get("ieee"):
@@ -249,7 +253,8 @@ class DashboardStore(ProfilesStore):
                 views.append({"ieee": d["ieee"], "name": setting.get("name") or model or d["ieee"],
                     "location_id": d["location_id"], "registered": d.get("active", False),
                     "discovery": "partial" if d["endpoints"] else "unknown", "freshness_seconds": setting["freshness_seconds"],
-                    "measurements": measurements, "profile": model_profile or None})
+                    "measurements": measurements, "profile": model_profile or None,
+                    "signal": self.signal_view(d["ieee"], setting["freshness_seconds"], now)})
             return {"devices": views}
 
     def measurement_history(self, query):
@@ -285,12 +290,27 @@ class DashboardStore(ProfilesStore):
                     if type(after_time) not in (int, float) or not math.isfinite(after_time) or not start <= after_time <= end: raise ValueError()
                 except (ValueError, KeyError, TypeError, UnicodeError):
                     raise DashboardError("Cursor does not match this history query.", 400, "invalid_cursor")
-            rows = self.db.execute("SELECT id,received,value,unit FROM measurements WHERE ieee=? AND endpoint=? AND cluster=? "
-                "AND attribute=? AND received>=? AND received<=? AND (received>? OR (received=? AND id>?)) "
-                "ORDER BY received,id LIMIT ?", (*filters, after_time, after_time, after_id, limit+1)).fetchall()
+            signal = identity[2] == SIGNAL_CLUSTER
+            if signal and identity[1:4] != [1, SIGNAL_CLUSTER, 0]:
+                raise DashboardError("Signal history uses dashboard endpoint 1, cluster 65535, attribute 0.", 400, "invalid_query")
+            if signal:
+                rows = self.db.execute("SELECT id,received,rssi,'dBm',boot,seq,endpoint,cluster,attribute,event_type,origin "
+                    "FROM signal_samples WHERE ieee=? AND received>=? AND received<=? "
+                    "AND (received>? OR (received=? AND id>?)) ORDER BY received,id LIMIT ?",
+                    (identity[0],start,end,after_time,after_time,after_id,limit+1)).fetchall()
+            else:
+                rows = self.db.execute("SELECT id,received,value,unit,boot,seq,(SELECT rssi FROM signal_samples s WHERE s.boot=measurements.boot AND s.seq=measurements.seq) FROM measurements WHERE ieee=? AND endpoint=? AND cluster=? "
+                    "AND attribute=? AND received>=? AND received<=? AND (received>? OR (received=? AND id>?)) "
+                    "ORDER BY received,id LIMIT ?", (*filters, after_time, after_time, after_id, limit+1)).fetchall()
             more = len(rows) > limit; rows = rows[:limit]
             items = [{"id": r[0], "received_at": r[1], "value": bool(r[2]) if identity[2] == 6 and r[2] is not None else r[2],
                 "unit": r[3], "quality": "invalid" if r[2] is None else "valid"} for r in rows]
+            if signal:
+                for item, row in zip(items, rows):
+                    item.update(zip(('boot_id','seq','source_endpoint','source_cluster','source_attribute','event_type','origin'),row[4:]))
+            else:
+                for item, row in zip(items, rows):
+                    item.update(boot_id=row[4], seq=row[5], rssi=row[6])
             cursor = None
             if more:
                 payload = base64.urlsafe_b64encode(json.dumps({"filters": filters, "time": rows[-1][1], "id": rows[-1][0]}, separators=(",", ":")).encode()).decode().rstrip("=")

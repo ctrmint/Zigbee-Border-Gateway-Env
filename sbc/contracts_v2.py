@@ -5,7 +5,7 @@ from .dashboard import RANGES
 
 def capabilities_v2():
     return {"api_version": "2", "widget_types": ["numeric", "chart"],
-        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True},
+        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True},
         "limits": {"configuration_bytes": 65536, "widgets": 100, "locations": 50,
             "device_overrides": 50, "history_page": 500, "history_days": 31,
             "history_retention_days": 30,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
@@ -32,6 +32,19 @@ def contract_v2():
         "origin":{"enum":["report","read_response","unknown"]}, "freshness_seconds":integer(60,604800),"low_battery":{"type":"boolean"}, "label": {"type": "string"}, "value": {"type": ["number", "boolean", "null"]}, "unit": {"type": "string"},
         "received_at": {"type": ["number", "null"]}, "quality": {"enum": ["valid", "invalid", "missing", "stale"]}},
         ("endpoint", "cluster", "attribute", "label", "value", "unit", "received_at", "quality"))
+    signal_metadata = {"boot_id": {"type": "string"}, "seq": integer(),
+        "source_endpoint": {"type": ["integer", "null"]},
+        "source_cluster": {"type": ["integer", "null"]},
+        "source_attribute": {"type": ["integer", "null"]},
+        "event_type": {"type": "string"}, "origin": {"type": "string"}}
+    signal = obj({**signal_metadata,
+        "value": {"type": ["integer", "null"], "minimum": -128, "maximum": 126},
+        "unit": {"const": "dBm"}, "received_at": {"type": ["number", "null"]},
+        "quality": {"enum": ["valid", "stale", "missing"]},
+        "endpoint": {"const": 1}, "cluster": {"const": 65535}, "attribute": {"const": 0},
+        "freshness_seconds": integer(60, 604800), "ieee": {"type": "string"},
+        "label": {"const": "Signal strength"}},
+        ("value", "unit", "received_at", "quality", "endpoint", "cluster", "attribute", "freshness_seconds", "label"))
     definitions = {
         "ConfigurationInput": editable,
         "Configuration": obj({**editable["properties"], "schema_version": {"const": 1}, "revision": integer(1)},
@@ -39,9 +52,11 @@ def contract_v2():
         "Devices": obj({"devices": array(obj({"ieee": {"type": "string"}, "name": {"type": "string"},
             "location_id": {"type": ["string", "null"]}, "registered": {"type": "boolean"},
             "profile":{"enum":[None,"SONOFF SNZB-02WD","SONOFF SNZB-02LD","SONOFF SNZB-02UL"]}, "discovery": {"enum": ["unknown", "partial"]}, "freshness_seconds": integer(60, 604800),
+            "signal": signal,
             "measurements": array(measurement)}, ("ieee", "name", "location_id", "registered", "discovery", "freshness_seconds", "measurements")))}, ("devices",)),
         "History": obj({"items": array(obj({"id": integer(1), "received_at": {"type": "number"},
-            "value": {"type": ["number", "boolean", "null"]}, "unit": {"type": "string"}, "quality": {"enum": ["valid", "invalid"]}},
+            "value": {"type": ["number", "boolean", "null"]}, "unit": {"type": "string"}, "quality": {"enum": ["valid", "invalid"]},
+            **signal_metadata, "rssi": {"type": ["integer", "null"], "minimum": -128, "maximum": 126}},
             ("id", "received_at", "value", "unit", "quality")), maxItems=500),
             "next_cursor": {"type": ["string", "null"]}, "gaps_truncated": {"type": "boolean"}, "gaps": array(obj({"from": {"type": "number"},
                 "to": {"type": "number"}, "reason": {"type": "string"}}, ("from", "to", "reason")), maxItems=500)}, ("items", "next_cursor", "gaps", "gaps_truncated")),
@@ -51,8 +66,8 @@ def contract_v2():
         "Gateway": obj({"connected": {"type": "boolean"}, "ready": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "mode": {"enum": ["hardware", "simulator"]}}, ("connected", "error")),
         "Capabilities": obj({"api_version": {"const": "2"}, "widget_types": array({"enum": ["numeric", "chart"]}),
-            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles")},
-                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles")),
+            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history")},
+                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history")),
             "limits": obj({k: ({"type": "array", "items": {"type": "integer"}} if k == "chart_ranges" else {"type": "integer"}) for k in capabilities_v2()["limits"]}, capabilities_v2()["limits"])},
             ("api_version", "widget_types", "features", "limits"))}
     policy = obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"}, "endpoint":integer(1,240),
@@ -124,6 +139,6 @@ def contract_v2():
         op=paths['/api/v2/configuration'][method];op.setdefault('parameters',[]).extend(selection)
         op['responses']['200']['headers']={'ETag':{'schema':{'type':'string'}},'X-Dashboard-Profile':{'schema':profile_id}}
     paths['/api/v2/configuration']['put']['responses']['409']=response('Selected profile was removed; never save into fallback Admin',ref('Error'))
-    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.4.0"},
+    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.5.0"},
         "servers": [{"url": "/"}], "security": [{"bearerAuth": []}], "paths": paths,
         "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": definitions}}

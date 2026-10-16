@@ -9,3 +9,5 @@
 
 /* Contain native select text overflow; padding retains the keyboard focus outline. */
 #profile-control{min-width:0;overflow:hidden;padding:6px;margin:-6px}
+
+.sensor-signal{margin:.4rem 0 0;overflow-wrap:anywhere;color:var(--muted)}.location-signals{display:flex;flex-wrap:wrap;gap:.4rem 1.25rem;margin-bottom:1rem}.location-signals .sensor-signal{margin:0}

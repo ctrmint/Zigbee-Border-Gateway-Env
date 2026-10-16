@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.4.0"
+    "version": "2.5.0"
   },
   "servers": [
     {
@@ -1449,6 +1449,97 @@
                   "minimum": 60,
                   "maximum": 604800
                 },
+                "signal": {
+                  "type": "object",
+                  "properties": {
+                    "boot_id": {
+                      "type": "string"
+                    },
+                    "seq": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "source_endpoint": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "source_cluster": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "source_attribute": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "event_type": {
+                      "type": "string"
+                    },
+                    "origin": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": -128,
+                      "maximum": 126
+                    },
+                    "unit": {
+                      "const": "dBm"
+                    },
+                    "received_at": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "quality": {
+                      "enum": [
+                        "valid",
+                        "stale",
+                        "missing"
+                      ]
+                    },
+                    "endpoint": {
+                      "const": 1
+                    },
+                    "cluster": {
+                      "const": 65535
+                    },
+                    "attribute": {
+                      "const": 0
+                    },
+                    "freshness_seconds": {
+                      "type": "integer",
+                      "minimum": 60,
+                      "maximum": 604800
+                    },
+                    "ieee": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "const": "Signal strength"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "unit",
+                    "received_at",
+                    "quality",
+                    "endpoint",
+                    "cluster",
+                    "attribute",
+                    "freshness_seconds",
+                    "label"
+                  ]
+                },
                 "measurements": {
                   "type": "array",
                   "items": {
@@ -1571,6 +1662,45 @@
                     "valid",
                     "invalid"
                   ]
+                },
+                "boot_id": {
+                  "type": "string"
+                },
+                "seq": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "source_endpoint": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "source_cluster": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "source_attribute": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "event_type": {
+                  "type": "string"
+                },
+                "origin": {
+                  "type": "string"
+                },
+                "rssi": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": -128,
+                  "maximum": 126
                 }
               },
               "required": [
@@ -1735,6 +1865,9 @@
               },
               "user_profiles": {
                 "const": true
+              },
+              "signal_history": {
+                "const": true
               }
             },
             "required": [
@@ -1743,7 +1876,8 @@
               "dashboard_layouts",
               "reporting_commissioning",
               "sensor_extensions",
-              "user_profiles"
+              "user_profiles",
+              "signal_history"
             ]
           },
           "limits": {

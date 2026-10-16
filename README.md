@@ -98,3 +98,5 @@ See [SNZB-02UL preparation](docs/SNZB_02UL.md) for the advance sensor-support mi
 The read-only [All sensors overview](docs/DASHBOARD_ALL.md) displays compact sensor tiles across every location, with responsive tablet layouts.
 
 [User profiles](docs/USER_PROFILES.md) provide session-cookie selection and separate dashboard preferences/layouts without individual logins.
+
+[Sensor signal strength and history](docs/SIGNAL_HISTORY.md) describes passive RSSI logging and dashboard widgets.
