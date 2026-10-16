@@ -8,6 +8,7 @@
 #include "gateway_cursor.h"
 #include "gateway_json.h"
 #include "gateway_reporting.h"
+#include "gateway_clock.h"
 #include "esp_http_server.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -222,7 +223,7 @@ static esp_err_t handle_get(httpd_req_t *req)
         cJSON_AddNumberToObject(o,"uptime_ms",esp_timer_get_time()/1000);
         cJSON_AddNumberToObject(o,"join_seconds",join_until>esp_timer_get_time()?(join_until-esp_timer_get_time())/1000000:0);
         cJSON_AddNumberToObject(o,"pan_id",pan_id);cJSON_AddNumberToObject(o,"channel",channel);
-        cJSON_AddBoolToObject(o,"reporting_commissioning",true);cJSON_AddNumberToObject(o,"dropped_events",dropped);cJSON_AddNumberToObject(o,"latest_seq",seq);
+        cJSON_AddBoolToObject(o,"reporting_commissioning",true);cJSON_AddBoolToObject(o,"sensor_extensions",true);cJSON_AddBoolToObject(o,"time_server_valid",gateway_clock_is_valid());cJSON_AddNumberToObject(o,"dropped_events",dropped);cJSON_AddNumberToObject(o,"latest_seq",seq);
     }else if(inventory){
         cJSON *a=cJSON_AddArrayToObject(o,"devices");
         for(int i=0;i<MAX_DEVICES;i++) if(devices[i].used){
@@ -262,6 +263,7 @@ static esp_err_t command(httpd_req_t *req)
     int seconds=0,ep=0,cluster=0,attr=0;uint16_t nwk=0xffff;
     bool join=!strcmp(op->valuestring,"permit_join");
     bool disc=!strcmp(op->valuestring,"discover"), read=!strcmp(op->valuestring,"read"), onoff=!strcmp(op->valuestring,"on_off");
+    bool clock=!strcmp(op->valuestring,"sync_clock");
     bool reporting=gateway_reporting_operation(op->valuestring);uint64_t device_ieee=0;
     bool valid=join?integer(o,"seconds",0,180,&seconds):false;
     if(disc||read||onoff||reporting){
@@ -276,11 +278,13 @@ static esp_err_t command(httpd_req_t *req)
         if(read) valid=valid&&integer(o,"cluster",0,65535,&cluster)&&integer(o,"attribute",0,65535,&attr);
         if(onoff){cJSON *state=cJSON_GetObjectItemCaseSensitive(o,"state");valid=valid&&cJSON_IsBool(state);}
     }
+    if(clock) valid=gateway_clock_valid_command(o);
     if(reporting) valid=valid&&gateway_reporting_valid(o);
     if(!valid){cJSON_Delete(o);return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"invalid command or unknown device");}
     if(!esp_zigbee_lock_acquire(pdMS_TO_TICKS(1000))){cJSON_Delete(o);return unavailable(req,"stack busy");}
     ezb_err_t e=EZB_ERR_FAIL;
-    if(join){e=ezb_bdb_open_network(seconds);if(e==EZB_ERR_NONE){xSemaphoreTake(mutex,portMAX_DELAY);join_until=esp_timer_get_time()+(int64_t)seconds*1000000;xSemaphoreGive(mutex);}}
+    if(clock){gateway_clock_sync(o);e=EZB_ERR_NONE;}
+    else if(join){e=ezb_bdb_open_network(seconds);if(e==EZB_ERR_NONE){xSemaphoreTake(mutex,portMAX_DELAY);join_until=esp_timer_get_time()+(int64_t)seconds*1000000;xSemaphoreGive(mutex);}}
     else if(reporting) e=gateway_reporting_command(o,device_ieee,nwk);
     else if(disc) e=discover(nwk);
     else if(onoff){

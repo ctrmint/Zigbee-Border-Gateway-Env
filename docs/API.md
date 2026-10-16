@@ -256,6 +256,10 @@ The gateway bounds outstanding operations to 16, one per source/cluster, with a
 still unavailable. Attribute events add `origin: report|read_response`; retained
 older events are interpreted as `unknown`.
 
+## SNZB-02UL advance support
+
+See [SNZB-02UL preparation](SNZB_02UL.md) for profile defaults, battery scaling, display APIs, firmware upgrade requirements and pending physical checks. Generated contracts include the sensor-profile/display routes and bounded gateway operations.
+
 ## Session-based user profiles
 
 The v2 API supports `GET/POST /api/v2/profiles` and `PUT/DELETE /api/v2/profiles/{profile_id}`. Configuration resolves `X-Dashboard-Profile` before the `dashboard_profile` session cookie and returns the resolved profile header plus a profile-scoped ETag. Admin remains the backward-compatible default. Profile IDs are presentation selectors, not credentials. See [profile semantics and errors](USER_PROFILES.md).

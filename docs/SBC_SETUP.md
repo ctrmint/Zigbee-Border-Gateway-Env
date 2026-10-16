@@ -83,6 +83,10 @@ unsolicited reports across at least two maximum intervals. See
 verification semantics. Existing gateway firmware must be upgraded before these
 controls become available; no re-pairing or network erasure is required.
 
+## SNZB-02UL advance support
+
+See [SNZB-02UL preparation](SNZB_02UL.md) for profile defaults, battery scaling, display APIs, firmware upgrade requirements and pending physical checks. Generated contracts include the sensor-profile/display routes and bounded gateway operations.
+
 ## All sensors overview
 
 Select **All** after connecting to view compact, read-only tiles for every discovered sensor, including unassigned sensors. See [overview behavior and tablet validation](DASHBOARD_ALL.md). Existing location widgets and the first-location login default are retained.

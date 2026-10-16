@@ -80,3 +80,7 @@ SNZB-02LD model hint separately from Basic-cluster identity; radio verification
 and recurring reporting must still be confirmed. See the
 [manufacturer manual](https://support.sonoff.tech/snzb-02ld-usermanual/) and
 [upstream converter](https://github.com/Koenkk/zigbee-herdsman-converters/blob/master/src/devices/sonoff.ts).
+
+## SNZB-02UL advance support
+
+See [SNZB-02UL preparation](SNZB_02UL.md) for profile defaults, battery scaling, display APIs, firmware upgrade requirements and pending physical checks. Generated contracts include the sensor-profile/display routes and bounded gateway operations.

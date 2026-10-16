@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee gateway API",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "description": "Implemented v1 API. Additive response fields are allowed. Proposed dashboard configuration APIs are documented separately."
   },
   "servers": [
@@ -218,6 +218,12 @@
             ]
           },
           "reporting_commissioning": {
+            "type": "boolean"
+          },
+          "sensor_extensions": {
+            "type": "boolean"
+          },
+          "time_server_valid": {
             "type": "boolean"
           },
           "join_seconds": {
@@ -584,6 +590,8 @@
               },
               "cluster": {
                 "enum": [
+                  1,
+                  6,
                   32,
                   1026,
                   1029
@@ -620,12 +628,17 @@
               },
               "cluster": {
                 "enum": [
+                  1,
                   1026,
                   1029
                 ]
               },
               "attribute": {
-                "const": 0
+                "enum": [
+                  0,
+                  32,
+                  33
+                ]
               },
               "min_interval": {
                 "type": "integer",
@@ -757,6 +770,52 @@
             "type": "object",
             "properties": {
               "op": {
+                "const": "read_display"
+              },
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "cluster": {
+                "enum": [
+                  64529
+                ]
+              },
+              "attribute": {
+                "enum": [
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8195,
+                  8196
+                ]
+              }
+            },
+            "required": [
+              "op",
+              "ieee",
+              "endpoint",
+              "request_id",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
                 "const": "read_reporting"
               },
               "ieee": {
@@ -774,12 +833,17 @@
               },
               "cluster": {
                 "enum": [
+                  1,
                   1026,
                   1029
                 ]
               },
               "attribute": {
-                "const": 0
+                "enum": [
+                  0,
+                  32,
+                  33
+                ]
               }
             },
             "required": [
@@ -823,6 +887,82 @@
               "endpoint",
               "request_id",
               "seconds"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "const": "sync_clock"
+              },
+              "unix_time": {
+                "type": "integer",
+                "minimum": 1577836800,
+                "maximum": 4102444800
+              },
+              "utc_offset": {
+                "type": "integer",
+                "minimum": -50400,
+                "maximum": 50400
+              }
+            },
+            "required": [
+              "op",
+              "unix_time",
+              "utc_offset"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "const": "write_display"
+              },
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "cluster": {
+                "enum": [
+                  64529
+                ]
+              },
+              "attribute": {
+                "enum": [
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8195,
+                  8196
+                ]
+              },
+              "value": {
+                "type": "integer",
+                "minimum": -5000,
+                "maximum": 9500
+              }
+            },
+            "required": [
+              "op",
+              "ieee",
+              "endpoint",
+              "request_id",
+              "cluster",
+              "attribute",
+              "value"
             ],
             "additionalProperties": true
           }
