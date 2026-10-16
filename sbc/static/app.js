@@ -1,5 +1,6 @@
 'use strict';
 let token='',session=0,timer=null,refreshing=false,online=false,saving=false;
+let activeProfile='admin',profiles=[],observedCookie='admin',profileSignature='';
 let commissioningJobs=[],config=null,etag='',state=null,views=[],activeTab=null,setupSignature='',widgetSignature='',editor=null,conflictEdit=null,chartEpoch=0;
 const requests=new Set(),chartRequests=new Set(),chartJobs=new Map(),historyCache=new Map();
 const $=id=>document.getElementById(id),clone=value=>JSON.parse(JSON.stringify(value));
@@ -11,11 +12,48 @@ function widgetId(){const bytes=new Uint8Array(12);crypto.getRandomValues(bytes)
 function sourceKey(s){return [s.ieee,s.endpoint,s.cluster,s.attribute].join(':');}
 function message(e){if(e.name!=='AbortError')$('notice').textContent=e.message;}
 async function api(path,body,method=body?'POST':'GET',headers={},chart=false){
-  const epoch=session,c=new AbortController();requests.add(c);if(chart)chartRequests.add(c);
-  try{const r=await fetch(path,{method,signal:c.signal,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',...headers},body:body?JSON.stringify(body):undefined});const data=await r.json();
+  if(method!=='GET'&&syncProfileCookie())throw new DOMException('Profile changed','AbortError');
+  const epoch=session,profile=activeProfile,c=new AbortController();requests.add(c);if(chart)chartRequests.add(c);
+  try{const r=await fetch(path,{method,signal:c.signal,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json','X-Dashboard-Profile':profile,...headers},body:body?JSON.stringify(body):undefined});const data=await r.json();
     if(epoch!==session)throw new DOMException('Session changed','AbortError');
+    const resolved=r.headers.get('X-Dashboard-Profile');
+    if((r.ok&&path==='/api/v2/configuration'&&resolved&&resolved!==profile)||(!r.ok&&data.error?.code==='profile_unavailable')){switchProfile(resolved||'admin',true);throw new DOMException('Profile changed','AbortError');}
     if(!r.ok){const e=Error(data.error?.message||data.error||'Request failed');e.status=r.status;throw e;}return {data,etag:r.headers.get('ETag')};
   }finally{requests.delete(c);chartRequests.delete(c);}
+}
+function readProfileCookie(){
+  try{const entry=document.cookie.split(';').map(s=>s.trim()).find(s=>s.startsWith('dashboard_profile=')),id=entry?decodeURIComponent(entry.slice('dashboard_profile='.length)):'admin';return /^(admin|p-[0-9a-f]{24})$/.test(id)?id:'admin';}catch{return 'admin';}
+}
+function writeProfileCookie(id){
+  try{document.cookie='dashboard_profile='+encodeURIComponent(id)+'; Path=/; SameSite=Lax';}catch{}
+  observedCookie=readProfileCookie();return observedCookie===id;
+}
+function syncProfileCookie(){
+  if(!token)return false;const id=readProfileCookie();if(id===observedCookie)return false;observedCookie=id;switchProfile(id,true);return true;
+}
+function switchProfile(id,external=false){
+  if(!token)return;const credential=token,tab=activeTab,list=profiles;
+  endSession();activeProfile=id;profiles=list;token=credential;activeTab=tab;
+  const remembered=writeProfileCookie(id);renderProfiles();
+  $('notice').textContent=external?'Profile changed. Unsaved edits discarded.':remembered?'Profile selected. Unsaved edits discarded.':'Profile selected for this page; cookies are unavailable. Unsaved edits discarded.';
+  tick();
+}
+function renderProfiles(){
+  if(!token)return;const select=$('profile-select'),signature=JSON.stringify([profiles,activeProfile]);
+  if(select.dataset.signature!==signature){select.dataset.signature=signature;select.replaceChildren();for(const p of profiles){const o=el('option',p.name);o.value=p.id;select.append(o);}select.value=activeProfile;}
+  $('profile-control').hidden=false;const name=profiles.find(p=>p.id===activeProfile)?.name||'Admin';$('preferences-heading').textContent='Dashboard preferences · '+name;
+  if(activeTab!=='setup'||document.activeElement?.closest('#profiles-panel form,#user-profile-list')||profileSignature===signature)return;
+  profileSignature=signature;$('user-profile-list').replaceChildren();
+  for(const p of profiles){if(p.default){$('user-profile-list').append(el('p',p.name+' · Default profile','profile-default'));continue;}
+    const row=el('div',undefined,'profile-row'),label=el('label','Profile name'),input=el('input');input.value=p.name;input.maxLength=80;input.setAttribute('aria-label','Rename profile '+p.name);label.append(input);
+    row.append(label,btn('Save profile name',()=>manageProfile('/'+p.id,{name:input.value},'PUT')),btn('Delete profile',()=>manageProfile('/'+p.id,null,'DELETE')));$('user-profile-list').append(row);
+  }
+}
+async function manageProfile(path,body,method){
+  const epoch=session;try{await api('/api/v2/profiles'+path,body,method);if(epoch!==session)return;
+    if(method==='DELETE'&&path==='/'+activeProfile){switchProfile('admin',true);return;}
+    $('profile-name').value='';document.activeElement?.blur();profileSignature='';await refresh();
+  }catch(e){if(epoch===session)message(e);}
 }
 function draftActive(){return $('widget-dialog').open||!!document.activeElement?.closest('form,#location-list');}
 async function loadConfiguration(){const r=await api('/api/v2/configuration');config=r.data;etag=r.etag;setupSignature='';widgetSignature='';return config;}
@@ -25,7 +63,7 @@ async function saveConfig(mutate,base=config,revision=etag){
     config=r.data;etag=r.etag;conflictEdit=null;$('conflict').hidden=true;$('notice').textContent='Dashboard saved.';
     if($('widget-dialog').open)$('widget-dialog').close();editor=null;document.activeElement?.blur();setupSignature='';widgetSignature='';
     await refresh();renderTabs();renderSetup();renderLocation();return true;
-  }catch(e){if(e.status===412){conflictEdit=mutate;$('conflict').hidden=false;if($('widget-dialog').open)$('widget-dialog').close();editor=null;$('notice').textContent='Your edit is waiting for conflict resolution.';}else{message(e);if($('widget-dialog').open)$('widget-error').textContent=e.message;}return false;
+  }catch(e){if(epoch!==session||e.name==='AbortError')return false;if(e.status===412){conflictEdit=mutate;$('conflict').hidden=false;if($('widget-dialog').open)$('widget-dialog').close();editor=null;$('notice').textContent='Your edit is waiting for conflict resolution.';}else{message(e);if($('widget-dialog').open)$('widget-error').textContent=e.message;}return false;
   }finally{if(epoch===session)saving=false;}
 }
 async function legacy(path,body,method,notice){const epoch=session;try{await api('/api/v1/'+path,body,method);if(epoch!==session)return false;await loadConfiguration();$('notice').textContent=notice;await refresh();return true;}catch(e){message(e);return false;}}
@@ -38,7 +76,7 @@ function locate(source){const d=views.find(d=>d.ieee===source.ieee);return {devi
 function sources(location){return views.filter(d=>d.location_id===location).flatMap(d=>d.measurements.map(m=>({source:{ieee:d.ieee,endpoint:m.endpoint,cluster:m.cluster,attribute:m.attribute},label:`${d.name} · Endpoint ${m.endpoint} · ${m.label}`,title:m.label})));}
 function clearChartRequests(){chartEpoch++;for(const c of chartRequests)c.abort();chartJobs.clear();widgetSignature='';}
 function selectTab(id,focus=false){
-  activeTab=id;clearChartRequests();renderTabs();if(activeTab==='setup'){renderSetup();loadEvents();}else if(activeTab==='all')renderAll();else renderLocation();
+  activeTab=id;clearChartRequests();renderTabs();if(activeTab==='setup'){renderSetup();renderProfiles();loadEvents();}else if(activeTab==='all')renderAll();else renderLocation();
   if(focus){const selected=document.querySelector('[role=tab][aria-selected=true]');selected?.focus({preventScroll:true});selected?.scrollIntoView({block:'nearest',inline:'nearest'});}
 }
 function renderTabs(){
@@ -160,13 +198,13 @@ function openEditor(widget=null){const available=sources(activeTab);if(!availabl
 async function suggestWidgets(){const choices=sources(activeTab);await saveConfig(draft=>{for(const choice of choices)for(const type of ['numeric','chart']){if(draft.dashboard.widgets.some(w=>w.type===type&&sourceKey(w.source)===sourceKey(choice.source)))continue;const used=new Set(draft.dashboard.widgets.map(w=>w.position));let position=0;while(used.has(position))position++;draft.dashboard.widgets.push({id:widgetId(),type,title:choice.title+(type==='chart'?' history':''),source:choice.source,position,time_range:86400});}});}
 async function loadEvents(){if(!token||activeTab!=='setup')return;try{const r=await api('/api/v1/events');$('events').textContent=r.data.events.slice(0,20).map(e=>`${new Date(e.received*1000).toLocaleString()} · ${e.type} · ${e.ieee||''}`).join('\n');}catch(e){message(e);}}
 async function refresh(){
-  if(!token||refreshing)return;const epoch=session;refreshing=true;try{const [s,c,d,j]=await Promise.all([api('/api/v1/state'),api('/api/v2/configuration'),api('/api/v2/devices'),api('/api/v2/commissioning')]);if(epoch!==session)return;state=s.data;views=d.data.devices;commissioningJobs=j.data.jobs;if(!config||(!draftActive()&&!conflictEdit&&config.revision!==c.data.revision)){config=c.data;etag=c.etag;setupSignature='';widgetSignature='';}online=state.gateway.connected&&state.gateway.ready;
-    $('status').textContent=(state.gateway.mode==='simulator'?'SIMULATOR · ':'')+(online?'Gateway connected':'Gateway offline / starting');$('sensor-count').textContent=`${state.devices.length} device${state.devices.length===1?'':'s'} registered`;$('home-title').textContent=config.dashboard.title;document.title=config.dashboard.title+' · Zigbee dashboard';$('join').disabled=!online;$('close').disabled=!online;$('welcome').hidden=true;$('token-label').hidden=true;$('connect').hidden=true;$('logout').hidden=false;renderTabs();renderSetup();renderLocation();renderAll();if(state.gateway.gap&&!$('notice').textContent)$('notice').textContent='A history interruption was recorded. Charts mark known ingestion gaps.';
+  if(!token||refreshing)return;if(syncProfileCookie())return;const epoch=session;refreshing=true;try{const [s,c,d,j,u]=await Promise.all([api('/api/v1/state'),api('/api/v2/configuration'),api('/api/v2/devices'),api('/api/v2/commissioning'),api('/api/v2/profiles')]);if(epoch!==session)return;state=s.data;views=d.data.devices;commissioningJobs=j.data.jobs;profiles=u.data.profiles;if(!config||(!draftActive()&&!conflictEdit&&config.revision!==c.data.revision)){config=c.data;etag=c.etag;setupSignature='';widgetSignature='';}online=state.gateway.connected&&state.gateway.ready;
+    $('status').textContent=(state.gateway.mode==='simulator'?'SIMULATOR · ':'')+(online?'Gateway connected':'Gateway offline / starting');$('sensor-count').textContent=`${state.devices.length} device${state.devices.length===1?'':'s'} registered`;$('home-title').textContent=config.dashboard.title;document.title=config.dashboard.title+' · Zigbee dashboard';$('join').disabled=!online;$('close').disabled=!online;$('welcome').hidden=true;$('token-label').hidden=true;$('connect').hidden=true;$('logout').hidden=false;renderTabs();renderSetup();renderProfiles();renderLocation();renderAll();if(state.gateway.gap&&!$('notice').textContent)$('notice').textContent='A history interruption was recorded. Charts mark known ingestion gaps.';
   }catch(e){if(epoch!==session||e.name==='AbortError')return;online=false;renderAll();$('status').textContent=e.message;$('join').disabled=true;$('close').disabled=true;for(const b of $('devices').querySelectorAll('.actions button'))b.disabled=true;}finally{if(epoch===session)refreshing=false;}
 }
-function endSession(){document.body.classList.remove('overview-mode');session++;chartEpoch++;for(const c of requests)c.abort();clearTimeout(timer);refreshing=false;token='';commissioningJobs=[];online=false;config=null;state=null;views=[];etag='';saving=false;conflictEdit=null;editor=null;activeTab=null;setupSignature='';widgetSignature='';historyCache.clear();chartJobs.clear();if($('widget-dialog').open)$('widget-dialog').close();for(const id of ['devices','widgets','location-list','tabs','all-grid'])$(id).replaceChildren();delete $('tabs').dataset.signature;for(const id of ['tabs','setup-panel','location-panel','all-panel','conflict','logout'])$(id).hidden=true;for(const id of ['welcome','token-label','connect'])$(id).hidden=false;$('notice').textContent='';$('status').textContent='Disconnected';$('sensor-count').textContent='';$('home-title').textContent='Home';$('events').textContent='Disconnected.';$('join').disabled=true;$('close').disabled=true;}
+function endSession(){activeProfile='admin';profiles=[];profileSignature='';$('profile-control').hidden=true;$('profile-select').replaceChildren();delete $('profile-select').dataset.signature;$('user-profile-list').replaceChildren();document.body.classList.remove('overview-mode');session++;chartEpoch++;for(const c of requests)c.abort();clearTimeout(timer);refreshing=false;token='';commissioningJobs=[];online=false;config=null;state=null;views=[];etag='';saving=false;conflictEdit=null;editor=null;activeTab=null;setupSignature='';widgetSignature='';historyCache.clear();chartJobs.clear();if($('widget-dialog').open)$('widget-dialog').close();for(const id of ['devices','widgets','location-list','tabs','all-grid'])$(id).replaceChildren();delete $('tabs').dataset.signature;for(const id of ['tabs','setup-panel','location-panel','all-panel','conflict','logout'])$(id).hidden=true;for(const id of ['welcome','token-label','connect'])$(id).hidden=false;$('notice').textContent='';$('status').textContent='Disconnected';$('sensor-count').textContent='';$('home-title').textContent='Home';$('events').textContent='Disconnected.';$('join').disabled=true;$('close').disabled=true;}
 async function tick(epoch=session){await refresh();if(epoch===session&&token)timer=setTimeout(()=>tick(epoch),online?3000:10000);}
-$('connect').onclick=()=>{const next=$('token').value.trim();endSession();token=next;$('token').value='';$('logout').hidden=false;tick();};$('logout').onclick=endSession;
+$('connect').onclick=()=>{const next=$('token').value.trim();endSession();activeProfile=readProfileCookie();observedCookie=activeProfile;token=next;$('token').value='';$('logout').hidden=false;tick();};$('logout').onclick=endSession;
 $('location-form').onsubmit=async e=>{e.preventDefault();const input=$('location-name'),button=$('add-location');button.disabled=true;if(await legacy('locations',{name:input.value},'POST','Location created.'))input.value='';button.disabled=false;document.activeElement?.blur();setupSignature='';renderSetup();};
 $('preferences-form').onsubmit=e=>{e.preventDefault();const title=$('dashboard-title').value,unit=$('temperature-unit').value;saveConfig(draft=>{draft.dashboard.title=title;draft.dashboard.temperature_unit=unit;});};
 $('widget-form').onsubmit=async e=>{e.preventDefault();if(!editor)return;const current=editor,w={id:current.widget?.id||widgetId(),type:$('widget-type').value,title:$('widget-title').value,source:JSON.parse($('widget-source').value),position:current.widget?.position??0,time_range:Number($('widget-range').value)};$('save-widget').disabled=true;await saveConfig(draft=>{if(current.widget){const i=draft.dashboard.widgets.findIndex(x=>x.id===current.widget.id);if(i<0)throw Error('This widget was removed in another session.');w.position=draft.dashboard.widgets[i].position;draft.dashboard.widgets[i]=w;}else{const used=new Set(draft.dashboard.widgets.map(x=>x.position));let position=0;while(used.has(position))position++;draft.dashboard.widgets.push({...w,position});}},current.base,current.etag);$('save-widget').disabled=false;};
@@ -174,3 +212,7 @@ for(const id of ['cancel-widget','discard-widget'])$(id).onclick=()=>{$('widget-
 $('reload-config').onclick=async()=>{try{await loadConfiguration();conflictEdit=null;$('conflict').hidden=true;if($('widget-dialog').open)$('widget-dialog').close();editor=null;document.activeElement?.blur();await refresh();}catch(e){message(e);}};
 $('reapply-config').onclick=async()=>{const edit=conflictEdit;if(!edit)return;try{await loadConfiguration();await saveConfig(edit);}catch(e){message(e);}};
 $('join').onclick=()=>command({op:'permit_join',seconds:60});$('close').onclick=()=>command({op:'permit_join',seconds:0});$('join').disabled=true;$('close').disabled=true;
+
+$('profile-select').onchange=()=>switchProfile($('profile-select').value);
+$('profile-form').onsubmit=e=>{e.preventDefault();manageProfile('',{name:$('profile-name').value},'POST');};
+window.addEventListener('focus',()=>{if(token)syncProfileCookie();});

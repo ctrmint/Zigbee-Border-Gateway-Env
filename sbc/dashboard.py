@@ -8,6 +8,7 @@ import re
 import secrets
 import time
 import unicodedata
+from .profiles import ProfilesStore
 
 MEASUREMENTS = {(1026, 0): ("Temperature", "°C"), (1029, 0): ("Humidity", "%"),
                 (6, 0): ("Reported state", "on/off")}
@@ -35,7 +36,7 @@ def source_supported(device, endpoint, cluster, attribute):
         f"{endpoint}:{cluster}:{attribute}" in device.get("attributes", {}))
 
 
-class DashboardStore:
+class DashboardStore(ProfilesStore):
     def _init_dashboard(self):
         self.db.executescript('''
           CREATE TABLE IF NOT EXISTS dashboard_config(
@@ -78,6 +79,8 @@ class DashboardStore:
                     self._record_measurement(boot, json.loads(data), received)
                 self.db.execute("UPDATE dashboard_config SET history_migrated=1 WHERE id=1")
 
+        self._init_profiles()
+
     def _record_measurement(self, boot, event, received):
         if event.get("type") != "attribute" or not event.get("ieee"):
             return
@@ -94,15 +97,16 @@ class DashboardStore:
 
     def _bump_revision(self):
         self.db.execute("UPDATE dashboard_config SET revision=revision+1 WHERE id=1")
+        self.db.execute("UPDATE user_profiles SET revision=revision+1 WHERE id!='admin'")
 
     def last_ingestion(self):
         with self.lock:
             row = self.db.execute("SELECT received FROM ingestion_state WHERE id=1").fetchone()
             return row[0] if row else None
 
-    def configuration_document(self):
+    def configuration_document(self, profile='admin'):
         with self.lock:
-            revision, data = self.db.execute("SELECT revision,data FROM dashboard_config WHERE id=1").fetchone()
+            revision, data = self._profile_configuration(profile)
             settings = {r[0]: r[1:] for r in self.db.execute("SELECT ieee,name,freshness_seconds FROM device_settings")}
             devices = {}
             for d in self.snapshot():
@@ -114,11 +118,12 @@ class DashboardStore:
                 "locations": [{"id": l["id"], "name": l["name"]} for l in self.locations()],
                 "devices": devices, "dashboard": json.loads(data)}
 
-    def replace_configuration(self, body, expected):
+    def replace_configuration(self, body, expected, profile='admin'):
         with self.lock, self.db:
             self.db.execute("BEGIN IMMEDIATE")
-            revision = self.db.execute("SELECT revision FROM dashboard_config WHERE id=1").fetchone()[0]
-            if expected != f'"configuration-{revision}"':
+            self._require_profile(profile)
+            current=self.configuration_document(profile)
+            if expected != self.configuration_etag(profile):
                 raise DashboardError("Configuration changed. Reload before saving.", 412, "configuration_conflict")
             if not isinstance(body, dict) or set(body) != {"locations", "devices", "dashboard"}:
                 raise DashboardError("Provide locations, devices and dashboard only.")
@@ -189,19 +194,26 @@ class DashboardStore:
                     raise DashboardError("This measurement is not available on the selected endpoint.", path=path + ".source")
                 normalized_widgets.append(dict(widget, title=text(widget["title"], path + ".title"), source=dict(source)))
                 ids.add(wid); positions.add(position)
-            # All validation precedes writes; atomically replace metadata, assignments and layout.
-            self.db.execute("DELETE FROM device_locations")
-            self.db.execute("DELETE FROM device_settings")
-            self.db.execute("DELETE FROM locations")
-            for lid, (name, key) in normalized_locations.items():
-                self.db.execute("INSERT INTO locations VALUES(?,?,?)", (lid, name, key))
-            for ieee, setting in normalized_devices.items():
-                self.db.execute("INSERT INTO device_settings VALUES(?,?,?)", (ieee, setting.get("name"), setting["freshness_seconds"]))
-                if setting["location_id"]:
-                    self.db.execute("INSERT INTO device_locations VALUES(?,?)", (ieee, setting["location_id"]))
+            # Shared metadata remains global; presentation writes affect only this profile.
+            shared_changed = (locations != current['locations'] or normalized_devices != current['devices'])
+            if shared_changed:
+                self.db.execute("DELETE FROM device_locations")
+                self.db.execute("DELETE FROM device_settings")
+                self.db.execute("DELETE FROM locations")
+                for lid, (name, key) in normalized_locations.items():
+                    self.db.execute("INSERT INTO locations VALUES(?,?,?)", (lid, name, key))
+                for ieee, setting in normalized_devices.items():
+                    self.db.execute("INSERT INTO device_settings VALUES(?,?,?)", (ieee, setting.get("name"), setting["freshness_seconds"]))
+                    if setting["location_id"]:
+                        self.db.execute("INSERT INTO device_locations VALUES(?,?)", (ieee, setting["location_id"]))
+                # The saving profile is advanced with its layout below; other contexts go stale.
+                if profile!='admin':self.db.execute("UPDATE dashboard_config SET revision=revision+1 WHERE id=1")
+                self.db.execute("UPDATE user_profiles SET revision=revision+1 WHERE id!='admin' AND id!=?",(profile,))
             value = {"title": title, "temperature_unit": dashboard["temperature_unit"], "widgets": normalized_widgets}
-            self.db.execute("UPDATE dashboard_config SET data=?,revision=revision+1 WHERE id=1", (json.dumps(value),))
-            return self.configuration_document()
+            if profile=='admin':
+                self.db.execute("UPDATE dashboard_config SET data=?,revision=revision+1 WHERE id=1", (json.dumps(value),))
+            else:self.db.execute("UPDATE user_profiles SET data=?,revision=revision+1 WHERE id=?",(json.dumps(value),profile))
+            return self.configuration_document(profile)
 
     def device_views(self):
         with self.lock:
