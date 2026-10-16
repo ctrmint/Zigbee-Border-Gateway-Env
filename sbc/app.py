@@ -10,6 +10,7 @@ from urllib.parse import urlsplit, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from .core import ConfigurationError, Gateway, Store, Poller, validate_command
 from .contracts import capabilities, contract
+from .profiles import requested_profile
 from .dashboard import DashboardError
 from .contracts_v2 import contract_v2, capabilities_v2
 
@@ -56,13 +57,24 @@ def make_handler(store, poller, gateway, token):
                 return self.v2_error(401, "unauthorized", "Dashboard token required.")
             route = urlsplit(self.path)
             try:
+                requested=requested_profile(self.headers)
+                profile=store.resolve_profile(requested)
+                profile_route=re.fullmatch(r'/api/v2/profiles/(admin|p-[0-9a-f]{24})',route.path)
+                if route.path=='/api/v2/profiles':
+                    if method=='GET':return self.send(200,store.profiles_document(profile))
+                    if method=='POST':return self.send(201,store.save_profile(self.read_body(4096)))
+                if profile_route:
+                    if method=='PUT':return self.send(200,store.save_profile(self.read_body(4096),profile_route[1]))
+                    if method=='DELETE':
+                        store.delete_profile(profile_route[1]);return self.send(200,{'deleted':True})
                 if method == "GET":
                     if route.path == "/api/v2/commissioning": return self.send(200, store.commissioning_document())
                     if route.path == "/api/v2/capabilities": return self.send(200, capabilities_v2())
                     if route.path == "/api/v2/openapi.json": return self.send(200, contract_v2())
                     if route.path == "/api/v2/configuration":
-                        doc = store.configuration_document()
-                        return self.send(200, doc, {"ETag": f'"configuration-{doc["revision"]}"'})
+                        with store.lock:
+                            doc = store.configuration_document(profile)
+                            return self.send(200, doc, {"ETag":store.configuration_etag(profile),"X-Dashboard-Profile":profile})
                     if route.path == "/api/v2/devices": return self.send(200, store.device_views())
                     if route.path == "/api/v2/gateway": return self.send(200, dict(poller.status))
                     if route.path == "/api/v2/history":
@@ -81,8 +93,10 @@ def make_handler(store, poller, gateway, token):
                 if method == "PUT" and route.path == "/api/v2/configuration":
                     expected = self.headers.get("If-Match")
                     if expected is None: return self.v2_error(428, "revision_required", "Reload configuration before saving.")
-                    doc = store.replace_configuration(self.read_body(65536), expected)
-                    return self.send(200, doc, {"ETag": f'"configuration-{doc["revision"]}"'})
+                    if requested!=profile:raise DashboardError('Profile no longer available. Reload before saving.',409,'profile_unavailable')
+                    with store.lock:
+                        doc = store.replace_configuration(self.read_body(65536), expected, profile)
+                        return self.send(200, doc, {"ETag":store.configuration_etag(profile),"X-Dashboard-Profile":profile})
                 return self.v2_error(404, "not_found", "Resource not found.")
             except DashboardError as error:
                 return self.v2_error(error.status, error.code, str(error), error.path)

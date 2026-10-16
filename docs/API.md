@@ -255,3 +255,7 @@ The gateway bounds outstanding operations to 16, one per source/cluster, with a
 25-second deadline. Full end-to-end command tracking for other v1 operations is
 still unavailable. Attribute events add `origin: report|read_response`; retained
 older events are interpreted as `unknown`.
+
+## Session-based user profiles
+
+The v2 API supports `GET/POST /api/v2/profiles` and `PUT/DELETE /api/v2/profiles/{profile_id}`. Configuration resolves `X-Dashboard-Profile` before the `dashboard_profile` session cookie and returns the resolved profile header plus a profile-scoped ETag. Admin remains the backward-compatible default. Profile IDs are presentation selectors, not credentials. See [profile semantics and errors](USER_PROFILES.md).

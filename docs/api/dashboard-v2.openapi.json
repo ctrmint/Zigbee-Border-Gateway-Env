@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.1.1"
+    "version": "2.3.0"
   },
   "servers": [
     {
@@ -165,6 +165,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Dashboard-Profile": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(admin|p-[0-9a-f]{24})$"
+                }
               }
             }
           },
@@ -178,7 +184,25 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "dashboard_profile",
+            "in": "cookie",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Session preference only; missing/invalid IDs default to Admin on reads."
+          },
+          {
+            "name": "X-Dashboard-Profile",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Explicit request context, takes precedence over cookie; no authorisation effect."
+          }
+        ]
       },
       "put": {
         "operationId": "replace_configuration",
@@ -190,6 +214,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "dashboard_profile",
+            "in": "cookie",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Session preference only; missing/invalid IDs default to Admin on reads."
+          },
+          {
+            "name": "X-Dashboard-Profile",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Explicit request context, takes precedence over cookie; no authorisation effect."
           }
         ],
         "requestBody": {
@@ -209,6 +249,19 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Configuration"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Dashboard-Profile": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(admin|p-[0-9a-f]{24})$"
                 }
               }
             }
@@ -265,6 +318,16 @@
           },
           "428": {
             "description": "Revision required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Selected profile was removed; never save into fallback Admin",
             "content": {
               "application/json": {
                 "schema": {
@@ -487,6 +550,328 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/profiles": {
+      "get": {
+        "operationId": "list_user_profiles",
+        "parameters": [
+          {
+            "name": "dashboard_profile",
+            "in": "cookie",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Session preference only; missing/invalid IDs default to Admin on reads."
+          },
+          {
+            "name": "X-Dashboard-Profile",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Explicit request context, takes precedence over cookie; no authorisation effect."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shared profile list and selected context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfiles"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Dashboard token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Profile unavailable, duplicate name, default profile or limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_user_profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserProfileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created with empty layout and Celsius defaults",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Dashboard token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Profile unavailable, duplicate name, default profile or limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/profiles/{profile_id}": {
+      "parameters": [
+        {
+          "name": "profile_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^(admin|p-[0-9a-f]{24})$"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "rename_user_profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserProfileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Renamed; stable ID retained",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Dashboard token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Profile unavailable, duplicate name, default profile or limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_user_profile",
+        "responses": {
+          "200": {
+            "description": "Deleted presentation only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Dashboard token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Profile unavailable, duplicate name, default profile or limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid profile",
             "content": {
               "application/json": {
                 "schema": {
@@ -1148,13 +1533,17 @@
               },
               "reporting_commissioning": {
                 "const": true
+              },
+              "user_profiles": {
+                "const": true
               }
             },
             "required": [
               "configuration",
               "history_query",
               "dashboard_layouts",
-              "reporting_commissioning"
+              "reporting_commissioning",
+              "user_profiles"
             ]
           },
           "limits": {
@@ -1181,6 +1570,12 @@
               "history_retention_days": {
                 "type": "integer"
               },
+              "profiles": {
+                "type": "integer"
+              },
+              "profile_name_chars": {
+                "type": "integer"
+              },
               "chart_ranges": {
                 "type": "array",
                 "items": {
@@ -1196,6 +1591,8 @@
               "history_page",
               "history_days",
               "history_retention_days",
+              "profiles",
+              "profile_name_chars",
               "chart_ranges"
             ]
           }
@@ -1439,6 +1836,64 @@
             "additionalProperties": false
           }
         ]
+      },
+      "UserProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(admin|p-[0-9a-f]{24})$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "default": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "default"
+        ],
+        "additionalProperties": false
+      },
+      "UserProfileInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "UserProfiles": {
+        "type": "object",
+        "properties": {
+          "selected_profile": {
+            "type": "string",
+            "pattern": "^(admin|p-[0-9a-f]{24})$"
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserProfile"
+            },
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "selected_profile",
+          "profiles"
+        ],
+        "additionalProperties": false
       }
     }
   }

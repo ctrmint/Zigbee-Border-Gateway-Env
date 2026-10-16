@@ -257,3 +257,15 @@ in the temperature-only deployment backup directory.
 Local WebKit validation used downloaded libraries extracted into a private cache and software EGL rendering. Its cached launcher was adjusted to retain the library path; host-cache dependency validation was skipped because those libraries are outside the system cache. No system packages or repository runtime dependencies were installed/changed. These environment adjustments do not validate iPad-specific browser behavior.
 
 See [All sensors overview](DASHBOARD_ALL.md) for operation and rollback. Optional browser engine/device selection is available via `DASHBOARD_TEST_BROWSER=webkit DASHBOARD_TEST_DEVICE='iPad (gen 7)'`; default browser tests continue to use Chromium.
+
+## Issue #20 session-based user profiles, 2026-10-16
+
+- PASS: 44 API/integration tests on the independent #20 branch, including six new profile cases; 56 on the combined live candidate with existing #14 preparation. Coverage includes existing-layout migration, restart persistence, concurrent contexts, revisions, invalid cookies, header precedence, deletion, duplicate names and limits.
+- PASS: all 30 combined Chromium dashboard browser cases, including seven profile cases, plus a targeted final tablet-layout regression after the WebKit containment fix. Existing All/location/widget/reporting/UL behavior remains covered.
+- PASS: seven profile cases in WebKit with an emulated iPad touch profile, covering simultaneous users, session-cookie restoration/blocking, shared-cookie tabs, late saves, management and long-name layouts at portrait/landscape/narrow widths. WebKit's native select text overflow was contained locally without clipping page content or weakening CSP.
+- PASS: migration rehearsal against a copy of the actual configured hardware database: every existing table row and Admin's layout retained; only the profile table/Admin row added; SQLite integrity OK.
+- PASS: generated contract consistency, JavaScript/Python syntax, unique combined HTML IDs and Git whitespace checks.
+- PASS: live deployment with two independent browser contexts, separate preferences, session-cookie reload and four viewport screenshots; temporary validation profile removed. Admin configuration, shared metadata and database integrity preserved; gateway connected/ready with unchanged boot ID.
+- PENDING: physical iPad Safari verification. Device emulation does not establish physical browser behavior.
+
+See [user profiles](USER_PROFILES.md) for cookie lifecycle, shared versus personal settings, request-context handling, API and rollback. No firmware/network change is part of this feature.

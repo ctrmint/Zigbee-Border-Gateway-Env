@@ -5,10 +5,10 @@ from .dashboard import RANGES
 
 def capabilities_v2():
     return {"api_version": "2", "widget_types": ["numeric", "chart"],
-        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True},
+        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True},
         "limits": {"configuration_bytes": 65536, "widgets": 100, "locations": 50,
             "device_overrides": 50, "history_page": 500, "history_days": 31,
-            "history_retention_days": 30, "chart_ranges": list(RANGES)}}
+            "history_retention_days": 30,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
 
 
 def contract_v2():
@@ -51,8 +51,8 @@ def contract_v2():
         "Gateway": obj({"connected": {"type": "boolean"}, "ready": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "mode": {"enum": ["hardware", "simulator"]}}, ("connected", "error")),
         "Capabilities": obj({"api_version": {"const": "2"}, "widget_types": array({"enum": ["numeric", "chart"]}),
-            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning")},
-                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning")),
+            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "user_profiles")},
+                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "user_profiles")),
             "limits": obj({k: ({"type": "array", "items": {"type": "integer"}} if k == "chart_ranges" else {"type": "integer"}) for k in capabilities_v2()["limits"]}, capabilities_v2()["limits"])},
             ("api_version", "widget_types", "features", "limits"))}
     policy = obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"}, "endpoint":integer(1,240),
@@ -93,6 +93,19 @@ def contract_v2():
             ("to", {"type": "number", "minimum": 0}), ("limit", integer(1,500)), ("cursor", {"type": "string"}))]
     history["responses"]["400"] = response("Invalid query or cursor", ref("Error"))
     paths['/api/v2/openapi.json'] = {"get": {"operationId": "v2_contract", "responses": {"200": response("This contract", {"type": "object"}), "401": response("Unauthorized", ref("Error"))}}}
-    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.1.1"},
+    profile_id={"type":"string","pattern":"^(admin|p-[0-9a-f]{24})$"}
+    definitions['UserProfile']=obj({'id':profile_id,'name':{'type':'string','minLength':1,'maxLength':80},'default':{'type':'boolean'}},('id','name','default'),additionalProperties=False)
+    definitions['UserProfileInput']=obj({'name':{'type':'string','minLength':1,'maxLength':80}},('name',),additionalProperties=False)
+    definitions['UserProfiles']=obj({'selected_profile':profile_id,'profiles':array(ref('UserProfile'),maxItems=20)},('selected_profile','profiles'),additionalProperties=False)
+    errors={str(code):response(message,ref('Error')) for code,message in [(400,'Malformed request'),(401,'Dashboard token required'),(409,'Profile unavailable, duplicate name, default profile or limit'),(413,'Body too large'),(422,'Invalid profile') ]}
+    selection=[{'name':'dashboard_profile','in':'cookie','schema':{'type':'string'},'description':'Session preference only; missing/invalid IDs default to Admin on reads.'},{'name':'X-Dashboard-Profile','in':'header','schema':{'type':'string'},'description':'Explicit request context, takes precedence over cookie; no authorisation effect.'}]
+    body={'required':True,'content':{'application/json':{'schema':ref('UserProfileInput')}}}
+    paths['/api/v2/profiles']={'get':{'operationId':'list_user_profiles','parameters':selection,'responses':{'200':response('Shared profile list and selected context',ref('UserProfiles')),**errors}},'post':{'operationId':'create_user_profile','requestBody':body,'responses':{'201':response('Created with empty layout and Celsius defaults',ref('UserProfile')),**errors}}}
+    paths['/api/v2/profiles/{profile_id}']={'parameters':[{'name':'profile_id','in':'path','required':True,'schema':profile_id}], 'put':{'operationId':'rename_user_profile','requestBody':body,'responses':{'200':response('Renamed; stable ID retained',ref('UserProfile')),**errors}},'delete':{'operationId':'delete_user_profile','responses':{'200':response('Deleted presentation only',obj({'deleted':{'const':True}},('deleted',),additionalProperties=False)),**errors}}}
+    for method in ['get','put']:
+        op=paths['/api/v2/configuration'][method];op.setdefault('parameters',[]).extend(selection)
+        op['responses']['200']['headers']={'ETag':{'schema':{'type':'string'}},'X-Dashboard-Profile':{'schema':profile_id}}
+    paths['/api/v2/configuration']['put']['responses']['409']=response('Selected profile was removed; never save into fallback Admin',ref('Error'))
+    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.3.0"},
         "servers": [{"url": "/"}], "security": [{"bearerAuth": []}], "paths": paths,
         "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": definitions}}
