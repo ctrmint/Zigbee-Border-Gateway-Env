@@ -8,6 +8,7 @@ import unicodedata
 import urllib.request
 import uuid
 from .dashboard import DashboardStore
+from .network import Gateway, sample_received
 from .commissioning import CommissioningStore, drive_commissioning
 from .sensors import sensor_endpoint
 from .display import DisplayStore,drive_display,drive_clock
@@ -92,16 +93,6 @@ def normalize(cluster, attribute, data_type, raw):
         return bool(raw), "on/off"
     return None, None
 
-class Gateway:
-    def __init__(self, url, token):
-        self.url, self.token = url.rstrip("/"), token
-    def request(self, path, data=None):
-        req = urllib.request.Request(self.url + path,
-            data=json.dumps(data).encode() if data is not None else None,
-            headers={"Authorization": "Bearer " + self.token, "Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=5) as response:
-            return json.load(response)
-
 class Store(DashboardStore, CommissioningStore, DisplayStore):
     def __init__(self, path):
         self.lock = threading.RLock()
@@ -122,6 +113,8 @@ class Store(DashboardStore, CommissioningStore, DisplayStore):
         self._init_dashboard()
         self._init_commissioning()
         self._init_display()
+        self.db.execute('CREATE TABLE IF NOT EXISTS gateway_bindings(config_key TEXT PRIMARY KEY,identity TEXT NOT NULL,url TEXT NOT NULL)')
+        self.db.commit()
     def cursor(self):
         with self.lock:
             row = self.db.execute("SELECT boot,seq FROM cursor WHERE id=1").fetchone()
@@ -171,7 +164,7 @@ class Store(DashboardStore, CommissioningStore, DisplayStore):
                         ("profile_id", "device_id", "input_clusters", "output_clusters")}
                 if e["type"] == "attribute":
                     value, unit = normalize(e["cluster"], e["attribute"], e["data_type"], e.get("raw"))
-                    e = dict(e, value=value, unit=unit, received=time.time())
+                    e = dict(e, value=value, unit=unit, received=sample_received(e,received))
                     d["attributes"][f'{e["endpoint"]}:{e["cluster"]}:{e["attribute"]}'] = e
                 self._put(d)
             # Current registry wins over historical membership/address events.
@@ -253,10 +246,12 @@ class Store(DashboardStore, CommissioningStore, DisplayStore):
 class Poller:
     def __init__(self, gateway, store):
         self.gateway, self.store = gateway, store
+        if isinstance(gateway, Gateway):gateway.attach_store(store)
         self.status = {"connected": False, "error": "Waiting for gateway", "gap": False}
         self.stop = threading.Event()
     def once(self):
         h = self.gateway.request("/api/v1/health")
+        health_received = time.time()
         boot, seq = self.store.cursor()
         changed = h["boot_id"] != boot
         if changed:
@@ -266,6 +261,10 @@ class Poller:
         registry = self.gateway.request("/api/v1/devices")
         if batch["boot_id"] != h["boot_id"] or registry["boot_id"] != h["boot_id"]:
             raise RuntimeError("gateway restarted during poll; retrying")
+        # Preserve source ages when draining events buffered during an outage.
+        if type(h.get('uptime_ms')) is int:
+            batch['events']=[dict(e,observed_at_estimate=max(0,health_received-max(0,h['uptime_ms']-e['uptime_ms'])/1000))
+                if type(e.get('uptime_ms')) is int and e['uptime_ms']>=0 else e for e in batch['events']]
         previous_poll = self.status.get("last_poll") or self.store.last_ingestion()
         if previous_poll is None and batch.get("gap"):
             with self.store.lock:

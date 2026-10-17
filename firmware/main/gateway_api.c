@@ -9,6 +9,7 @@
 #include "gateway_json.h"
 #include "gateway_reporting.h"
 #include "gateway_clock.h"
+#include "gateway_network.h"
 #include "esp_http_server.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -224,6 +225,7 @@ static esp_err_t handle_get(httpd_req_t *req)
         cJSON_AddNumberToObject(o,"join_seconds",join_until>esp_timer_get_time()?(join_until-esp_timer_get_time())/1000000:0);
         cJSON_AddNumberToObject(o,"pan_id",pan_id);cJSON_AddNumberToObject(o,"channel",channel);
         cJSON_AddBoolToObject(o,"reporting_commissioning",true);cJSON_AddBoolToObject(o,"sensor_extensions",true);cJSON_AddBoolToObject(o,"time_server_valid",gateway_clock_is_valid());cJSON_AddNumberToObject(o,"dropped_events",dropped);cJSON_AddNumberToObject(o,"latest_seq",seq);
+        gateway_network_health(o);
     }else if(inventory){
         cJSON *a=cJSON_AddArrayToObject(o,"devices");
         for(int i=0;i<MAX_DEVICES;i++) if(devices[i].used){
@@ -319,11 +321,35 @@ esp_err_t gateway_api_init(void)
     if(nvs_open("gw_registry",NVS_READONLY,&n)==ESP_OK){nvs_get_blob(n,"devices",devices,&size);nvs_close(n);}
     return ESP_OK;
 }
+static httpd_handle_t server;
+bool gateway_api_running(void){return server!=NULL;}
+bool gateway_api_is_ready(void){return ready;}
+#ifdef CONFIG_GW_NETWORK_TEST
+static esp_err_t network_test(httpd_req_t *req){
+    if(!authorized(req))return httpd_resp_send_err(req,HTTPD_401_UNAUTHORIZED,"token required");
+    if(req->content_len<1||req->content_len>100)return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"invalid test");
+    char buf[101];int got=0;
+    while(got<req->content_len){int n=httpd_req_recv(req,buf+got,req->content_len-got);if(n<=0)return ESP_FAIL;got+=n;}buf[got]=0;
+    cJSON *o=gateway_parse_command(buf,got);esp_err_t e=gateway_network_test(o);cJSON_Delete(o);
+    if(e!=ESP_OK)return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"test unavailable or invalid");
+    httpd_resp_set_status(req,"202 Accepted");httpd_resp_set_type(req,"application/json");return httpd_resp_sendstr(req,"{\"accepted\":true}");
+}
+#endif
 esp_err_t gateway_api_start(void)
 {
+    if(server)return ESP_OK;
     httpd_config_t c=HTTPD_DEFAULT_CONFIG();c.stack_size=8192;c.lru_purge_enable=true;
-    httpd_handle_t h=NULL;esp_err_t e=httpd_start(&h,&c);if(e!=ESP_OK) return e;
+    esp_err_t e=httpd_start(&server,&c);if(e!=ESP_OK){server=NULL;return e;}
     const char *paths[]={"/api/v1/health","/api/v1/devices","/api/v1/events"};
-    for(int i=0;i<3;i++){httpd_uri_t u={.uri=paths[i],.method=HTTP_GET,.handler=handle_get};if((e=httpd_register_uri_handler(h,&u))!=ESP_OK) return e;}
-    httpd_uri_t u={.uri="/api/v1/commands",.method=HTTP_POST,.handler=command};return httpd_register_uri_handler(h,&u);
+    for(int i=0;i<3;i++){httpd_uri_t u={.uri=paths[i],.method=HTTP_GET,.handler=handle_get};if((e=httpd_register_uri_handler(server,&u))!=ESP_OK)goto failed;}
+    httpd_uri_t u={.uri="/api/v1/commands",.method=HTTP_POST,.handler=command};if((e=httpd_register_uri_handler(server,&u))!=ESP_OK)goto failed;
+#ifdef CONFIG_GW_NETWORK_TEST
+    httpd_uri_t test={.uri="/api/v1/network-test",.method=HTTP_POST,.handler=network_test};if((e=httpd_register_uri_handler(server,&test))!=ESP_OK)goto failed;
+#endif
+    return ESP_OK;
+failed:httpd_stop(server);server=NULL;return e;
+}
+esp_err_t gateway_api_restart(void){
+    if(server){esp_err_t e=httpd_stop(server);if(e!=ESP_OK)return e;server=NULL;}
+    return gateway_api_start();
 }

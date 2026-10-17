@@ -96,6 +96,8 @@ class DashboardStore(SignalStore, ProfilesStore):
         if event.get("type") != "attribute" or not event.get("ieee"):
             return
         from .core import normalize
+        from .network import sample_received
+        received = sample_received(event, received)
         cluster, attribute = event.get("cluster"), event.get("attribute")
         if cluster==6:
             from .sensors import sensor_endpoint

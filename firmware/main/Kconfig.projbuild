@@ -24,3 +24,11 @@ config GW_API_TOKEN
         Required. Generate with python3 -c 'import secrets; print(secrets.token_hex(32))'.
         HTTP is for an isolated trusted LAN only; see SECURITY.md.
 endmenu
+
+config GW_NETWORK_TEST
+    bool "Enable authenticated bounded network outage validation"
+    default n
+    help
+        Optional /api/v1/network-test endpoint. Temporarily uses an unavailable
+        SSID, restores real settings automatically after at most 300 seconds.
+        Requires the existing gateway token. Does not reset Zigbee or flash.

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .core import OPS
 
-CONTRACT_VERSION = "1.5.0"
+CONTRACT_VERSION = "1.6.0"
 
 
 def ref(name):
@@ -85,12 +85,12 @@ def schemas(strict_commands):
         "EventBatch": obj({"boot_id": {"type": "string"}, "gap": {"type": "boolean"},
             "events": array(ref("Event"), maxItems=16), "next_seq": integer(), "latest_seq": integer()},
             ("boot_id", "gap", "events", "next_seq", "latest_seq")),
-        "Health": obj({"boot_id": {"type": "string"}, "ready": {"type": "boolean"},
+        "Health": obj({"gateway_id":{"type":"string","pattern":"^[0-9a-f]{12}$"},"network":{"type":"object","description":"Wi-Fi recovery counters, link/IP/API state, backoff/progress times, disconnect/reboot reasons and opt-in test state. No credentials."},"boot_id": {"type": "string"}, "ready": {"type": "boolean"},
             "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"},"sensor_extensions":{"type":"boolean"},"time_server_valid":{"type":"boolean"}, "join_seconds": integer(0, 180),
             "latest_seq": integer(), "dropped_events": integer(), "uptime_ms": integer(),
             "pan_id": integer(0, 65535), "channel": dict(integer(0, 26), description="Zero before formation; 11–26 when ready.")},
             ("boot_id", "ready", "mode", "join_seconds", "latest_seq", "dropped_events")),
-        "GatewayStatus": obj({"connected": {"type": "boolean"}, "error": {"type": ["string", "null"]},
+        "GatewayStatus": obj({"gateway_id":{"type":"string"},"network":{"type":"object"},"connected": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "gap": {"type": "boolean"}, "last_poll": timestamp,
             "boot_id": {"type": "string"}, "ready": {"type": "boolean"},
                 "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"},"sensor_extensions":{"type":"boolean"},"time_server_valid":{"type":"boolean"}, "join_seconds": integer(0, 180),
@@ -209,6 +209,11 @@ def contract(service="dashboard"):
         paths["/api/v1/devices/{ieee}/location"] = {
             "parameters": [{"name": "ieee", "in": "path", "required": True, "schema": {"type": "string", "pattern": "^[0-9a-fA-F]{16}$"}}],
             "put": mutation("assign_device_location", "LocationAssignment", "LocationAssignmentResult")}
+    if board:
+        paths['/api/v1/network-test']={"post":{"operationId":"bounded_network_outage_test",
+            "description":"Available only when built with CONFIG_GW_NETWORK_TEST. Temporarily uses an unavailable SSID, restores configured credentials autonomously. Does not reset Zigbee. No automatic use by the dashboard.",
+            "requestBody":{"required":True,"content":{"application/json":{"schema":obj({"seconds":integer(1,300)},("seconds",),additionalProperties=False)}}},
+            "responses":{"202":response("Accepted; expect temporary network loss",obj({"accepted":{"const":True}},("accepted",))),"400":response("Invalid request or test already active",error,error_mime),"401":unauthorized,"404":response("Test feature disabled in this build",error,error_mime)}}}
     return {"openapi": "3.1.0", "info": {"title": "Zigbee " + service + " API", "version": CONTRACT_VERSION,
         "description": "Implemented v1 API. Additive response fields are allowed. Proposed dashboard configuration APIs are documented separately."},
         "servers": [{"url": "/"}] if not board else [{"url": "http://{gateway_host}",

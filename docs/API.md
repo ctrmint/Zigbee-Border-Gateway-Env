@@ -267,3 +267,5 @@ The v2 API supports `GET/POST /api/v2/profiles` and `PUT/DELETE /api/v2/profiles
 Signal history and latest RSSI are available through the authenticated v2 devices/history APIs; see [signal history](SIGNAL_HISTORY.md) for the dashboard-only source identifier and event correlation.
 
 Per-profile All layout preferences are part of v2 configuration; see [All layout API and compatibility](ALL_LAYOUT.md).
+
+Gateway health includes `gateway_id` and `network` recovery diagnostics; the optional authenticated bounded outage endpoint is documented in [Wi-Fi recovery](WIFI_RECOVERY.md). Discovery uses UDP 39128 with nonce/HMAC proofs; it never broadcasts bearer tokens.

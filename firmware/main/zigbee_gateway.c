@@ -44,6 +44,7 @@
 #include "gateway_api.h"
 #include "gateway_reporting.h"
 #include "gateway_clock.h"
+#include "gateway_network.h"
 #include "ezbee/zcl/cluster/custom.h"
 #include "ezbee/zcl/cluster/power_config.h"
 #include "ezbee/zcl/cluster/poll_control.h"
@@ -68,7 +69,11 @@ static esp_err_t esp_zigbee_connect_netif(void)
     esp_coex_wifi_i154_enable();
 #endif /* CONFIG_ESP_COEX_SW_COEXIST_ENABLE*/
 
+    #if CONFIG_EXAMPLE_CONNECT_WIFI
+    ESP_RETURN_ON_ERROR(gateway_network_start(), TAG, "Failed to start network recovery");
+#else
     ESP_RETURN_ON_ERROR(example_connect(), TAG, "Failed to connect to Network Interface");
+#endif
 
 #if CONFIG_EXAMPLE_CONNECT_WIFI
     ESP_RETURN_ON_ERROR(esp_wifi_set_ps(ps_type), TAG, "Failed to set power save type for Wi-Fi");
@@ -258,7 +263,9 @@ static void esp_zigbee_stack_main_task(void *pvParameters)
 
 #if (CONFIG_EXAMPLE_CONNECT_WIFI || CONFIG_EXAMPLE_CONNECT_ETHERNET)
     ESP_ERROR_CHECK(esp_zigbee_connect_netif());
+#if !CONFIG_EXAMPLE_CONNECT_WIFI
     ESP_ERROR_CHECK(gateway_api_start());
+#endif
 #endif
 
     ESP_ERROR_CHECK(esp_zigbee_setup_commissioning());

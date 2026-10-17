@@ -19,3 +19,7 @@ cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \
   -I"$root/firmware/main" "$root/tests/firmware_sensor.c" -o "$test_dir/sensor"
 "$test_dir/sensor"
 echo 'Firmware cursor, JSON, reporting and sensor policy tests passed.'
+cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \
+  -I"$root/firmware/main" "$root/tests/firmware_network.c" -o "$test_dir/network"
+"$test_dir/network"
+echo 'Firmware continuous network recovery policy tests passed.'
