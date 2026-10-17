@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.6.0"
+    "version": "2.7.0"
   },
   "servers": [
     {
@@ -1868,6 +1868,12 @@
       "Gateway": {
         "type": "object",
         "properties": {
+          "gateway_id": {
+            "type": "string"
+          },
+          "network": {
+            "type": "object"
+          },
           "connected": {
             "type": "boolean"
           },

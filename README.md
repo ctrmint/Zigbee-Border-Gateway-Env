@@ -102,3 +102,5 @@ The read-only [All sensors overview](docs/DASHBOARD_ALL.md) displays compact sen
 [Sensor signal strength and history](docs/SIGNAL_HISTORY.md) describes passive RSSI logging and dashboard widgets.
 
 [All dashboard layout settings](docs/ALL_LAYOUT.md) provide per-profile columns, minimum tile widths and sensor ordering.
+
+[Continuous Wi-Fi recovery](docs/WIFI_RECOVERY.md) covers autonomous reconnection, authenticated rediscovery and outage validation.

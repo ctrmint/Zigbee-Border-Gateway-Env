@@ -1,6 +1,7 @@
 """Passive coordinator RSSI samples, correlated with their original gateway events."""
 import json
 import time
+from .network import sample_received
 
 # Dashboard-only source identifier; never transmitted as a Zigbee cluster command.
 SIGNAL_CLUSTER = 65535
@@ -37,6 +38,7 @@ class SignalStore:
     def _record_signal(self, boot, event, received):
         if not event.get('ieee') or not valid_rssi(event.get('rssi')):
             return
+        received = sample_received(event, received)
         sample = dict(boot_id=boot, seq=event['seq'], ieee=event['ieee'].lower(),
                       received_at=received, value=event['rssi'], unit='dBm',
                       source_endpoint=event.get('endpoint'), source_cluster=event.get('cluster'),

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee gateway API",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "description": "Implemented v1 API. Additive response fields are allowed. Proposed dashboard configuration APIs are documented separately."
   },
   "servers": [
@@ -191,6 +191,83 @@
           }
         }
       }
+    },
+    "/api/v1/network-test": {
+      "post": {
+        "operationId": "bounded_network_outage_test",
+        "description": "Available only when built with CONFIG_GW_NETWORK_TEST. Temporarily uses an unavailable SSID, restores configured credentials autonomously. Does not reset Zigbee. No automatic use by the dashboard.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "seconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 300
+                  }
+                },
+                "required": [
+                  "seconds"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted; expect temporary network loss",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "accepted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or test already active",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Test feature disabled in this build",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -205,6 +282,14 @@
       "Health": {
         "type": "object",
         "properties": {
+          "gateway_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{12}$"
+          },
+          "network": {
+            "type": "object",
+            "description": "Wi-Fi recovery counters, link/IP/API state, backoff/progress times, disconnect/reboot reasons and opt-in test state. No credentials."
+          },
           "boot_id": {
             "type": "string"
           },
