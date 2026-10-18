@@ -34,7 +34,7 @@ def profile_document():
 
 def device_model(device, hint=''):
     observed=next((a.get('raw') for a in device.get('attributes',{}).values() if a.get('cluster')==0 and a.get('attribute')==5 and isinstance(a.get('raw'),str)),None)
-    return ('SONOFF '+observed) if observed in ('SNZB-02WD','SNZB-02LD','SNZB-02UL') else hint
+    return ('SONOFF '+observed) if observed in ('SNZB-02WD','SNZB-02LD','SNZB-02UL','S60ZBTPG') else hint
 
 def sensor_endpoint(device, endpoint):
     desc=device.get('endpoints',{}).get(str(endpoint),{})

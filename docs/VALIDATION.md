@@ -337,3 +337,12 @@ See [All layout settings](ALL_LAYOUT.md) for width/count precedence, order reten
 - PENDING: physical cold boot with AP absent, actual AP/router reboot, changed DHCP lease, repeated and overnight-length outages, and deliberately forced internal-driver/listener/worker-stall escalation. Native tests and a three-minute injected outage do not substitute for those extended scenarios; issue #28 remains open.
 
 Private evidence is in the ignored wifi-issue28 backup directory; the final recovery-image manifest identifies the deployed image. The optional authenticated validation hook is enabled in this deployment's private sdkconfig and defaults off in source configuration. See [Wi-Fi recovery](WIFI_RECOVERY.md).
+
+
+## Issue #27 S60ZBTPG preparation (18 October 2026)
+
+- Pinned primary converter protocol at 72398c3063aca492fe936bf01e0a5fffad28fbd1 and manufacturer codes at cf29e23a3c0fbfcbad9cb5c6694448381b6f61ba; capability/acceptance matrix in S60ZBTPG.md.
+- 88 API/integration tests passed (12 plug preparation cases plus 76 existing regressions). Native C sanitizer tests cover plug payloads/flags/checksums/product limits/report types alongside cursor/JSON/sensor/reporting/network policies. SDK build produces 0x115530-byte application, 35% partition free.
+- 26 distinct Chromium cases passed across runs (a profile reload fetch failure passed its targeted rerun); three final WebKit iPad emulation cases passed with the cached Mesa runtime. Chromium plug cases exercise shared durable operations, readback, raw Off telemetry, data-only All tiles and responsive sizes; existing All/layout, reporting, UL and profile cases are also run. WebKit iPad emulation is separate from physical iPad Safari acceptance. Tablet testing found and corrected replacement of live location buttons during polling; their DOM identity is retained.
+- Migration rehearsal preserves every row in all 17 pre-existing database tables and passes integrity checks. Synthetic plug fixtures are isolated from the hardware registry. No physical plug compatibility, protection trip behavior, period boundaries, router path or inching timing is claimed.
+- OTA is explicitly deferred to #30; schedules/countdowns/scenes and device timing verification to #31. Parent #27 remains open. Exact logs, backup/source/image manifests and live deployment checks are private under the ignored backups directory.

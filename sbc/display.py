@@ -27,6 +27,7 @@ class DisplayStore:
             d=self._get(body['ieee']);desc=d['endpoints'].get(str(body['endpoint']),{})
             if not d.get('active') or device_model(d,self._model_hint(d['ieee']))!=UL or 0xfc11 not in desc.get('input_clusters',[]):
                 raise DashboardError('Display settings require an identified SNZB-02UL endpoint advertising the vendor cluster.',422)
+            if self._plug_busy(d['ieee']):raise DashboardError('Cancel or finish the active plug operation first.',409)
             for table in ('commissioning','display_jobs'):
                 row=self.db.execute('SELECT data FROM '+table+' WHERE ieee=?',(d['ieee'],)).fetchone()
                 if row and json.loads(row[0])['state'] in ACTIVE:raise DashboardError('Wait for or cancel the active sensor setup first.',409)

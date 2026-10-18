@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee gateway API",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "description": "Implemented v1 API. Additive response fields are allowed. Proposed dashboard configuration APIs are documented separately."
   },
   "servers": [
@@ -305,6 +305,9 @@
           "reporting_commissioning": {
             "type": "boolean"
           },
+          "plug_extensions": {
+            "type": "boolean"
+          },
           "sensor_extensions": {
             "type": "boolean"
           },
@@ -462,6 +465,10 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 65535
+          },
+          "raw_hex": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{0,58}$"
           },
           "data_type": {
             "type": "integer",
@@ -1050,6 +1057,1488 @@
               "value"
             ],
             "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 6
+              },
+              "attribute": {
+                "const": 0
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 6
+              },
+              "attribute": {
+                "const": 16387
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 1
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28679
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28675
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 1794
+              },
+              "attribute": {
+                "const": 0
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 1794
+              },
+              "attribute": {
+                "const": 768
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 1794
+              },
+              "attribute": {
+                "const": 769
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 1794
+              },
+              "attribute": {
+                "const": 770
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28676
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28677
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28678
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28681
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28682
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28683
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_write"
+              },
+              "cluster": {
+                "const": 6
+              },
+              "attribute": {
+                "const": 16387
+              },
+              "value": {
+                "enum": [
+                  0,
+                  1,
+                  2,
+                  255
+                ]
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_write"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 1
+              },
+              "value": {
+                "enum": [
+                  0,
+                  1
+                ]
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_write"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28679
+              },
+              "value": {
+                "enum": [
+                  0,
+                  1
+                ]
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_write"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28675
+              },
+              "payload": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{26,58}$",
+                "description": "Validated model-specific payload; no arbitrary vendor writes."
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_relay"
+              },
+              "cluster": {
+                "const": 6
+              },
+              "attribute": {
+                "const": 0
+              },
+              "value": {
+                "enum": [
+                  0,
+                  1
+                ]
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_inching"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 0
+              },
+              "payload": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{22}$",
+                "description": "Validated model-specific payload; no arbitrary vendor writes."
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_bind"
+              },
+              "cluster": {
+                "const": 6
+              },
+              "attribute": {
+                "const": 0
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_bind"
+              },
+              "cluster": {
+                "const": 1794
+              },
+              "attribute": {
+                "const": 0
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_bind"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 0
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_configure"
+              },
+              "cluster": {
+                "const": 6
+              },
+              "attribute": {
+                "const": 0
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_configure"
+              },
+              "cluster": {
+                "const": 1794
+              },
+              "attribute": {
+                "const": 0
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_configure"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28676
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_configure"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28677
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_configure"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28678
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_configure"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28681
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_configure"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28682
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_configure"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28683
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read_reporting"
+              },
+              "cluster": {
+                "const": 6
+              },
+              "attribute": {
+                "const": 0
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read_reporting"
+              },
+              "cluster": {
+                "const": 1794
+              },
+              "attribute": {
+                "const": 0
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read_reporting"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28676
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read_reporting"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28677
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read_reporting"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28678
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read_reporting"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28681
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read_reporting"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28682
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              "op": {
+                "const": "plug_read_reporting"
+              },
+              "cluster": {
+                "const": 64529
+              },
+              "attribute": {
+                "const": 28683
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "request_id",
+              "op",
+              "cluster",
+              "attribute"
+            ],
+            "additionalProperties": false
           }
         ],
         "description": "A request is at most 512 UTF-8 bytes. 202 confirms stack acceptance only."

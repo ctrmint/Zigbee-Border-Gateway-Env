@@ -83,6 +83,7 @@ class CommissioningStore:
                 raise DashboardError('Discover an active endpoint with temperature or humidity measurements first.',422)
             if requested != supported:
                 raise DashboardError('Provide change thresholds only for all measurements supported by this endpoint: '+', '.join(sorted(supported))+'.',422)
+            if self._plug_busy(d['ieee']):raise DashboardError('Cancel or finish the active plug operation first.',409)
             display=self.db.execute('SELECT data FROM display_jobs WHERE ieee=?',(d['ieee'],)).fetchone()
             if display and json.loads(display[0])['state'] in ACTIVE:raise DashboardError('Cancel or finish the active display setup first.',409)
             old=self.db.execute('SELECT data FROM commissioning WHERE ieee=?',(policy['ieee'],)).fetchone()

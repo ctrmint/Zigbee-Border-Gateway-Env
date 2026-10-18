@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.7.0"
+    "version": "2.8.0"
   },
   "servers": [
     {
@@ -1062,6 +1062,166 @@
           }
         }
       }
+    },
+    "/api/v2/plug-profiles": {
+      "get": {
+        "operationId": "plug_capabilities",
+        "responses": {
+          "200": {
+            "description": "Pinned model support and unresolved physical capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlugProfiles"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/plugs": {
+      "get": {
+        "operationId": "plug_jobs",
+        "responses": {
+          "200": {
+            "description": "Active jobs plus latest terminal jobs, at most 100 shared records; confirmed and uncertain states are distinct",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlugJobs"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "request_plug_action",
+        "description": "Explicit operator action only. Writes submitted once; no optimistic relay state or uncertain replay. 202 is queued, not confirmed. Jobs/settings are shared across presentation profiles.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlugInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlugJob"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Cancelled; in-flight effects may remain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlugJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Device operation active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unsupported device/settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Gateway upgrade/offline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1497,7 +1657,8 @@
                     null,
                     "SONOFF SNZB-02WD",
                     "SONOFF SNZB-02LD",
-                    "SONOFF SNZB-02UL"
+                    "SONOFF SNZB-02UL",
+                    "SONOFF S60ZBTPG"
                   ]
                 },
                 "discovery": {
@@ -1510,6 +1671,16 @@
                   "type": "integer",
                   "minimum": 60,
                   "maximum": 604800
+                },
+                "plug": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlugView"
+                    }
+                  ]
                 },
                 "signal": {
                   "type": "object",
@@ -1939,6 +2110,9 @@
               },
               "all_overview_layout": {
                 "const": true
+              },
+              "smart_plugs": {
+                "const": true
               }
             },
             "required": [
@@ -1949,7 +2123,8 @@
               "sensor_extensions",
               "user_profiles",
               "signal_history",
-              "all_overview_layout"
+              "all_overview_layout",
+              "smart_plugs"
             ]
           },
           "limits": {
@@ -2540,6 +2715,813 @@
           "profiles"
         ],
         "additionalProperties": false
+      },
+      "PlugInput": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "action": {
+                "const": "relay"
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "action",
+              "settings"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "action": {
+                "const": "startup_behavior"
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "enum": [
+                      "off",
+                      "on",
+                      "toggle",
+                      "previous"
+                    ]
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "action",
+              "settings"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "action": {
+                "const": "network_indicator"
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "action",
+              "settings"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "action": {
+                "const": "outlet_protection"
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "action",
+              "settings"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "action": {
+                "const": "inching"
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "mode": {
+                    "enum": [
+                      "on",
+                      "off"
+                    ]
+                  },
+                  "seconds": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 3599.5,
+                    "multipleOf": 0.5
+                  }
+                },
+                "required": [
+                  "enabled",
+                  "mode",
+                  "seconds"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "action",
+              "settings"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "action": {
+                "const": "protection"
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "max_current": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 13,
+                    "multipleOf": 0.1
+                  },
+                  "max_power": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 3250,
+                    "multipleOf": 0.1
+                  },
+                  "enable_min_current": {
+                    "type": "boolean"
+                  },
+                  "min_current": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 13,
+                    "multipleOf": 0.1
+                  },
+                  "enable_max_voltage": {
+                    "type": "boolean"
+                  },
+                  "max_voltage": {
+                    "type": "number",
+                    "minimum": 165,
+                    "maximum": 277,
+                    "multipleOf": 1
+                  },
+                  "enable_min_voltage": {
+                    "type": "boolean"
+                  },
+                  "min_voltage": {
+                    "type": "number",
+                    "minimum": 165,
+                    "maximum": 277,
+                    "multipleOf": 1
+                  },
+                  "enable_min_power": {
+                    "type": "boolean"
+                  },
+                  "min_power": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 3250,
+                    "multipleOf": 0.1
+                  }
+                },
+                "required": [
+                  "max_current",
+                  "max_power"
+                ],
+                "additionalProperties": false,
+                "description": "Complete composite; an enabled optional limit requires its value. Disabled values must be omitted. Minima must be below maxima. 13 A cap differs from upstream protocol maximum 14 A."
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "action",
+              "settings"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "action": {
+                "const": "read"
+              },
+              "settings": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "action",
+              "settings"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ieee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "endpoint": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "action": {
+                "const": "commission"
+              },
+              "settings": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "ieee",
+              "endpoint",
+              "action",
+              "settings"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "job_id": {
+                "type": "string"
+              },
+              "action": {
+                "const": "cancel"
+              }
+            },
+            "required": [
+              "job_id",
+              "action"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "PlugProfiles": {
+        "const": {
+          "reference_revision": "72398c3063aca492fe936bf01e0a5fffad28fbd1",
+          "reference_url": "https://github.com/Koenkk/zigbee-herdsman-converters/blob/72398c3063aca492fe936bf01e0a5fffad28fbd1/src/devices/sonoff.ts",
+          "model": "SONOFF S60ZBTPG",
+          "hardware_status": "not_tested",
+          "recommended_freshness_seconds": 4500,
+          "ratings": {
+            "current_a": 13,
+            "power_w": 3250
+          },
+          "capabilities": {
+            "relay": {
+              "status": "prepared_readback",
+              "hardware": "not_tested"
+            },
+            "metering": {
+              "status": "prepared_raw_preserved",
+              "hardware": "not_tested"
+            },
+            "reporting": {
+              "status": "prepared_readback",
+              "hardware": "not_tested"
+            },
+            "startup_behavior": {
+              "status": "prepared_readback",
+              "hardware": "not_tested"
+            },
+            "network_indicator": {
+              "status": "prepared_readback",
+              "hardware": "not_tested"
+            },
+            "outlet_protection": {
+              "status": "prepared_readback",
+              "hardware": "not_tested"
+            },
+            "overload_thresholds": {
+              "status": "prepared_readback",
+              "hardware": "not_tested"
+            },
+            "inching": {
+              "status": "prepared_acknowledgement_only",
+              "hardware": "not_tested"
+            },
+            "period_energy": {
+              "status": "prepared_device_totals_boundaries_unverified",
+              "hardware": "not_tested"
+            },
+            "routing": {
+              "status": "capability_observation_only",
+              "hardware": "not_tested"
+            },
+            "schedules": {
+              "status": "deferred_issue_31",
+              "hardware": "not_tested"
+            },
+            "countdown": {
+              "status": "deferred_issue_31",
+              "hardware": "not_tested"
+            },
+            "scenes": {
+              "status": "deferred_issue_31",
+              "hardware": "not_tested"
+            },
+            "ota": {
+              "status": "deferred_issue_30",
+              "hardware": "not_tested"
+            }
+          }
+        }
+      },
+      "PlugJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ieee": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "endpoint": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 240
+          },
+          "action": {
+            "enum": [
+              "relay",
+              "startup_behavior",
+              "network_indicator",
+              "outlet_protection",
+              "inching",
+              "protection",
+              "read",
+              "commission"
+            ]
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "waiting",
+              "sending",
+              "verified",
+              "acknowledged_unverified",
+              "failed",
+              "uncertain",
+              "expired",
+              "cancelled"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "step": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "created_at": {
+            "type": "number"
+          },
+          "expires_at": {
+            "type": "number"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 50
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 96
+          }
+        },
+        "required": [
+          "id",
+          "ieee",
+          "endpoint",
+          "action",
+          "state",
+          "message",
+          "step",
+          "attempt",
+          "created_at",
+          "expires_at",
+          "steps",
+          "results"
+        ]
+      },
+      "PlugJobs": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlugJob"
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "jobs"
+        ]
+      },
+      "PlugView": {
+        "type": "object",
+        "properties": {
+          "controllable": {
+            "type": "boolean"
+          },
+          "model": {
+            "const": "SONOFF S60ZBTPG"
+          },
+          "hardware_status": {
+            "const": "not_tested"
+          },
+          "endpoint": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 240
+          },
+          "settings": {
+            "type": "object",
+            "properties": {
+              "startup_behavior": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Actual readback/raw hex and source receipt timestamp; null until observed."
+              },
+              "network_indicator": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Actual readback/raw hex and source receipt timestamp; null until observed."
+              },
+              "outlet_protection": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Actual readback/raw hex and source receipt timestamp; null until observed."
+              },
+              "protection": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Actual readback/raw hex and source receipt timestamp; null until observed."
+              }
+            },
+            "required": [
+              "startup_behavior",
+              "network_indicator",
+              "outlet_protection",
+              "protection"
+            ]
+          },
+          "latest_job": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "action": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "enum": [
+                      "queued",
+                      "waiting",
+                      "sending",
+                      "verified",
+                      "acknowledged_unverified",
+                      "failed",
+                      "uncertain",
+                      "expired",
+                      "cancelled"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "settings": {
+                    "type": "object"
+                  },
+                  "step": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "created_at": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "id",
+                  "action",
+                  "state",
+                  "message",
+                  "settings",
+                  "step",
+                  "created_at"
+                ]
+              }
+            ]
+          },
+          "effective_off": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "power_w": {
+                    "const": 0
+                  },
+                  "current_a": {
+                    "const": 0
+                  },
+                  "basis": {
+                    "const": "derived_from_confirmed_off"
+                  },
+                  "received_at": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "power_w",
+                  "current_a",
+                  "basis",
+                  "received_at"
+                ]
+              }
+            ]
+          },
+          "energy_discontinuities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "received_at": {
+                  "type": "number"
+                },
+                "reason": {
+                  "enum": [
+                    "counter_decrease_reset_or_rollover",
+                    "gateway_epoch_changed"
+                  ]
+                }
+              },
+              "required": [
+                "received_at",
+                "reason"
+              ]
+            },
+            "maxItems": 50
+          },
+          "energy_policy": {
+            "type": "string"
+          },
+          "routing": {
+            "type": "object",
+            "properties": {
+              "model_role": {
+                "const": "router_capable"
+              },
+              "observed_mac_capability": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "full_function_device": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "path_verification": {
+                "const": "unverified"
+              }
+            },
+            "required": [
+              "model_role",
+              "observed_mac_capability",
+              "full_function_device",
+              "path_verification"
+            ]
+          },
+          "capabilities": {
+            "const": {
+              "relay": {
+                "status": "prepared_readback",
+                "hardware": "not_tested"
+              },
+              "metering": {
+                "status": "prepared_raw_preserved",
+                "hardware": "not_tested"
+              },
+              "reporting": {
+                "status": "prepared_readback",
+                "hardware": "not_tested"
+              },
+              "startup_behavior": {
+                "status": "prepared_readback",
+                "hardware": "not_tested"
+              },
+              "network_indicator": {
+                "status": "prepared_readback",
+                "hardware": "not_tested"
+              },
+              "outlet_protection": {
+                "status": "prepared_readback",
+                "hardware": "not_tested"
+              },
+              "overload_thresholds": {
+                "status": "prepared_readback",
+                "hardware": "not_tested"
+              },
+              "inching": {
+                "status": "prepared_acknowledgement_only",
+                "hardware": "not_tested"
+              },
+              "period_energy": {
+                "status": "prepared_device_totals_boundaries_unverified",
+                "hardware": "not_tested"
+              },
+              "routing": {
+                "status": "capability_observation_only",
+                "hardware": "not_tested"
+              },
+              "schedules": {
+                "status": "deferred_issue_31",
+                "hardware": "not_tested"
+              },
+              "countdown": {
+                "status": "deferred_issue_31",
+                "hardware": "not_tested"
+              },
+              "scenes": {
+                "status": "deferred_issue_31",
+                "hardware": "not_tested"
+              },
+              "ota": {
+                "status": "deferred_issue_30",
+                "hardware": "not_tested"
+              }
+            }
+          }
+        },
+        "required": [
+          "controllable",
+          "model",
+          "hardware_status",
+          "endpoint",
+          "settings",
+          "latest_job",
+          "effective_off",
+          "energy_discontinuities",
+          "energy_policy",
+          "routing",
+          "capabilities"
+        ]
       }
     }
   }

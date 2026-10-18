@@ -5,7 +5,7 @@ from .dashboard import RANGES
 
 def capabilities_v2():
     return {"api_version": "2", "widget_types": ["numeric", "chart"],
-        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True},
+        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True,"smart_plugs":True},
         "limits": {"configuration_bytes": 65536, "widgets": 100, "locations": 50,
             "device_overrides": 50, "history_page": 500, "history_days": 31,
             "history_retention_days": 30,"all_columns":6,"all_min_tile_width":200,"all_max_tile_width":640,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
@@ -54,8 +54,8 @@ def contract_v2():
             ("schema_version", "revision", "locations", "devices", "dashboard"), additionalProperties=False),
         "Devices": obj({"devices": array(obj({"ieee": {"type": "string"}, "name": {"type": "string"},
             "location_id": {"type": ["string", "null"]}, "registered": {"type": "boolean"},
-            "profile":{"enum":[None,"SONOFF SNZB-02WD","SONOFF SNZB-02LD","SONOFF SNZB-02UL"]}, "discovery": {"enum": ["unknown", "partial"]}, "freshness_seconds": integer(60, 604800),
-            "signal": signal,
+            "profile":{"enum":[None,"SONOFF SNZB-02WD","SONOFF SNZB-02LD","SONOFF SNZB-02UL","SONOFF S60ZBTPG"]}, "discovery": {"enum": ["unknown", "partial"]}, "freshness_seconds": integer(60, 604800),
+            "plug":{"anyOf":[{"type":"null"},ref("PlugView")]},"signal": signal,
             "measurements": array(measurement)}, ("ieee", "name", "location_id", "registered", "discovery", "freshness_seconds", "measurements")))}, ("devices",)),
         "History": obj({"items": array(obj({"id": integer(1), "received_at": {"type": "number"},
             "value": {"type": ["number", "boolean", "null"]}, "unit": {"type": "string"}, "quality": {"enum": ["valid", "invalid"]},
@@ -69,8 +69,8 @@ def contract_v2():
         "Gateway": obj({"gateway_id":{"type":"string"},"network":{"type":"object"},"connected": {"type": "boolean"}, "ready": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "mode": {"enum": ["hardware", "simulator"]}}, ("connected", "error")),
         "Capabilities": obj({"api_version": {"const": "2"}, "widget_types": array({"enum": ["numeric", "chart"]}),
-            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout")},
-                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout")),
+            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs")},
+                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs")),
             "limits": obj({k: ({"type": "array", "items": {"type": "integer"}} if k == "chart_ranges" else {"type": "integer"}) for k in capabilities_v2()["limits"]}, capabilities_v2()["limits"])},
             ("api_version", "widget_types", "features", "limits"))}
     policy = obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"}, "endpoint":integer(1,240),
@@ -142,6 +142,38 @@ def contract_v2():
         op=paths['/api/v2/configuration'][method];op.setdefault('parameters',[]).extend(selection)
         op['responses']['200']['headers']={'ETag':{'schema':{'type':'string'}},'X-Dashboard-Profile':{'schema':profile_id}}
     paths['/api/v2/configuration']['put']['responses']['409']=response('Selected profile was removed; never save into fallback Admin',ref('Error'))
-    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.7.0"},
+    from .plugs import profiles as plug_profiles
+    plug_states=['queued','waiting','sending','verified','acknowledged_unverified','failed','uncertain','expired','cancelled']
+    identity={'ieee':{'type':'string','pattern':'^[0-9a-f]{16}$'},'endpoint':integer(1,240)}
+    variants=[]
+    setting_variants={
+        'relay':obj({'state':{'type':'boolean'}},('state',),additionalProperties=False),
+        'startup_behavior':obj({'value':{'enum':['off','on','toggle','previous']}},('value',),additionalProperties=False),
+        **{a:obj({'value':{'type':'boolean'}},('value',),additionalProperties=False) for a in ('network_indicator','outlet_protection')},
+        'inching':obj({'enabled':{'type':'boolean'},'mode':{'enum':['on','off']},'seconds':{'type':'number','minimum':.5,'maximum':3599.5,'multipleOf':.5}},('enabled','mode','seconds'),additionalProperties=False)}
+    limits={'max_current':{'type':'number','minimum':.1,'maximum':13,'multipleOf':.1},'max_power':{'type':'number','minimum':.1,'maximum':3250,'multipleOf':.1}}
+    for name in ('min_current','max_voltage','min_voltage','min_power'):
+        limits['enable_'+name]={'type':'boolean'}
+        limits[name]={'type':'number','minimum':165 if 'voltage' in name else .1,'maximum':277 if 'voltage' in name else 13 if 'current' in name else 3250,'multipleOf':1 if 'voltage' in name else .1}
+    setting_variants['protection']=obj(limits,('max_current','max_power'),additionalProperties=False,description='Complete composite; an enabled optional limit requires its value. Disabled values must be omitted. Minima must be below maxima. 13 A cap differs from upstream protocol maximum 14 A.')
+    for action in ('read','commission'):setting_variants[action]=obj({},additionalProperties=False)
+    for action,settings_schema in setting_variants.items():
+        f={**identity,'action':{'const':action},'settings':settings_schema};variants.append(obj(f,f,additionalProperties=False))
+    cancel_plug=obj({'job_id':{'type':'string'},'action':{'const':'cancel'}},('job_id','action'),additionalProperties=False)
+    definitions.update(PlugInput={'oneOf':variants+[cancel_plug]},PlugProfiles={'const':plug_profiles()},
+        PlugJob=obj({'id':{'type':'string'},**identity,'action':{'enum':list(setting_variants)},'state':{'enum':plug_states},'message':{'type':'string'},'step':integer(),'attempt':integer(0,3),'created_at':{'type':'number'},'expires_at':{'type':'number'},'steps':array({'type':'object'},maxItems=50),'results':array({'type':'object'},maxItems=96)},('id','ieee','endpoint','action','state','message','step','attempt','created_at','expires_at','steps','results')),
+        PlugJobs=obj({'jobs':array(ref('PlugJob'),maxItems=100)},('jobs',)))
+    definitions['PlugView']=obj({'controllable':{'type':'boolean'},'model':{'const':'SONOFF S60ZBTPG'},'hardware_status':{'const':'not_tested'},'endpoint':{'type':['integer','null'],'minimum':1,'maximum':240},
+        'settings':obj({k:{'type':['object','null'],'description':'Actual readback/raw hex and source receipt timestamp; null until observed.'} for k in ('startup_behavior','network_indicator','outlet_protection','protection')},('startup_behavior','network_indicator','outlet_protection','protection')),
+        'latest_job':{'anyOf':[{'type':'null'},obj({'id':{'type':'string'},'action':{'type':'string'},'state':{'enum':plug_states},'message':{'type':'string'},'settings':{'type':'object'},'step':integer(),'created_at':{'type':'number'}},('id','action','state','message','settings','step','created_at'))]},
+        'effective_off':{'anyOf':[{'type':'null'},obj({'power_w':{'const':0},'current_a':{'const':0},'basis':{'const':'derived_from_confirmed_off'},'received_at':{'type':'number'}},('power_w','current_a','basis','received_at'))]},
+        'energy_discontinuities':array(obj({'received_at':{'type':'number'},'reason':{'enum':['counter_decrease_reset_or_rollover','gateway_epoch_changed']}},('received_at','reason')),maxItems=50),
+        'energy_policy':{'type':'string'},'routing':obj({'model_role':{'const':'router_capable'},'observed_mac_capability':{'type':['integer','null']},'full_function_device':{'type':['boolean','null']},'path_verification':{'const':'unverified'}},('model_role','observed_mac_capability','full_function_device','path_verification')),
+        'capabilities':{'const':plug_profiles()['capabilities']}},('controllable','model','hardware_status','endpoint','settings','latest_job','effective_off','energy_discontinuities','energy_policy','routing','capabilities'))
+    plug_errors={str(code):response(message,ref('Error')) for code,message in [(400,'Malformed input'),(401,'Token required'),(404,'Job not found'),(409,'Device operation active'),(413,'Body too large'),(422,'Unsupported device/settings'),(503,'Gateway upgrade/offline')]}
+    paths['/api/v2/plug-profiles']={'get':{'operationId':'plug_capabilities','responses':{'200':response('Pinned model support and unresolved physical capabilities',ref('PlugProfiles')),'401':plug_errors['401']}}}
+    paths['/api/v2/plugs']={'get':{'operationId':'plug_jobs','responses':{'200':response('Active jobs plus latest terminal jobs, at most 100 shared records; confirmed and uncertain states are distinct',ref('PlugJobs')),'401':plug_errors['401']}},
+        'post':{'operationId':'request_plug_action','description':'Explicit operator action only. Writes submitted once; no optimistic relay state or uncertain replay. 202 is queued, not confirmed. Jobs/settings are shared across presentation profiles.','requestBody':{'required':True,'content':{'application/json':{'schema':ref('PlugInput')}}},'responses':{'202':response('Queued',ref('PlugJob')),'200':response('Cancelled; in-flight effects may remain',ref('PlugJob')),**plug_errors}}}
+    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.8.0"},
         "servers": [{"url": "/"}], "security": [{"bearerAuth": []}], "paths": paths,
         "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": definitions}}

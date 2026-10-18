@@ -11,6 +11,8 @@ from .dashboard import DashboardStore
 from .network import Gateway, sample_received
 from .commissioning import CommissioningStore, drive_commissioning
 from .sensors import sensor_endpoint
+from .plug_jobs import PlugStore,drive_plugs
+from . import plugs
 from .display import DisplayStore,drive_display,drive_clock
 
 OPS = {"permit_join", "discover", "read", "on_off", "bind", "configure_reporting", "read_reporting", "reporting_window", "write_display", "read_display", "sync_clock"}
@@ -77,7 +79,9 @@ def validate_command(c):
         raise ValueError("unexpected fields")
     return c
 
-def normalize(cluster, attribute, data_type, raw):
+def normalize(cluster, attribute, data_type, raw, device=None, endpoint=None):
+    if (cluster,attribute) in plugs.METRICS:
+        return plugs.normalize(device or {},endpoint,cluster,attribute,data_type,raw)
     """Keep invalid ZCL sentinel values out of usable measurements."""
     if type(raw) not in (int,float):return None,None
     if cluster==1 and data_type==0x20:
@@ -93,7 +97,7 @@ def normalize(cluster, attribute, data_type, raw):
         return bool(raw), "on/off"
     return None, None
 
-class Store(DashboardStore, CommissioningStore, DisplayStore):
+class Store(DashboardStore, CommissioningStore, DisplayStore, PlugStore):
     def __init__(self, path):
         self.lock = threading.RLock()
         self.db = sqlite3.connect(path, check_same_thread=False)
@@ -113,6 +117,7 @@ class Store(DashboardStore, CommissioningStore, DisplayStore):
         self._init_dashboard()
         self._init_commissioning()
         self._init_display()
+        self._init_plugs()
         self.db.execute('CREATE TABLE IF NOT EXISTS gateway_bindings(config_key TEXT PRIMARY KEY,identity TEXT NOT NULL,url TEXT NOT NULL)')
         self.db.commit()
     def cursor(self):
@@ -148,6 +153,7 @@ class Store(DashboardStore, CommissioningStore, DisplayStore):
                     continue
                 self.commissioning_event(e,received)
                 self.display_event(e,received)
+                self.plug_event(boot,e,received)
                 self._record_measurement(boot, e, received)
                 self._record_signal(boot, e, received)
                 d = self._get(e["ieee"])
@@ -157,14 +163,16 @@ class Store(DashboardStore, CommissioningStore, DisplayStore):
                     d["last_contact"] = received
                 if e["type"] == "announce":
                     d["active"] = True
+                    if "capability" in e:d["capability"]=e["capability"]
                 if e["type"] == "leave":
                     d["active"] = False
                 if e["type"] == "endpoint" and e.get("ok"):
                     d["endpoints"][str(e["endpoint"])] = {k: e[k] for k in
                         ("profile_id", "device_id", "input_clusters", "output_clusters")}
                 if e["type"] == "attribute":
-                    value, unit = normalize(e["cluster"], e["attribute"], e["data_type"], e.get("raw"))
-                    e = dict(e, value=value, unit=unit, received=sample_received(e,received))
+                    self._plug_counter(boot,e,received,d)
+                    value, unit = normalize(e["cluster"], e["attribute"], e["data_type"], e.get("raw"),d,e["endpoint"])
+                    e = dict(e, value=value, unit=unit, source_boot=boot, received=sample_received(e,received))
                     d["attributes"][f'{e["endpoint"]}:{e["cluster"]}:{e["attribute"]}'] = e
                 self._put(d)
             # Current registry wins over historical membership/address events.
@@ -240,6 +248,7 @@ class Store(DashboardStore, CommissioningStore, DisplayStore):
             self.db.execute("DELETE FROM events WHERE received < ?", (time.time()-days*86400,))
             self.db.execute("DELETE FROM measurements WHERE received < ?", (time.time()-days*86400,))
             self.db.execute("DELETE FROM ingestion_gaps WHERE end < ?", (time.time()-days*86400,))
+            self.db.execute("DELETE FROM plug_discontinuities WHERE received < ?", (time.time()-days*86400,))
     def close(self):
         self.db.close()
 
@@ -278,6 +287,7 @@ class Poller:
         drive_commissioning(self.store,self.gateway,h)
         drive_display(self.store,self.gateway,h)
         drive_clock(self,h)
+        drive_plugs(self.store,self.gateway,h)
         return batch["next_seq"] < batch["latest_seq"]
     def run(self):
         cycles = 0
