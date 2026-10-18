@@ -1,28 +1,28 @@
 # Device compatibility and first pairing
 
-This MVP implements generic network commissioning and simple-descriptor discovery, not a universal driver database. Start with one standard On/Off plug and one temperature/humidity sensor.
+The gateway implements network commissioning, descriptor discovery and selected SONOFF adapters; it is not a universal driver database. WD/LD/UL sensor reports and three S60ZBTPG plugs have been observed. Consult the [dated hardware record](HARDWARE_VALIDATION_2026-10-18.md) for model/firmware-specific evidence and remaining acceptance.
 
 | Device feature | Current support |
 | --- | --- |
 | Active endpoints, profile/device IDs, input/output clusters | Automatic on announcement; manual rediscovery available |
 | Standard On/Off cluster 0x0006 | Explicit On/Off commands; attribute read/report state |
 | Temperature 0x0402 and humidity 0x0405 | Reads/reports; SBC normalization |
-| Manufacturer/model Basic attributes | Manual reads of attributes 4/5 |
-| Other scalar attribute values | Raw supported ZCL types copied; no semantic adapter |
-| Reporting configuration / remote binding | Bounded temperature/humidity commissioning and Poll Control binding; hardware validation recorded separately |
+| Manufacturer/model/build Basic attributes | Descriptor discovery reads attributes 4/5/0x4000; explicit reads remain available |
+| Other attribute values | Supported raw ZCL types retained; uint24/uint48 supported, with semantics only for implemented sources |
+| Reporting configuration / remote binding | Bounded sensor/Poll Control and identified S60ZBTPG commissioning, with correlated responses and reporting readback |
 | IAS contact/motion sensors and enrolment | Not implemented |
-| Tuya data points and vendor-specific payloads | Not implemented |
-| Electrical measurement/metering | No multiplier/divisor normalization or uint48 decoder |
+| Manufacturer-specific support | Selected SNZB-02UL scalar settings and S60ZBTPG metering/settings; arbitrary vendor writes and Tuya data points are not implemented |
+| Electrical measurement/metering | Identified S60ZBTPG FC11 electrical/period-energy scaling and standard 0702 uint48 energy with observed electricity unit and uint24 multiplier/divisor; no universal 0x0B04 adapter |
 | Install-code provisioning | Not implemented; SDK default commissioning policy retained |
 
-The gateway registers endpoint 10 and client clusters Basic, On/Off, temperature and humidity. Reports must be addressed to a supported cluster at this endpoint. Some devices need a bind to coordinator IEEE/endpoint 10 plus Configure Reporting before unsolicited updates appear. The reporting workflow below performs those operations. Attribute reads can verify a standard sensor while awake. Do not claim a temperature dashboard is live until recurring reports or deliberate reads are observed.
+The gateway registers endpoint 10 with Basic, On/Off, temperature, humidity, Power Configuration, Poll Control, Metering and SONOFF vendor-cluster clients, plus its bounded Time service. A sensor’s protocol On/Off binding does not expose appliance switching controls. Reports must be addressed to a supported cluster at this endpoint. Some devices need a bind to coordinator IEEE/endpoint 10 plus Configure Reporting before unsolicited updates appear. The reporting workflow below performs those operations. Attribute reads can verify a standard sensor while awake. Do not claim a temperature dashboard is live until recurring reports or deliberate reads are observed.
 
 1. Close pairing on other coordinators; factory reset the test device following its instructions.
 2. Open pairing for 60 seconds in this dashboard.
 3. Keep the device awake close to the gateway during commissioning and discovery.
 4. Confirm an IEEE entry and successful endpoint descriptors.
 5. Read the relevant attribute and inspect its type/raw value. Re-discover if a sleepy device missed the interview.
-6. For a plug, send Off, then Read On/Off and verify physical state.
+6. For a plug, read its current state/settings first. Use an ordinary test load for deliberately requested On/Off checks; do not unexpectedly interrupt an existing appliance. Identified S60ZBTPG controls use durable acknowledged/readback jobs.
 7. Close pairing. Move the device to its final location and repeat checks.
 
 A device normally belongs to one Zigbee network. Moving devices from an existing coordinator usually requires resetting/re-pairing; this repository provides no network migration tool. Fifty application registry slots do not guarantee fifty direct children or fifty compatible models. Add mains-powered routers and validate each model.
@@ -68,7 +68,7 @@ are deliberately rejected by this periodic-reporting policy. Values are expresse
 in °C / percentage points in the dashboard and converted exactly to hundredths
 for ZCL. Keep reading freshness above the maximum interval, e.g. 4,500 seconds
 for an hourly heartbeat; changing freshness alone does not repair missing reports.
-Battery percentage/voltage reporting is not part of this implementation.
+Battery reporting is separate from the base temperature/humidity workflow. The SNZB-02UL extension supports bounded battery reporting setup and half-percent/tenths-of-volt normalization when observed; unsupported or missing attributes remain explicit.
 
 
 The Fish Tank sensor is user-identified as **SONOFF SNZB-02LD**, SONOFF's
@@ -84,3 +84,7 @@ and recurring reporting must still be confirmed. See the
 ## SNZB-02UL advance support
 
 See [SNZB-02UL preparation](SNZB_02UL.md) for profile defaults, battery scaling, display APIs, firmware upgrade requirements and pending physical checks. Generated contracts include the sensor-profile/display routes and bounded gateway operations.
+
+## S60ZBTPG smart plugs
+
+Three exact-model SONOFF S60ZBTPG Type G units with Basic build 1.0.2 have been identified. Each completed all 34 commissioning steps, including three bindings, eight reporting configurations/readbacks and 15 initial reads. Live electrical reports, selected settings and gateway restart recovery have evidence; full period-energy, mesh path, power-cycle and OTA acceptance remains incomplete. See [plug operation/capabilities](S60ZBTPG.md) and the [hardware record](HARDWARE_VALIDATION_2026-10-18.md).

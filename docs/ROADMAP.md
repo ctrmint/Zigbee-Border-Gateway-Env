@@ -1,17 +1,17 @@
 # Roadmap
 
-## First hardware milestone
+## Implemented baseline
 
-Validate the compiled S3 and H2 source on the delivered board revision, then pair one standard plug and one standard sensor. Record manufacturer/model, endpoint map, pairing sequence and any configuration requirements. Perform restart, short-address-change and interference tests before increasing device count.
+S3/H2 hardware builds and local Zigbee coordination, persistent registry/polling, sensor reporting/readback, selected SONOFF adapters, battery/RSSI/history, per-profile dashboard layouts and metering-plug jobs are implemented. Three temperature sensors and three S60ZBTPG plugs have been connected. Selected plug switching, settings and restart recovery have actual-device evidence; this is not universal compatibility or full #27 acceptance. See [hardware validation](HARDWARE_VALIDATION_2026-10-18.md) and [automated validation](VALIDATION.md).
 
-## Next implementation work
+## Remaining work
 
-1. Add IEEE-addressed binding and Configure Reporting to the firmware API, with bounded interview queues, callbacks, timeouts and retry policies for sleepy devices. Read manufacturer/model automatically.
-2. Track command IDs, APS confirmations and ZCL transaction IDs. Add controlled read-back where appropriate, without equating send acceptance with actuator confirmation.
-3. Add tested device adapters, IAS Zone enrolment and metering scale factors. Preserve raw data alongside normalized values.
-4. Add authenticated encrypted transport to the board, signed firmware updates and tested secure storage. Support credential rotation without wiping network state.
-5. Add MQTT publishing and a rule engine on the SBC. Make rules opt-in, validate stale data, and define offline and fail-safe behaviours before actuator integration.
-6. Implement documented IEEE registry deletion, state schema migrations and secure network backup/recovery with frame-counter handling.
-7. Benchmark 20–50 nodes, router distribution, RF coexistence, memory, event buffering and discovery concurrency. Enable Ethernet/PTA only with tested matching board configuration.
+1. Complete model/firmware-specific hardware acceptance: sustained energy accumulation and period boundaries, intended plug power-loss behavior, routing observations and physical plug UI acceptance. Keep [#27](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/27) open.
+2. Implement/verify plug OTA via [#30](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/30); audit schedules/countdowns/scenes and verify device inching timing/persistence via [#31](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/31). UL remote/weather and OTA remain separately tracked in #16/#17.
+3. Complete extended Wi-Fi hardware scenarios in [#28](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/28): prolonged/repeated outages, actual DHCP address changes, AP/router restart without a manual gateway reset and forced internal-stall escalation. A Pi manually power-cycled after lost access does not establish the original cause.
+4. Extend adapters beyond the implemented models, including IAS Zone enrolment and generic Electrical Measurement scaling. Add general command tracking/streaming only with published schemas; existing dedicated jobs do not imply those future endpoints exist.
+5. Add authenticated encrypted board transport, signed updates, tested secure storage and credential rotation without network erasure.
+6. Add optional MQTT and rules with explicit stale-data, offline, restart and fail-safe semantics.
+7. Implement registry deletion, secure Zigbee network backup/recovery with frame-counter handling, and larger 20–50-node/RF/coexistence/heap/discovery benchmarks. Ethernet/PTA require matching hardware validation.
 
-The current release contains source for the coordinator/API and SBC dashboard/history MVP. It does not promise these planned features or universal device compatibility.
+Physical iPad acceptance for the earlier All/profile/RSSI/layout features is recorded in closed #18/#20/#23/#25. It does not establish acceptance of later plug controls or all possible tablet/browser versions.

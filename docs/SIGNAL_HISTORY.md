@@ -20,4 +20,4 @@ Signal widgets reuse `GET /api/v2/history` with the dashboard-only source `endpo
 
 Stop the Pi dashboard service, take a consistent SQLite backup and preserve the current source, then restart with this source. Migration is local to the Pi. No gateway flash, network reset, re-pairing or sensor command is needed. Preserve newly collected history before any rollback. Restore matching source and database together with the service stopped; older versions cannot render saved signal widgets. Credentials, backups and hardware data stay private and Git-ignored.
 
-Physical iPad Safari behavior requires separate verification; automated WebKit tablet emulation alone does not establish it.
+The user confirmed physical iPad acceptance and [#23](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/23) is closed. Device/version and detailed chart interactions were not supplied; no additional results are inferred. Automated WebKit emulation remains a separate validation record. Signal reporting also applies to metering plugs, but RSSI alone does not establish a sensor’s mesh route.

@@ -4,7 +4,7 @@ Choose a profile from **Profile** at the top right of the dashboard after connec
 
 ## Presentation and shared data
 
-Each profile owns its dashboard title, Celsius/Fahrenheit preference and widget layout (including widget titles, order, types and time ranges). Admin retains the installation's existing configuration. New profiles start with title Home, Celsius and an empty saved layout; the automatic All overview still shows the shared sensors. Initial connection continues to open the first location, or Setup when there are no locations. Switching profiles keeps the current tab where it remains available.
+Each profile owns its dashboard title, Celsius/Fahrenheit preference and widget layout (including widget titles, order, types and time ranges). Admin retains the installation's existing configuration. New profiles start with title Home, Celsius and an empty saved layout; the automatic All overview still shows shared sensors and supported metering plugs. Initial connection continues to open the first location, or Setup when there are no locations. Switching profiles keeps the current tab where it remains available.
 
 Sensors, physical locations/assignments, device names, freshness thresholds, history, gateway settings, commissioning and controls are shared. Editing these in Setup affects everyone. A layout/preference save only updates the selected profile. Shared metadata changes invalidate affected configuration revisions across profiles, while one profile's layout-only save does not invalidate another's. There is no access-control boundary between profiles.
 
@@ -38,7 +38,7 @@ See the generated [v2 contract](api/dashboard-v2.openapi.json) for payloads/erro
 
 ## Validation, deployment and rollback
 
-Automated coverage exercises migration/restart, concurrent profiles and revisions, shared metadata, management validation/limits, cookie/header resolution, cookie restoration/blocking, multiple browser sessions/tabs, rename/delete, late saves and responsive tablet layout. WebKit with an emulated iPad touch profile is recorded separately from physical iPad Safari verification, which remains pending.
+Automated coverage exercises migration/restart, concurrent profiles and revisions, shared metadata, management validation/limits, cookie/header resolution, cookie restoration/blocking, multiple browser sessions/tabs, rename/delete, late saves and responsive tablet layout. WebKit with an emulated iPad touch profile is recorded separately from physical iPad acceptance. The user confirmed that acceptance and [#20](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/20) is closed. Device/version and detailed interaction results were not supplied; this does not imply physical acceptance of later plug-specific controls.
 
 Before updating, stop the dashboard service and back up its **configured** database path from `.env`, plus current source. Migration adds `user_profiles` and an Admin record while preserving existing table rows/layouts. No firmware upgrade or network reset is needed. Restart the Pi dashboard service after source deployment, then refresh the browser page and reconnect.
 
