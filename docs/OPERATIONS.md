@@ -62,3 +62,54 @@ working. For the SNZB-02WD reference hourly policy, use a freshness margin such 
 4,500 seconds; the dashboard offers this after verified setup. Do not increase the
 threshold to disguise missing reports. Keep the existing network and pairing;
 factory reset or network erasure is not a commissioning troubleshooting shortcut.
+
+## Pi access loss and persistent incident logs
+
+Loss of SSH/dashboard access can be a Wi-Fi disconnect, upstream router outage, service failure or Pi lockup. A later manual power-cycle explains the new boot and unclean-shutdown flag; those observations do not identify the initial failure. On 18 October the user confirmed manually power-cycling the Pi to recover access. Its previous-boot logs were lost because the OS vendor journald drop-in selected `Storage=volatile`. The original Wi-Fi-versus-lockup cause remains undetermined; current healthy memory/temperature or `get_throttled=0x0` cannot exclude a pre-reboot problem. The Pi 4 Rev 1.2 reset register is not a definitive external-power-loss diagnosis.
+
+If another access method remains available, collect evidence before restarting:
+
+```bash
+uptime
+ip -br address
+ip route
+iw dev wlan0 link
+systemctl --user status zigbee-dashboard.service --no-pager
+journalctl -b -u NetworkManager --since '30 minutes ago' --no-pager
+journalctl -b -k --no-pager
+journalctl --list-boots
+systemd-analyze cat-config systemd/journald.conf
+```
+
+The user-service command applies to this project's existing user-service deployment; installations using the documented system service should inspect that unit instead. Preserve logs privately, including when access failed and whether recovery involved a manual reboot. Kernel uptime/monotonic timestamps can help when NTP changes the boot's initial wall-clock timestamps. Do not open the ESP USB console to investigate a Pi Wi-Fi issue: on this hardware that can reset the gateway and confound the evidence. Do not test recovery by switching a plug that supplies the Pi/router or a required network link.
+
+An administrator can optionally enable bounded persistent logs for the **next** incident. This is documentation, not a configuration change made by the dashboard or this documentation update. Check existing drop-ins first; retain any prior local override for rollback. Create `/etc/systemd/journald.conf.d/60-zigbee-incident-logs.conf` with:
+
+```ini
+[Journal]
+Storage=persistent
+SystemMaxUse=100M
+SystemKeepFree=500M
+SystemMaxFileSize=10M
+RuntimeMaxUse=32M
+MaxRetentionSec=7day
+SyncIntervalSec=30s
+```
+
+Apply and inspect locally with administrator privileges:
+
+```bash
+sudo systemctl restart systemd-journald
+sudo journalctl --flush
+systemd-analyze cat-config systemd/journald.conf
+journalctl --disk-usage
+journalctl --list-boots
+```
+
+The override must win over the vendor's volatile-storage setting. Size/age policies rotate archived files; active-file granularity can exceed the target. The shorter sync interval adds writes and reduces, but does not eliminate, the unflushed tail lost on abrupt power removal. After a later reboot, `journalctl -b -1` can inspect the prior boot only if it was actually retained. None of this recreates logs already lost. To roll back, restore/remove only this project's local drop-in, restart journald and inspect the effective configuration; changing storage mode does not delete existing disk logs. See the primary [journald configuration](https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html) and [journalctl](https://www.freedesktop.org/software/systemd/man/latest/journalctl.html) references. Do not publish raw journals, tokens or household identifiers.
+
+## Smart-plug operation and mesh checks
+
+Use [S60ZBTPG controls](S60ZBTPG.md) and inspect job acknowledgement/readback rather than assuming HTTP acceptance changed the outlet. Relay On means the outlet supplies the attached load; a zero reading can still be genuine with no active load. Inching is device-side timed switch-back and may be left disabled for continuous loads. Power-loss behavior, protection enable and protection thresholds are separate settings. Correct thresholds before enabling protection and verify both; changes apply to one unit only. Never demonstrate protection by intentionally overloading mains equipment.
+
+Powered S60ZBTPG units are router-capable, including with their output relay Off. Place them where they can reach other mesh nodes, rather than concentrating every router beside the coordinator. Relocation may change link quality, but RSSI records received messages and does not identify a sensor's parent or complete route. Keep existing sensors paired while observing; no route improvement or topology is established by this project's current API. Actual paths and longer-duration delivery remain acceptance work. The [hardware record](HARDWARE_VALIDATION_2026-10-18.md) identifies completed checks and limits.

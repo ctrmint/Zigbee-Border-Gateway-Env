@@ -19,7 +19,7 @@ flowchart TD
 | H2 | Radio/MAC, frame transmission and reception | RCP image; no application registry |
 | S3 | Zigbee coordinator/Trust Centre, commissioning, discovery, ZCL, local API | SDK network/security state in NVS and a separate IEEE/NWK registry |
 | SBC | Dashboard API, device projection, raw events and normalized values | SQLite database and polling cursor |
-| Browser | Display and user controls | Token only in current page memory |
+| Browser | Display and user controls | Token only in page memory; presentation profile ID in a session cookie |
 
 ## Physical and RF design
 
@@ -35,23 +35,23 @@ The supplied S3 UART mapping is RX GPIO17 and TX GPIO18 at 460800 baud. H2 RX GP
 4. S3 requests active endpoints and simple descriptors. Descriptor events contain input/server and output/client clusters.
 5. ZCL reports/read responses become raw attribute events. Supported scalar types and character strings are copied before callback buffers expire.
 6. SBC polls the 64-event ring, commits raw events, device projections and its cursor in one SQLite transaction.
-7. Temperature/humidity are divided by 100 only for the expected cluster, attribute and ZCL type. Invalid sentinel values remain unavailable.
+7. Measurements are normalized only for supported identities, clusters, attributes and ZCL types. This includes temperature/humidity, observed battery values and S60ZBTPG metering with validated units/scaling. Raw values remain separate and invalid sentinels remain unavailable. Buffered event ages use same-boot gateway uptime estimates when available.
 8. UI sends a command to the SBC, which validates and forwards it. The board locks the Zigbee stack before calling its APIs.
 
 ## Reliability and semantics
 
-- `(boot_id, seq)` deduplicates events; a new boot resets the cursor. The S3 event ring is volatile and limited; outages may lose history. Gap indicators are sticky for the running SBC process.
+- `(boot_id, seq)` deduplicates events; a new boot resets the cursor. The S3 event ring is volatile and limited; outages may lose history. The current gap indicator is retained for the SBC process and recording interruptions are also persisted in SQLite for history views.
 - The SBC syncs the persisted board registry on every poll, recovering missed membership changes. Lost descriptors need rediscovery; lost historical reports cannot be recreated.
-- S3 API authentication starts after network initialization, before Zigbee startup. Commands return 503 until formation/restoration is complete.
-- HTTP 202 means the stack accepted a request. It does not confirm RF delivery or a changed actuator state. Received ZCL default responses are logged but not correlated to HTTP commands. Attribute reads/reports confirm displayed state.
-- Commands are not automatically retried or replayed after outages. There is no offline actuator command queue.
+- Wi-Fi recovery and API listener lifecycle are owned by the network worker after IP readiness, independently of Zigbee startup. Commands return 503 until formation/restoration is complete.
+- HTTP 202 means the stack accepted a request. It does not confirm RF delivery or a changed actuator state. Legacy generic commands expose acceptance and telemetry. Dedicated sensor/display/plug jobs correlate responses by request ID, source, endpoint, cluster and transaction sequence; readback verifies expected settings/state without optimistic relay updates.
+- Uncertain load/settings writes are never automatically replayed. Dedicated bounded workflows may retry reads, binding or reporting operations; a Pi process restart cancels unsent plug load/settings jobs and marks in-flight ones uncertain. API readiness/identity checks and durable job semantics remain separate from physical state.
 - Existing Zigbee routers continue routing when the SBC is unavailable. SBC automations are not implemented. Gateway uptime is still needed for its Trust Centre/parent responsibilities.
 - `active` means registered/not explicitly departed; it is not an online test. `last_seen` and per-attribute receipt times indicate data age.
 - The application registry has 50 lifetime slots, including departed entries; no deletion API exists yet. Its size is independent of Zigbee child/routing tables. The coordinator allows up to 32 direct children; routers must carry additional devices, subject to their own limits.
 
 ## Extension points
 
-Add binding/report configuration and manufacturer adapters at the firmware boundary. Add MQTT or rules on the SBC, using raw stored reports and explicit command-result semantics. Add signed OTA and secured transport before unattended deployment beyond an isolated LAN. Maintain protocol versioning rather than leaking vendor SDK structures into API responses.
+Extend the existing bounded binding/reporting and SONOFF adapters at the firmware boundary. Preserve per-model capability/acceptance records rather than treating preparation as universal compatibility. Add MQTT or rules on the SBC, using raw stored reports and explicit command-result semantics. Add signed OTA and secured transport before unattended deployment beyond an isolated LAN. Maintain protocol versioning rather than leaking vendor SDK structures into API responses.
 
 ## References
 

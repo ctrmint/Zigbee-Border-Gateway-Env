@@ -17,7 +17,7 @@ Each profile has its own `dashboard.all_layout`; layouts remain across reloads a
 
 ## API and compatibility
 
-Authenticated v2 configuration GET/PUT exposes this optional additive dashboard property (contract version 2.6.0):
+Authenticated v2 configuration GET/PUT exposes this optional additive dashboard property (introduced in contract 2.6.0; see the generated contract for the current version):
 
 ```json
 "all_layout": {"columns": 0, "min_tile_width": 240, "order": []}
@@ -31,4 +31,4 @@ Old stored JSON is projected with default Auto/240/empty-order settings without 
 
 Back up the configured SQLite database and source, then restart only the Pi dashboard service and refresh the browser. Firmware, Zigbee network and existing layouts need no changes. Before restoring older software, retain newer history and back up current profile settings: older configuration validators cannot save JSON containing this new field. Restore matching source/configuration safely with the service stopped; avoid replacing newly recorded measurements with an older snapshot merely to change presentation settings.
 
-Automated Chromium and WebKit tablet checks are recorded in [validation](VALIDATION.md). Physical iPad Safari acceptance remains separate.
+Automated Chromium and WebKit tablet checks are recorded in [validation](VALIDATION.md). The user confirmed physical iPad acceptance and [#25](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/25) is closed. Detailed device/version and individual gesture/orientation results were not supplied. Layout applies to supported metering-plug tiles as well as sensors; later plug-specific physical Safari acceptance remains in #27.

@@ -4,14 +4,16 @@ A local home automation starter for **20–50 devices**, using the Espressif **E
 
 The board runs Zigbee coordinator firmware, exposes an authenticated local REST API and communicates with the H2 radio over its onboard UART. The SBC hosts a dashboard, API proxy and SQLite device/history store. Your own dashboard can call the board API directly from its backend, or use the SBC API.
 
-**Status: development MVP.** The Python service and simulator are integration tested. See [validation](docs/VALIDATION.md) for firmware build results and untested hardware behaviour. A 50-device network has not been load tested. This is not a Zigbee2MQTT replacement or a universal commercial-device compatibility layer.
+**Status: development system with recorded hardware validation.** Three SONOFF temperature sensors and three S60ZBTPG plugs have been connected. Plug identity, reporting/readback, physical-button and remote switching on one unit, live electrical telemetry and selected settings have hardware evidence. See the [18 October hardware record](docs/HARDWARE_VALIDATION_2026-10-18.md) for exactly what was tested and [validation](docs/VALIDATION.md) for automated checks and outstanding acceptance. A 50-device network has not been load tested. This is not a Zigbee2MQTT replacement or a universal commercial-device compatibility layer.
 
 ## Included
 
 - S3 firmware: coordinator formation and persistence, explicit 0–180 second pairing, 50-entry IEEE-address registry, automatic endpoint/cluster discovery on announcement, standard scalar attribute reports and reads, On/Off commands, bounded event history.
 - H2 RCP build recipe using ESP-IDF's supplied `ot_rcp` source.
 - SBC Python service with SQLite history, restart-aware polling, deduplication, gap detection and authenticated command proxy.
-- Tabbed dashboard: Configuration & Setup, one tab per location, configurable numeric readings and history charts, pairing, inventory, endpoint inspection, reads and On/Off controls.
+- Tabbed dashboard: read-only All overview, location tabs and Configuration & Setup, configurable numeric readings/history charts, pairing, inventory and endpoint inspection. Presentation profiles have session-cookie selection and independent layouts; device state/settings remain shared.
+- Bounded sensor reporting/display and S60ZBTPG plug jobs with acknowledgements/readback, metering/state/RSSI history and model-specific controls.
+- Continuous gateway Wi-Fi recovery and authenticated identity-pinned rediscovery; retained event ages and recording gaps remain visible.
 - Named locations: create/rename locations, assign multiple sensors and group readings; saved on the SBC across restarts.
 - Saved device names, freshness windows, widget titles/order and chart ranges; revision checks protect edits between browser sessions. Indexed measurement history migrates existing events and marks known ingestion interruptions.
 - Explicit simulator with two sample devices; usable without hardware.
@@ -60,7 +62,7 @@ For another machine to access the dashboard, set `BIND_HOST=0.0.0.0` only on a t
 | `tests/` | Network-backed simulator/SBC integration tests |
 | `docs/` | Setup, protocol, operations, limitations and validation |
 | `scripts/` | Demo launch and archive helper |
-| `.github/workflows/` | Python checks and firmware build workflow |
+| `requirements-dev.txt` | Dependencies for local software validation |
 
 ## Validate and publish
 
@@ -76,22 +78,13 @@ Run `python3 -m sbc.contracts --check` to verify the exported API descriptions.
 See the [API contracts](docs/API.md) and
 [configurable dashboard development plan](docs/DASHBOARD_API_DESIGN.md).
 
-The ZIP is ready to extract into a new GitHub repository:
-
-```bash
-git init -b main
-git add .
-git commit -m "Initial Zigbee border gateway MVP"
-# Create an empty GitHub repository, then use its supplied remote URL.
-git remote add origin https://github.com/YOUR_USER/zigbee-border-gateway.git
-git push -u origin main
-```
+This repository is maintained on GitHub. Work on a branch, validate the change, and merge through a reviewed pull request. Keep hardware acceptance evidence separate from simulator results and update the relevant product guide and issue when new physical checks are completed.
 
 Do not commit `.env`, generated `sdkconfig`, build artifacts or network/database backups. Original project code is MIT; Espressif example-derived files retain their notices. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Current limits
 
-Automatic binding/report configuration, IAS Zone enrolment, manufacturer quirks, OTA updates, MQTT, automation rules and Zigbee-network backup/restore are future work. Reads are available now; reports are received when devices send them to endpoint 10. Do not assume pairing alone configures reporting. See [device compatibility](docs/DEVICE_COMPATIBILITY.md).
+User-initiated binding/report configuration and selected SONOFF adapters are implemented. Pairing alone does not configure reporting; use the appropriate Setup workflow and inspect its remote responses/readback. General-purpose device adapters, IAS Zone enrolment, OTA, MQTT, automation rules and secure Zigbee-network backup/restore remain outstanding. Plug OTA is tracked in #30; schedules/countdowns/scenes and inching timing verification in #31. See [device compatibility](docs/DEVICE_COMPATIBILITY.md).
 
 See [SNZB-02UL preparation](docs/SNZB_02UL.md) for the advance sensor-support milestone and pending hardware validation.
 
@@ -105,4 +98,4 @@ The read-only [All sensors overview](docs/DASHBOARD_ALL.md) displays compact sen
 
 [Continuous Wi-Fi recovery](docs/WIFI_RECOVERY.md) covers autonomous reconnection, authenticated rediscovery and outage validation.
 
-S60ZBTPG smart-plug preparation, supported operations and pending hardware/OTA/timing acceptance: [docs/S60ZBTPG.md](docs/S60ZBTPG.md).
+S60ZBTPG smart-plug operation, observed hardware results and remaining acceptance: [docs/S60ZBTPG.md](docs/S60ZBTPG.md).

@@ -3,8 +3,7 @@
 Issue #8 implements the location dashboard, configuration and history milestone.
 The exact implemented contracts are [API.md](API.md),
 [dashboard v1](api/dashboard-v1.openapi.json) and
-[dashboard v2](api/dashboard-v2.openapi.json). Future command tracking and
-streaming below are proposals, not available endpoints.
+[dashboard v2](api/dashboard-v2.openapi.json). General-purpose command tracking and streaming below are historical proposals, not available endpoints. Subsequent bounded sensor/display/plug jobs already provide operation-specific acknowledgements and readback; see [S60ZBTPG operation](S60ZBTPG.md) and the current generated contracts.
 
 ## Deployment and ownership
 

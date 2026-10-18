@@ -1,5 +1,9 @@
 # Validation record
 
+## Current evidence index
+
+See [18 October 2026 hardware validation](HARDWARE_VALIDATION_2026-10-18.md) for the three S60ZBTPG units, completed reporting/switching/settings/restart checks, scoped iPad acceptance and Pi incident limitations. Older entries below are historical milestone records; statements such as “hardware pending” describe the evidence at that milestone, not a claim that no later testing occurred. The current product guides and dated record identify remaining work.
+
 Validation performed 2026-10-10. This distinguishes compilation and simulation from physical hardware verification.
 
 | Check | Result |
@@ -20,9 +24,9 @@ Tests cover authenticated access, strict command validation, device/descriptor/r
 
 The build environment required a local ESP-IDF Component Manager process-inspection workaround for its container PID namespace. It changed the development environment only, not repository source or ESP-IDF APIs. CMake emitted deprecation notices for the newer local CMake version; project source compiled successfully. The distributed repository includes no toolchain/environment patch.
 
-The API token is intentionally blank in defaults so unconfigured hardware fails closed. The compiled image used for validation is not distributed; users must configure their Wi-Fi and unique token before flashing. CI uses an explicitly named dummy compile token and does not upload deployable firmware.
+The API token is intentionally blank in defaults so unconfigured hardware fails closed. The compiled image used for validation is not distributed; users must configure their Wi-Fi and unique token before flashing. There is currently no GitHub Actions workflow in this repository; validation is run locally.
 
-Follow [operations](OPERATIONS.md) and [device compatibility](DEVICE_COMPATIBILITY.md) for the required hardware acceptance checks. Binding/report configuration, IAS enrolment, MQTT, automation rules, TLS and OTA remain documented future work.
+Follow [operations](OPERATIONS.md) and [device compatibility](DEVICE_COMPATIBILITY.md) for the required hardware acceptance checks. At this milestone, binding/report configuration was future work; it has since been implemented for supported profiles. IAS enrolment, MQTT, automation rules, TLS and OTA remain subject to the current roadmap and model-specific capability records.
 
 ## SBC API and locations update, 2026-10-12
 
@@ -43,7 +47,7 @@ Firmware and physical Zigbee behavior have not been revalidated by this update.
 
 ## Raspberry Pi firmware development, 2026-10-13
 
-The Raspberry Pi 5 is now the firmware development workstation as well as the
+The Raspberry Pi (later identified as a Pi 4 Model B Rev 1.2, despite its hostname) is the firmware development workstation as well as the
 dashboard host. ESP-IDF v5.5.4 is installed at `/home/mark/esp/esp-idf`, with native
 Linux ARM64 S3/H2 compiler tools and an isolated IDF Python environment. Fresh SSH
 shells can load the tools with `. /home/mark/esp/esp-idf/export.sh`.
@@ -346,3 +350,12 @@ Private evidence is in the ignored wifi-issue28 backup directory; the final reco
 - 26 distinct Chromium cases passed across runs (a profile reload fetch failure passed its targeted rerun); three final WebKit iPad emulation cases passed with the cached Mesa runtime. Chromium plug cases exercise shared durable operations, readback, raw Off telemetry, data-only All tiles and responsive sizes; existing All/layout, reporting, UL and profile cases are also run. WebKit iPad emulation is separate from physical iPad Safari acceptance. Tablet testing found and corrected replacement of live location buttons during polling; their DOM identity is retained.
 - Migration rehearsal preserves every row in all 17 pre-existing database tables and passes integrity checks. Synthetic plug fixtures are isolated from the hardware registry. No physical plug compatibility, protection trip behavior, period boundaries, router path or inching timing is claimed.
 - OTA is explicitly deferred to #30; schedules/countdowns/scenes and device timing verification to #31. Parent #27 remains open. Exact logs, backup/source/image manifests and live deployment checks are private under the ignored backups directory.
+
+
+## Hardware follow-up and documentation reconciliation — 18 October 2026
+
+- Three S60ZBTPG build 1.0.2 units each verified 34/34 setup steps. Actual device evidence now includes unsolicited electrical reports, a physical button/state transition, remote Off/On acknowledgements with matching readback on one unit, selected LED/startup writes and a 13 A / 3250 W protection configuration followed by enable readback on one unit.
+- The user-requested gateway restart preserved network/registry and the first plug's On state; electrical reporting resumed without recommissioning. Relocated plugs reconnected. This does not establish the full plug power-loss or mesh-route acceptance.
+- Earlier All/profile/RSSI/layout physical iPad acceptance is recorded in closed #18/#20/#23/#25, with no version or detailed interaction results inferred. New plug physical Safari acceptance remains open.
+- After a later loss of Pi access, the user manually power-cycled the Pi. Prior logs were volatile, so the original cause remains undetermined. Wi-Fi/dashboard/gateway recovery after that cycle is not proof of same-boot autonomous Wi-Fi recovery.
+- Private job/report/backup artifacts were checked before writing the sanitized public summary. Credentials, household identifiers, raw journals and backups are excluded from Git. No firmware, service, network, logging configuration or relay changes are part of this documentation update.

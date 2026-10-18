@@ -101,4 +101,7 @@ Adjust All tile columns, minimum widths and sensor order under Configuration & S
 
 The Pi retains a verified gateway identity/endpoint in `gateway_bindings` and rediscovery can follow DHCP changes after initial authentication. See [continuous Wi-Fi recovery](WIFI_RECOVERY.md) for deployment, diagnostics, LAN requirements and controlled outage tests. Do not use USB/manual resets as proof of autonomous recovery.
 
-S60ZBTPG smart-plug preparation, supported operations and pending hardware/OTA/timing acceptance: [S60ZBTPG.md](S60ZBTPG.md).
+S60ZBTPG smart-plug operation, observed hardware results and remaining hardware/OTA/timing acceptance: [S60ZBTPG.md](S60ZBTPG.md).
+
+
+For diagnosing loss of Pi access, distinguish a Wi-Fi disconnect from a subsequent manual reboot. Check whether previous-boot logs are retained before an incident; the observed Pi OS installation uses volatile journals. See [Pi incident logging](OPERATIONS.md#pi-access-loss-and-persistent-incident-logs). The documentation commands are optional administrator setup and have not been applied automatically.

@@ -45,3 +45,9 @@ USB console handling matters on this board. Pyserial can toggle DTR and RTS sepa
 The operational acceptance target is authenticated API/Pi reconnection within 180 seconds after a usable AP and DHCP service return under normal network conditions. The bounded live test returned in about 2.2 seconds after its 180-second injected outage; this does not establish the worst case for actual router restarts or changed leases.
 
 See [validation results](VALIDATION.md) and issue #28 for exact tested images and outstanding hardware scenarios. Do not close extended hardware acceptance solely on compilation or synthetic time progression.
+
+## Subsequent Pi/Starlink interruption: scope of evidence
+
+On 18 October, Pi Wi-Fi/router/DNS/internet access, the dashboard and gateway were reachable after the user manually power-cycled the Pi to recover lost access. Gateway/plug reporting resumed and registrations were preserved. This is a recovery observation after a manual reboot; it does **not** establish whether the original failure was Pi Wi-Fi, upstream Starlink/router connectivity or a Pi lockup. The previous-boot Pi journal used volatile storage and was unavailable. A later clean connection or power-on reset code does not reconstruct that cause.
+
+The previously documented 180-second same-boot worker test remains the autonomous gateway Wi-Fi evidence. Extended overnight/repeated outages, real DHCP-address change, AP/router restart without a manual gateway reset and forced internal-stall escalation remain open in #28. See [Pi incident logging](OPERATIONS.md#pi-access-loss-and-persistent-incident-logs) for a bounded optional administrator setup to preserve future evidence, and [hardware validation](HARDWARE_VALIDATION_2026-10-18.md) for observed plug/coordinator restart behavior. No logging/network setting was changed as part of this documentation update.

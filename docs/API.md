@@ -241,8 +241,7 @@ job states; raw results include operation, status, phase and correlation ID.
 
 Gateway `/api/v1/commands` adds `bind`, `configure_reporting`, `read_reporting`
 and `reporting_window`, each requiring `ieee`, `endpoint` and a 36-character
-hex/dash `request_id`. Bind takes `cluster` (32, 1026 or 1029); reporting operations
-support clusters 1026/1029 and attribute 0. Configure also takes `min_interval`,
+hex/dash `request_id`. Sensor Bind accepts clusters 1, 6, 32, 1026 and 1029; reporting accepts temperature/humidity attribute 0 and supported Power Configuration battery attributes 32/33. Exact model/endpoint capabilities and the generated schemas govern each workflow. Configure also takes `min_interval`,
 `max_interval`, `reportable_change` in raw hundredths (positive, at most 32767 for
 temperature or 10000 for humidity). Window takes `seconds` 0–120. These commands
 accept exactly their documented fields and always bind to local coordinator
@@ -270,4 +269,7 @@ Per-profile All layout preferences are part of v2 configuration; see [All layout
 
 Gateway health includes `gateway_id` and `network` recovery diagnostics; the optional authenticated bounded outage endpoint is documented in [Wi-Fi recovery](WIFI_RECOVERY.md). Discovery uses UDP 39128 with nonce/HMAC proofs; it never broadcasts bearer tokens.
 
-S60ZBTPG smart-plug preparation, supported operations and pending hardware/OTA/timing acceptance: [S60ZBTPG.md](S60ZBTPG.md).
+S60ZBTPG smart-plug operation, observed hardware results and remaining hardware/OTA/timing acceptance: [S60ZBTPG.md](S60ZBTPG.md).
+
+
+The implemented S60ZBTPG API is `GET /api/v2/plug-profiles` and `GET/POST /api/v2/plugs`; actions include read/commission/relay/startup_behavior/network_indicator/outlet_protection/protection/inching. Job acceptance, remote response and matching readback are distinct. `acknowledged_unverified` for inching is not a measured timing result. Capabilities marked `not_tested`/`prepared` in runtime metadata are conservative static declarations, not a live certification database; see the dated [hardware evidence](HARDWARE_VALIDATION_2026-10-18.md) for checks completed since the implementation was merged.
