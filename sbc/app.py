@@ -13,6 +13,7 @@ from .contracts import capabilities, contract
 from .profiles import requested_profile
 from .dashboard import DashboardError
 from .sensors import profile_document,UL,device_model,sensor_endpoint
+from . import plugs
 from .contracts_v2 import contract_v2, capabilities_v2
 
 STATIC = Path(__file__).parent / "static"
@@ -69,6 +70,8 @@ def make_handler(store, poller, gateway, token):
                     if method=='DELETE':
                         store.delete_profile(profile_route[1]);return self.send(200,{'deleted':True})
                 if method == "GET":
+                    if route.path == "/api/v2/plug-profiles":return self.send(200,plugs.profiles())
+                    if route.path == "/api/v2/plugs":return self.send(200,store.plug_document())
                     if route.path == "/api/v2/sensor-profiles":return self.send(200,profile_document())
                     if route.path == "/api/v2/display":return self.send(200,store.display_document())
                     if route.path == "/api/v2/commissioning": return self.send(200, store.commissioning_document())
@@ -85,6 +88,11 @@ def make_handler(store, poller, gateway, token):
                         if any(len(values) != 1 for values in params.values()):
                             raise DashboardError("Repeated query parameters are not allowed.", 400, "invalid_query")
                         return self.send(200, store.measurement_history({key: values[0] for key, values in params.items()}))
+                if method == "POST" and route.path == "/api/v2/plugs":
+                    body=self.read_body(4096)
+                    if set(body)=={'job_id','action'} and body['action']=='cancel':return self.send(200,store.cancel_plug(body['job_id']))
+                    if not poller.status.get('connected') or not poller.status.get('plug_extensions'):return self.v2_error(503,'gateway_upgrade_required','Connect smart-plug firmware first.')
+                    return self.send(202,store.start_plug(body))
                 if method == "POST" and route.path == "/api/v2/display":
                     body=self.read_body(4096)
                     if set(body)=={'ieee','action'} and body['action']=='cancel':return self.send(200,store.cancel_display(body['ieee']))
@@ -196,6 +204,7 @@ def make_handler(store, poller, gateway, token):
             try:
                 if c['op']=='on_off':
                     with store.lock:
+                        if plugs.identified(store._get(c['ieee'].lower())):return self.send(400,{'error':'Use acknowledged smart-plug jobs for this device.'})
                         if sensor_endpoint(store._get(c['ieee'].lower()),c['endpoint']):return self.send(400,{'error':'A sensor On/Off binding is not an appliance control.'})
                 result = gateway.request("/api/v1/commands", c)
                 self.send(202 if result.get("accepted") else 503, result)

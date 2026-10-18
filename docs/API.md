@@ -269,3 +269,5 @@ Signal history and latest RSSI are available through the authenticated v2 device
 Per-profile All layout preferences are part of v2 configuration; see [All layout API and compatibility](ALL_LAYOUT.md).
 
 Gateway health includes `gateway_id` and `network` recovery diagnostics; the optional authenticated bounded outage endpoint is documented in [Wi-Fi recovery](WIFI_RECOVERY.md). Discovery uses UDP 39128 with nonce/HMAC proofs; it never broadcasts bearer tokens.
+
+S60ZBTPG smart-plug preparation, supported operations and pending hardware/OTA/timing acceptance: [S60ZBTPG.md](S60ZBTPG.md).

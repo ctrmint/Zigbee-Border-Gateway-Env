@@ -46,6 +46,7 @@
 #include "gateway_clock.h"
 #include "gateway_network.h"
 #include "ezbee/zcl/cluster/custom.h"
+#include "ezbee/zcl/cluster/metering.h"
 #include "ezbee/zcl/cluster/power_config.h"
 #include "ezbee/zcl/cluster/poll_control.h"
 
@@ -224,6 +225,7 @@ esp_err_t esp_zigbee_create_zha_gateway_device(void)
     ESP_ERROR_CHECK(ezb_af_endpoint_add_cluster_desc(ep_desc, ezb_zcl_rel_humidity_measurement_create_cluster_desc(NULL, EZB_ZCL_CLUSTER_CLIENT)));
     ESP_ERROR_CHECK(ezb_af_endpoint_add_cluster_desc(ep_desc, ezb_zcl_poll_control_create_cluster_desc(NULL, EZB_ZCL_CLUSTER_CLIENT)));
     ESP_ERROR_CHECK(ezb_af_endpoint_add_cluster_desc(ep_desc, ezb_zcl_power_config_create_cluster_desc(NULL, EZB_ZCL_CLUSTER_CLIENT)));
+    ESP_ERROR_CHECK(ezb_af_endpoint_add_cluster_desc(ep_desc,ezb_zcl_metering_create_cluster_desc(NULL,EZB_ZCL_CLUSTER_CLIENT)));
     ezb_zcl_custom_cluster_config_t custom={.cluster_id=0xfc11};
     ESP_ERROR_CHECK(ezb_af_endpoint_add_cluster_desc(ep_desc,ezb_zcl_custom_create_cluster_desc(&custom,EZB_ZCL_CLUSTER_CLIENT)));
     gateway_clock_add(ep_desc);

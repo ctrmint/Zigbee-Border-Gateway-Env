@@ -9,3 +9,6 @@ void gateway_reporting_action(ezb_zcl_core_action_callback_id_t id,void *message
 void gateway_reporting_init(void);
 /* Called with Zigbee lock held; events are copied into the bounded ring. */
 void gateway_emit(cJSON *event);
+
+void gateway_plug_observe(uint16_t nwk,uint8_t ep,uint16_t attr,uint8_t type,const void *value);
+void gateway_plug_forget(uint16_t nwk);

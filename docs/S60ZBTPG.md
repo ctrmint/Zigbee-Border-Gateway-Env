@@ -1,0 +1,62 @@
+# SONOFF S60ZBTPG preparation (#27)
+
+This is the Type G, **13 A / 3250 W** Zigbee plug, not S60TPG Wi-Fi or S60ZBTPF Type F. No S60ZBTPG has been paired/physically verified for this implementation. Software readiness does not establish hardware compatibility. Do not close #27 as full support until its physical acceptance and linked unresolved capabilities are resolved.
+
+Protocol evidence: [SONOFF manual](https://support.sonoff.tech/s60zbtpg-usermanual/) and primary [zigbee-herdsman-converters SONOFF implementation at 72398c3063aca492fe936bf01e0a5fffad28fbd1](https://github.com/Koenkk/zigbee-herdsman-converters/blob/72398c3063aca492fe936bf01e0a5fffad28fbd1/src/devices/sonoff.ts). Relevant definitions: `S60ZBTPG`, `addCustomClusterEwelink`, `inchingControlSet`, `buildOverloadProtectionPayload`, `overloadProtection`. Standard energy decoding is cross-checked against [fromZigbee.ts at the same revision](https://github.com/Koenkk/zigbee-herdsman-converters/blob/72398c3063aca492fe936bf01e0a5fffad28fbd1/src/converters/fromZigbee.ts). Upstream code is MIT licensed; this project implements the described protocol with narrower product limits. Manufacturer code is independently pinned in [zigbee-herdsman manufacturerCode.ts at cf29e23a3c0fbfcbad9cb5c6694448381b6f61ba](https://github.com/Koenkk/zigbee-herdsman/blob/cf29e23a3c0fbfcbad9cb5c6694448381b6f61ba/src/zspec/zcl/definition/manufacturerCode.ts). Snapshot hashes are retained privately with deployment evidence.
+
+## Capability matrix
+
+All hardware columns are pending actual-device verification. Firmware differences must be recorded against Basic manufacturer/model/build, descriptors and actual responses; endpoint 1 is the upstream reference, but jobs target the discovered/identified endpoint.
+
+| Feature | Software behavior | Remaining evidence / limitation |
+| --- | --- | --- |
+| Identity/discovery | Descriptor discovery reads Basic manufacturer/model/build; controls require observed SONOFF/eWeLink + S60ZBTPG, with relay/meter/vendor clusters | Selected hints never grant plug writes; Type F rejected |
+| Relay / physical button | Explicit On/Off, no Toggle; correlated response then matching state readback; reports saved as state/history | Actual relay/button and restart/power-loss behavior pending |
+| Bind/reporting | Bind relay 0006, metering 0702, vendor FC11; configure/read reporting, initial reads | Device acceptance/delivery/readback pending; an unsupported operation is visibly failed |
+| Power-loss behavior | Off, On, Toggle-at-power-loss, Previous; scalar write/readback at 0006:4003 | No defaults written during setup; mode support may vary by firmware |
+| Network LED | FC11:0001 boolean write/readback | Pending hardware |
+| Outlet protection enable | FC11:7007 uint8 0/1 write/readback | Does not establish overload trip/lock status; no trip-state attribute is pinned |
+| Protection thresholds | Complete validated FC11:7003 character-string payload, readback match | See protocol/limits below; no overload testing required |
+| Inching | FC11 command 01, manufacturer 1286, bounded checked payload; device acknowledgement only | Upstream exposes SET only; no invented readback. Timing/persistence/mode physical checks and broader local automation tracked in [#31](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/31) |
+| Current / voltage / power | FC11:7004/7005/7006 uint32 /1000 → A/V/W | Preserve raw values even after Off; derived effective zero is separate |
+| Accumulated energy | 0702:0000 uint48 with observed multiplier/divisor uint24 and electricity unit 0300=0 | Missing/zero/invalid scale or unknown unit yields invalid, never invented energy |
+| Today / yesterday / month | FC11:7009/700B/700A uint32 /1000 kWh | Device-reported period totals; boundaries/timezone/DST behavior unverified; not Pi aggregates |
+| History / RSSI | Shared actual telemetry, timestamps, raw event evidence, bounded histories | Received-message RSSI is not a route or direct-link measurement |
+| Routing | Report observed announce MAC capability; model is router-capable | No neighbor/path verification or promise to improve Garage coverage |
+| Schedules / countdown / scenes | Explicitly deferred; no scheduler or load actions on page load | [#31](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/31), audit device versus hub execution and restart/DST/missed-action semantics |
+| OTA | Explicitly deferred, no upgrade action | [#30](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/30), image compatibility/integrity, transport/progress/recovery and real-device acceptance |
+| Calibration / rounding | No device calibration advertised; presentation uses up to 3 decimals for A/kWh | Raw values retained; no calibration offsets applied |
+
+## Commissioning and operations
+
+Pair normally through Setup; do not reset/re-pair existing sensors. Discover descriptors/Basic identity. Once the exact plug is identified, its Setup controls offer Read plug values and Configure plug reporting. Assign a name/location normally. Set reading freshness above the maximum report interval; 4500 s is recommended for the 3600 s policy. Existing user freshness settings are preserved. Setup/location On/Off requests use shared durable jobs; user profiles alter presentation, not device state or permissions. Dashboard token authentication is unchanged. Reading profiles, opening tabs or viewing capabilities does not switch loads or send plug reads.
+
+Commissioning only changes bindings/reporting and reads existing values. It never writes relay, startup, LED, inching or protection settings. It binds the three upstream clusters; reporting policy is relay 1–1800 s, vendor instant electrical values 10–3600 s, energy 60–3600 s. It reads back each configuration. No specific change/delivery period is physically guaranteed before acceptance. The firmware retains a bounded volatile identity cache; each explicit job primes Basic manufacturer/model reads before plug-specific operations, allowing reboot recovery without trusting a UI model hint.
+
+`POST /api/v2/plugs` takes `{ieee,endpoint,action,settings}`. Actions: `read`, `commission`, `relay` (`{state: true/false}`), `startup_behavior` (`{value: "off"|"on"|"toggle"|"previous"}`), `network_indicator` or `outlet_protection` (`{value: boolean}`), `inching` (`{enabled,mode: "on"|"off",seconds}`), `protection` (complete composite below). `GET` returns active jobs plus the most recent terminal jobs, up to 100 shared records. Cancel with `{job_id,action:"cancel"}`; an in-flight effect may remain. `GET /api/v2/plug-profiles` provides pinned protocol/capability status. Schemas are in generated dashboard-v2/gateway-v1 contracts.
+
+A 202 is queued, never evidence of relay state. Jobs distinguish queued/sending/waiting/verified/acknowledged_unverified/failed/uncertain/expired/cancelled. Matching gateway boot, request ID, endpoint, cluster, attribute and operation are required. Readback compares value/type, protection bytes or report policy. There is one active job per plug, with cross-checks against sensor/display setup. Three attempts maximum for timed-out reads/bind/report config, 27 s response deadlines; jobs expire after 5 minutes (30 minutes for full commissioning). Explicit remote rejection fails promptly. HTTP submission ambiguity does not trigger write replay. Writes are submitted once; missing confirmation becomes uncertain. A Pi process restart cancels unsent load/settings jobs and marks sending ones uncertain. A new explicit user request is a new action, not an automatic retry. Read actual state before repeating an uncertain operation.
+
+Native gateway operations `plug_read/write/relay/inching/bind/configure/read_reporting` require a request ID and narrow model-specific fields. Scalar writes use ordinary framing for FC11/0006; inching alone uses manufacturer code 1286. Direct legacy dashboard `on_off` is rejected for an identified plug so the dashboard uses durable jobs. Raw vendor commands are not exposed through the dashboard command passthrough. Shared gateway credentials still authorize its generic legacy APIs; use the Pi job API for acknowledgement tracking.
+
+### Payloads and product limits
+
+Inching bytes: `01 17 07 80 mode 00 ticksLE16 00 00 xor`, ticks=seconds×2 in 1..7199, mode bit7 enable and bit0 target On. All other bits/reserved/channel bytes are validated. Device-side execution is intended; a successful default response is labelled acknowledged/unverified, not measured timing or persisted configuration.
+
+Protection character-string contents (the ZCL string length is added by firmware): `04 length currentFlags voltageFlags powerFlags` then enabled little-endian uint32 milli-unit thresholds in order max-current/min-current/max-voltage/min-voltage/max-power/min-power. Mandatory max current/power flags are always set; enabled optional flags require their value. Disabled optional fields must omit values. All lengths, flag bits, enabled field counts, increments and min<max relationships are validated in Python and firmware. This is a complete replacement of the protection composite, not a partial update.
+
+Current: 0.1..13 A in 0.1 A increments; power: 0.1..3250 W in 0.1 W; voltage thresholds: 165..277 V in 1 V. Upstream protocol permits 14 A for this model; this implementation deliberately caps writes at the manual's 13 A rating. Voltage thresholds are configuration values, not a declaration of the outlet's operating rating. Existing values above local write limits remain raw diagnostic evidence. Never demonstrate protection by deliberately overloading mains equipment.
+
+### Data semantics
+
+Keep raw reported power/current even if stale nonzero after Off. `plug.effective_off` contains separately labelled zero power/current derived only from a fresh confirmed Off attribute; it never replaces telemetry/history or implies voltage is zero. Once relay freshness expires the derived value disappears. Missing, invalid, stale and genuine zero remain distinct.
+
+Cumulative uint48 raw counters fit exactly in JSON's safe integer range and are preserved in raw events. Normalized kWh uses known unit/multiplier/divisor; histories retain the scale applied at observation. Counter decreases flag possible reset/rollover, and a new gateway epoch is marked separately; no consumption deltas are inferred, so decreases do not create negative usage or duplicate consumption. Device day/month totals are never added to cumulative energy. Raw event receipt and estimated source time remain distinct after Wi-Fi buffering. Default 30-day retention and existing bounded 31-day/500-row-per-page queries apply. Counter discontinuities are separately capped to 50 per device in views and retained for 30 days. Standard event-buffer retention is 64 events in S3 RAM, shared across devices: frequent plug reports can shorten outage coverage; overflow is recorded as a gap, never filled with invented samples.
+
+## Verification, deployment and rollback
+
+Run API/integration tests, `scripts/test_firmware_host.sh` with IDF loaded, `idf.py -C firmware build`, contract export/check and browser tests including `browser_s60zbtpg.py`. Synthetic fixtures are opt-in simulator/test data, never added to the live registry. WebKit tablet emulation is recorded separately from physical iPad Safari acceptance.
+
+Before deployment, save a consistent SQLite snapshot, ignored private sdkconfig/credentials, exact source/image hashes and a full S3 flash backup. Verify chip MAC and partition table; flash only the existing application at 0x20000, preserving bootloader/partitions/NVS/H2/Zigbee registrations. The application deployment boots S3; do not call this autonomous recovery evidence. Restart only the Pi dashboard to load its code. Check PAN/channel/registry, user profiles/layouts and actual sensor reports afterward. Roll back with the privately saved previous application at the same address and source revision, preserving current storage; additive Pi tables can remain. Restore a DB snapshot only deliberately because doing so discards later history.
+
+Physical acceptance still required: exact identity/firmware/descriptors; relay and physical button; ordinary-load metering including zero/Off behavior; all settings/readback and inching timing; periodic reports; day/month/timezone/reset behavior; router participation where observable; Pi/coordinator restart and plug power cycle without unexpected load state changes; real iPad Safari. OTA/timing follow-ups retain unresolved parent acceptance.

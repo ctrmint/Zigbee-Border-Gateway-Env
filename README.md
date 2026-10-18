@@ -104,3 +104,5 @@ The read-only [All sensors overview](docs/DASHBOARD_ALL.md) displays compact sen
 [All dashboard layout settings](docs/ALL_LAYOUT.md) provide per-profile columns, minimum tile widths and sensor ordering.
 
 [Continuous Wi-Fi recovery](docs/WIFI_RECOVERY.md) covers autonomous reconnection, authenticated rediscovery and outage validation.
+
+S60ZBTPG smart-plug preparation, supported operations and pending hardware/OTA/timing acceptance: [docs/S60ZBTPG.md](docs/S60ZBTPG.md).

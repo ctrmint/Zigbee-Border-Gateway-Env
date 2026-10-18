@@ -22,6 +22,8 @@ class Simulation:
         self.reporting_failures = {}
         self.display_values={}
         self.display_failures={}
+        self.plug_values={}
+        self.plug_failures={}
         self.clock=None
         self.on = False
         for d in self.devices:
@@ -53,7 +55,44 @@ class Simulation:
         self.attr(0, 6, 0x10, int(self.on))
         self.attr(1, 0x0402, 0x29, 2050)
         self.attr(1, 0x0405, 0x21, 4800)
+    def add_s60zbtpg(self):
+        """Synthetic fixture only; never added to the hardware registry."""
+        from .plugs import READS
+        d={'ieee':'00124b0000000027','nwk':0x3427,'active':True};self.devices.append(d);i=len(self.devices)-1
+        self.emit(dict(d,type='announce',capability=0x8e))
+        self.emit(dict(d,type='endpoint',endpoint=1,ok=True,profile_id=260,device_id=0x51,input_clusters=[0,3,4,5,6,1794,64529],output_clusters=[10,25]))
+        for a,v in [(4,'SONOFF'),(5,'S60ZBTPG'),(0x4000,'synthetic-1.0')]:self.attr(i,0,0x42,v,a,origin='read_response')
+        values={(6,0):1,(6,0x4003):255,(64529,1):1,(64529,0x7007):1,(64529,0x7003):'040b010001c8320000a0973100',
+            (1794,768):0,(1794,769):1,(1794,770):1000,(1794,0):123456789012,(64529,0x7004):1000,(64529,0x7005):230000,(64529,0x7006):230000,(64529,0x7009):1500,(64529,0x700a):25000,(64529,0x700b):2000}
+        from .plugs import protection
+        values[(64529,0x7003)]=protection({'max_current':13,'max_power':3250})
+        for key,raw in values.items():
+            self.plug_values[(d['ieee'],*key)]=raw
+            if key==(64529,0x7003):self.emit(dict(d,type='attribute',endpoint=1,cluster=key[0],attribute=key[1],data_type=0x42,raw_hex=raw,rssi=-50,origin='report'))
+            else:self.attr(i,key[0],READS[key],raw,key[1])
+        return d
+    def plug_command(self,c):
+        from .plugs import validate_command,READS,REPORTS
+        validate_command(c)
+        d=next((d for d in self.devices if d['ieee']==c['ieee']),None)
+        if d is None or c['ieee']!='00124b0000000027':raise ValueError('Not an identified S60ZBTPG')
+        key=(c['ieee'],c['cluster'],c['attribute']);op=c['op'];status=self.plug_failures.get((op,c['cluster'],c['attribute']),0)
+        e=dict(d,type='commissioning',endpoint=c['endpoint'],cluster=c['cluster'],attribute=c['attribute'],request_id=c['request_id'],operation=op,phase='response',status=status,tsn=44)
+        if status==0:
+            if op in ('plug_write','plug_relay'):self.plug_values[key]=c.get('value',c.get('payload'))
+            if op=='plug_read':
+                raw=self.plug_values[key];e['data_type']=READS[key[1:]]
+                if key[1:]==(64529,0x7003):e['raw_hex']=raw;self.emit(dict(d,type='attribute',endpoint=c['endpoint'],cluster=key[1],attribute=key[2],data_type=0x42,raw_hex=raw,rssi=-50,origin='read_response'))
+                else:e['raw']=raw;self.attr(self.devices.index(d),key[1],e['data_type'],raw,key[2],origin='read_response')
+            if op=='plug_configure':self.reporting[key]=REPORTS[key[1:]]
+            if op=='plug_read_reporting':
+                spec=self.reporting.get(key)
+                if spec:e.update(zip(('data_type','min_interval','max_interval','reportable_change'),spec))
+                else:e['status']=0x8b
+        self.emit(e);return {'accepted':True,'stack_result':0}
     def command(self, c):
+        if isinstance(c,dict) and isinstance(c.get('op'),str) and c['op'].startswith('plug_'):
+            with self.lock:return self.plug_command(c)
         validate_command(c)
         with self.lock:
             if c['op']=='sync_clock':
@@ -101,6 +140,7 @@ class Simulation:
                         value=attributes.get((c['cluster'],c['attribute']))
                         if value:self.attr(index,c['cluster'],*value,c['attribute'],origin='read_response')
                         else:self.emit(dict(self.devices[index],type='zcl_response',status=0x86,tsn=42))
+                    elif c['ieee']=='00124b0000000027' and c['cluster']==0 and c['attribute'] in (4,5):self.attr(index,0,0x42,'SONOFF' if c['attribute']==4 else 'S60ZBTPG',c['attribute'],origin='read_response')
                     elif c['cluster']==0 and c['attribute'] in (4,5):self.attr(index,0,0x42,'SONOFF' if c['attribute']==4 else 'SNZB-02WD',c['attribute'],origin='read_response')
                     else:self.attr(index,c['cluster'],0x29 if c['cluster']==1026 else 0x21 if c['cluster']==1029 else 0x10,2050 if c['cluster']==1026 else 4800 if c['cluster']==1029 else int(self.on),c['attribute'],origin='read_response')
                 elif c["op"] == "discover":
@@ -123,7 +163,7 @@ def make_handler(sim, token):
             p=urlparse(self.path)
             with sim.lock:
                 if p.path == "/api/v1/health":
-                    obj={"sensor_extensions":True,"time_server_valid":bool(sim.clock and time.monotonic()-sim.clock["synced"]<900),"reporting_commissioning":True,"mode":"simulator","boot_id":sim.boot,"ready":True,"latest_seq":sim.seq,
+                    obj={"plug_extensions":True,"sensor_extensions":True,"time_server_valid":bool(sim.clock and time.monotonic()-sim.clock["synced"]<900),"reporting_commissioning":True,"mode":"simulator","boot_id":sim.boot,"ready":True,"latest_seq":sim.seq,
                          "join_seconds":max(0,int(sim.join_until-time.time())),"dropped_events":0}
                 elif p.path == "/api/v1/devices": obj={"boot_id":sim.boot,"devices":sim.devices}
                 elif p.path == "/api/v1/events":

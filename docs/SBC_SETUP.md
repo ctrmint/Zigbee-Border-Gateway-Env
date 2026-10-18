@@ -100,3 +100,5 @@ The dashboard records RSSI passively and displays last-known signal values and a
 Adjust All tile columns, minimum widths and sensor order under Configuration & Setup → All dashboard layout. Preferences belong to the selected user profile; see [All layout settings](ALL_LAYOUT.md).
 
 The Pi retains a verified gateway identity/endpoint in `gateway_bindings` and rediscovery can follow DHCP changes after initial authentication. See [continuous Wi-Fi recovery](WIFI_RECOVERY.md) for deployment, diagnostics, LAN requirements and controlled outage tests. Do not use USB/manual resets as proof of autonomous recovery.
+
+S60ZBTPG smart-plug preparation, supported operations and pending hardware/OTA/timing acceptance: [S60ZBTPG.md](S60ZBTPG.md).

@@ -14,6 +14,7 @@ from .signal import SignalStore, SIGNAL_CLUSTER
 
 MEASUREMENTS = {(1026, 0): ("Temperature", "°C"), (1029, 0): ("Humidity", "%"),
                 (6, 0): ("Reported state", "on/off"), (1,33): ("Battery", "%"), (1,32): ("Battery voltage", "V")}
+MEASUREMENTS.update({(64529,0x7004):('Current','A'),(64529,0x7005):('Voltage','V'),(64529,0x7006):('Active power','W'),(64529,0x7009):('Energy today','kWh'),(64529,0x700a):('Energy this month','kWh'),(64529,0x700b):('Energy yesterday','kWh'),(1794,0):('Accumulated energy','kWh')})
 RANGES = (3600, 21600, 86400, 604800, 2592000)
 
 
@@ -35,6 +36,9 @@ def text(value, path, maximum=80):
 def source_supported(device, endpoint, cluster, attribute):
     if cluster == SIGNAL_CLUSTER:
         return endpoint == 1 and attribute == 0
+    if cluster in (64529,1794):
+        from .plugs import identified
+        if not identified(device,endpoint):return False
     # A sensor's On/Off binding serves its protocol, not an appliance control.
     if cluster==6:
         from .sensors import sensor_endpoint
@@ -104,7 +108,7 @@ class DashboardStore(SignalStore, ProfilesStore):
             if sensor_endpoint(self._get(event['ieee']),event.get('endpoint')):return
         if (cluster, attribute) not in MEASUREMENTS:
             return
-        value, unit = normalize(cluster, attribute, event.get("data_type"), event.get("raw"))
+        value, unit = normalize(cluster, attribute, event.get("data_type"), event.get("raw"),self._get(event["ieee"]),event["endpoint"])
         if value is not None and not math.isfinite(value):
             value = None
         self.db.execute("INSERT OR IGNORE INTO measurements(boot,seq,ieee,endpoint,cluster,attribute,received,value,unit) "
@@ -242,6 +246,8 @@ class DashboardStore(SignalStore, ProfilesStore):
             for d in self.snapshot():
                 from .sensors import device_model
                 model_profile=device_model(d,self._model_hint(d["ieee"]))
+                from .plugs import identified,MODEL
+                if identified(d):model_profile=MODEL
                 setting = config["devices"][d["ieee"]]
                 measurements = []
                 endpoints = set(map(int, d["endpoints"])) | {a["endpoint"] for a in d["attributes"].values()}
@@ -260,6 +266,7 @@ class DashboardStore(SignalStore, ProfilesStore):
                     "location_id": d["location_id"], "registered": d.get("active", False),
                     "discovery": "partial" if d["endpoints"] else "unknown", "freshness_seconds": setting["freshness_seconds"],
                     "measurements": measurements, "profile": model_profile or None,
+                    "plug": self.plug_details(d),
                     "signal": self.signal_view(d["ieee"], setting["freshness_seconds"], now)})
             return {"devices": views}
 

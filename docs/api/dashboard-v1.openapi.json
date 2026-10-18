@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard API",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "description": "Implemented v1 API. Additive response fields are allowed. Proposed dashboard configuration APIs are documented separately."
   },
   "servers": [
@@ -578,6 +578,9 @@
           "reporting_commissioning": {
             "type": "boolean"
           },
+          "plug_extensions": {
+            "type": "boolean"
+          },
           "sensor_extensions": {
             "type": "boolean"
           },
@@ -781,6 +784,10 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 65535
+          },
+          "raw_hex": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{0,58}$"
           },
           "data_type": {
             "type": "integer",
@@ -1077,7 +1084,7 @@
         "type": "object",
         "properties": {
           "api_version": {
-            "const": "1.6.0"
+            "const": "1.7.0"
           },
           "gateway_api_version": {
             "const": "1"

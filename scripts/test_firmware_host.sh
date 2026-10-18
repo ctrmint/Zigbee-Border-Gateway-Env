@@ -23,3 +23,7 @@ cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \
   -I"$root/firmware/main" "$root/tests/firmware_network.c" -o "$test_dir/network"
 "$test_dir/network"
 echo 'Firmware continuous network recovery policy tests passed.'
+cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \
+  -I"$root/firmware/main" "$root/tests/firmware_plug.c" -o "$test_dir/plug"
+"$test_dir/plug"
+echo 'Firmware S60ZBTPG payload and reporting policy tests passed.'

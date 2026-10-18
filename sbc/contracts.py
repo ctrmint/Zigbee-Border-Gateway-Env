@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .core import OPS
 
-CONTRACT_VERSION = "1.6.0"
+CONTRACT_VERSION = "1.7.0"
 
 
 def ref(name):
@@ -53,6 +53,17 @@ def schemas(strict_commands):
             if op == "on_off":
                 fields["state"] = {"type": "boolean"}
         commands.append(obj(fields, fields, additionalProperties=not strict_commands))
+    if not strict_commands:
+        from .plugs import READS,WRITES,REPORTS
+        base={'ieee':ieee,'endpoint':integer(1,240),'request_id':{'type':'string','pattern':'^[0-9a-f-]{36}$'}}
+        for op in ('plug_read','plug_write','plug_relay','plug_inching','plug_bind','plug_configure','plug_read_reporting'):
+            keys=READS if op=='plug_read' else WRITES if op=='plug_write' else REPORTS if op in ('plug_configure','plug_read_reporting') else [(6,0),(1794,0),(64529,0)] if op=='plug_bind' else [(6,0)] if op=='plug_relay' else [(64529,0)]
+            if op=='plug_write':keys=[*keys,(64529,0x7003)]
+            for c,a in keys:
+                f=dict(base,op={'const':op},cluster={'const':c},attribute={'const':a})
+                if op in ('plug_inching','plug_write') and (op=='plug_inching' or a==0x7003):f['payload']={'type':'string','pattern':'^[0-9a-f]{'+('22' if op=='plug_inching' else '26,58')+'}$','description':'Validated model-specific payload; no arbitrary vendor writes.'}
+                elif op in ('plug_write','plug_relay'):f['value']={'enum':[0,1,2,255] if a==0x4003 else [0,1]}
+                commands.append(obj(f,f,additionalProperties=False))
     return {
         "Command": {"oneOf": commands, "description": "A request is at most 512 UTF-8 bytes. 202 confirms stack acceptance only."},
         "CommandResult": obj({"accepted": {"type": "boolean"}, "stack_result": {"type": "integer"}}, ("accepted", "stack_result")),
@@ -61,7 +72,7 @@ def schemas(strict_commands):
         "Registry": obj({"boot_id": {"type": "string"}, "devices": array(ref("RegistryDevice"), maxItems=50)}, ("boot_id", "devices")),
         "Event": obj({**base_event,
             "endpoint": integer(1, 240), "cluster": integer(0, 65535), "attribute": integer(0, 65535),
-            "data_type": integer(0, 255), "raw": {"type": ["number", "string", "boolean", "null"]},
+            "raw_hex":{"type":"string","pattern":"^[0-9a-f]{0,58}$"},"data_type": integer(0, 255), "raw": {"type": ["number", "string", "boolean", "null"]},
             "rssi": {"type": "integer"}, "ok": {"type": "boolean"},
             "profile_id": integer(0, 65535), "device_id": integer(0, 65535),
             "input_clusters": array(integer(0, 65535)), "output_clusters": array(integer(0, 65535)),
@@ -86,14 +97,14 @@ def schemas(strict_commands):
             "events": array(ref("Event"), maxItems=16), "next_seq": integer(), "latest_seq": integer()},
             ("boot_id", "gap", "events", "next_seq", "latest_seq")),
         "Health": obj({"gateway_id":{"type":"string","pattern":"^[0-9a-f]{12}$"},"network":{"type":"object","description":"Wi-Fi recovery counters, link/IP/API state, backoff/progress times, disconnect/reboot reasons and opt-in test state. No credentials."},"boot_id": {"type": "string"}, "ready": {"type": "boolean"},
-            "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"},"sensor_extensions":{"type":"boolean"},"time_server_valid":{"type":"boolean"}, "join_seconds": integer(0, 180),
+            "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"},"plug_extensions":{"type":"boolean"},"sensor_extensions":{"type":"boolean"},"time_server_valid":{"type":"boolean"}, "join_seconds": integer(0, 180),
             "latest_seq": integer(), "dropped_events": integer(), "uptime_ms": integer(),
             "pan_id": integer(0, 65535), "channel": dict(integer(0, 26), description="Zero before formation; 11–26 when ready.")},
             ("boot_id", "ready", "mode", "join_seconds", "latest_seq", "dropped_events")),
         "GatewayStatus": obj({"gateway_id":{"type":"string"},"network":{"type":"object"},"connected": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "gap": {"type": "boolean"}, "last_poll": timestamp,
             "boot_id": {"type": "string"}, "ready": {"type": "boolean"},
-                "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"},"sensor_extensions":{"type":"boolean"},"time_server_valid":{"type":"boolean"}, "join_seconds": integer(0, 180),
+                "mode": {"enum": ["hardware", "simulator"]}, "reporting_commissioning":{"type":"boolean"},"plug_extensions":{"type":"boolean"},"sensor_extensions":{"type":"boolean"},"time_server_valid":{"type":"boolean"}, "join_seconds": integer(0, 180),
                 "latest_seq": integer(), "dropped_events": integer(), "uptime_ms": integer(),
                 "pan_id": integer(0, 65535), "channel": integer(0, 26)}, ("connected", "error", "gap")),
         "Endpoint": obj({"profile_id": integer(0, 65535), "device_id": integer(0, 65535),

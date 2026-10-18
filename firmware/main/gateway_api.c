@@ -94,7 +94,17 @@ static void simple_cb(const ezb_zdo_simple_desc_req_result_t *res,void *ctx)
         for(int i=0;i<d->app_input_cluster_count;i++) cJSON_AddItemToArray(in,cJSON_CreateNumber(d->app_cluster_list[i]));
         for(int i=0;i<d->app_output_cluster_count;i++) cJSON_AddItemToArray(out,cJSON_CreateNumber(d->app_cluster_list[d->app_input_cluster_count+i]));
     }
-    gateway_emit(o); free(req);
+    gateway_emit(o);
+    if(ok){
+        ezb_af_simple_desc_t *d=&res->rsp->desc;bool basic=false;
+        for(int i=0;i<d->app_input_cluster_count;i++)if(d->app_cluster_list[i]==0)basic=true;
+        if(basic){
+            uint16_t ids[]={4,5,0x4000};
+            ezb_zcl_read_attr_cmd_t cmd={.cmd_ctrl={.dst_addr={.addr_mode=EZB_ADDR_MODE_SHORT,.u.short_addr=req->dst_nwk_addr},.dst_ep=req->field.endpoint,.src_ep=10,.cluster_id=0},.payload={.attr_number=3,.attr_field=ids}};
+            ezb_zcl_read_attr_cmd_req(&cmd);
+        }
+    }
+    free(req);
 }
 static void active_cb(const ezb_zdo_active_ep_req_result_t *res,void *ctx)
 {
@@ -117,6 +127,7 @@ static ezb_err_t discover(uint16_t nwk)
 }
 void gateway_announce(const ezb_zdo_signal_device_annce_params_t *p)
 {
+    gateway_plug_forget(p->short_addr);
     xSemaphoreTake(mutex,portMAX_DELAY);
     int slot=-1;
     for(int i=0;i<MAX_DEVICES;i++) if(devices[i].used && devices[i].ieee==p->device_addr.u64){slot=i;break;}
@@ -134,6 +145,7 @@ void gateway_announce(const ezb_zdo_signal_device_annce_params_t *p)
 }
 void gateway_leave(uint16_t nwk)
 {
+    gateway_plug_forget(nwk);
     gateway_emit(event("leave",nwk));
     xSemaphoreTake(mutex,portMAX_DELAY);
     for(int i=0;i<MAX_DEVICES;i++) if(devices[i].used && devices[i].nwk==nwk) devices[i].active=false;
@@ -142,6 +154,7 @@ void gateway_leave(uint16_t nwk)
 static void attribute(const ezb_zcl_cmd_hdr_t *h,uint16_t id,uint8_t type,void *value,const char *origin)
 {
     if(!h || !value || h->src_addr.addr_mode!=EZB_ADDR_MODE_SHORT) return;
+    if(h->cluster_id==0)gateway_plug_observe(h->src_addr.u.short_addr,h->src_ep,id,type,value);
     cJSON *o=event("attribute",h->src_addr.u.short_addr);
     cJSON_AddNumberToObject(o,"endpoint",h->src_ep); cJSON_AddNumberToObject(o,"cluster",h->cluster_id);
     cJSON_AddNumberToObject(o,"attribute",id); cJSON_AddNumberToObject(o,"data_type",type);
@@ -152,13 +165,18 @@ static void attribute(const ezb_zcl_cmd_hdr_t *h,uint16_t id,uint8_t type,void *
     switch(type){
     case 0x10: case 0x18: case 0x20: case 0x30: v=*(uint8_t*)value; break;
     case 0x19: case 0x21: case 0x31: {uint16_t x;memcpy(&x,value,2);v=x;} break;
+    case 0x22: {uint8_t *b=value;v=(uint32_t)b[0]|((uint32_t)b[1]<<8)|((uint32_t)b[2]<<16);break;}
+    case 0x25: {uint64_t x=0;memcpy(&x,value,6);v=(double)x;break;}
     case 0x23: {uint32_t x;memcpy(&x,value,4);v=x;} break;
     case 0x28: v=*(int8_t*)value; break;
     case 0x29: {int16_t x;memcpy(&x,value,2);v=x;} break;
     case 0x2b: {int32_t x;memcpy(&x,value,4);v=x;} break;
     case 0x42: {
         unsigned n=*(uint8_t*)value;
-        if(n!=255){char s[256];memcpy(s,(uint8_t*)value+1,n);s[n]=0;cJSON_AddStringToObject(o,"raw",s);}
+        if(n!=255){
+            if(h->cluster_id==0xfc11&&id==0x7003){char hex[59];if(n<=29){for(unsigned k=0;k<n;k++)snprintf(hex+2*k,3,"%02x",((uint8_t*)value)[k+1]);hex[2*n]=0;cJSON_AddStringToObject(o,"raw_hex",hex);}}
+            else {char s[256];memcpy(s,(uint8_t*)value+1,n);s[n]=0;cJSON_AddStringToObject(o,"raw",s);}
+        }
         numeric=false;break;
     }
     default: numeric=false; cJSON_AddBoolToObject(o,"unsupported_type",true);break;
@@ -224,7 +242,7 @@ static esp_err_t handle_get(httpd_req_t *req)
         cJSON_AddNumberToObject(o,"uptime_ms",esp_timer_get_time()/1000);
         cJSON_AddNumberToObject(o,"join_seconds",join_until>esp_timer_get_time()?(join_until-esp_timer_get_time())/1000000:0);
         cJSON_AddNumberToObject(o,"pan_id",pan_id);cJSON_AddNumberToObject(o,"channel",channel);
-        cJSON_AddBoolToObject(o,"reporting_commissioning",true);cJSON_AddBoolToObject(o,"sensor_extensions",true);cJSON_AddBoolToObject(o,"time_server_valid",gateway_clock_is_valid());cJSON_AddNumberToObject(o,"dropped_events",dropped);cJSON_AddNumberToObject(o,"latest_seq",seq);
+        cJSON_AddBoolToObject(o,"plug_extensions",true);cJSON_AddBoolToObject(o,"reporting_commissioning",true);cJSON_AddBoolToObject(o,"sensor_extensions",true);cJSON_AddBoolToObject(o,"time_server_valid",gateway_clock_is_valid());cJSON_AddNumberToObject(o,"dropped_events",dropped);cJSON_AddNumberToObject(o,"latest_seq",seq);
         gateway_network_health(o);
     }else if(inventory){
         cJSON *a=cJSON_AddArrayToObject(o,"devices");
