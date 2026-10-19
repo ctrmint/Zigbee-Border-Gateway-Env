@@ -1,3 +1,5 @@
+import AppearanceEditor from "./AppearanceEditor.jsx";
+import { presentationCSS, seriesColor, metricStyle } from "./presentation.js";
 import React, { useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -41,7 +43,8 @@ import {
 import "@mantine/core/styles.css";
 import "./style.css";
 import Grid from "./Grid.jsx";
-import Location from "./Location.jsx";
+import Location, { useHistories } from "./Location.jsx";
+import { geometry, historyKey } from "./history.js";
 const Setup = React.lazy(() => import("./Setup.jsx"));
 import useDashboard from "./useDashboard.js";
 import {
@@ -68,7 +71,7 @@ const theme = createTheme({
     Select: { defaultProps: { allowDeselect: false } },
   },
 });
-function Tile({ device, locations, units, editing = false }) {
+function Tile({ device, locations, units, layout, history, editing = false }) {
   if (!device) return null; // A departed tile can be removed during the next grid layout effect.
   const location =
     locations.find((l) => l.id === device.location_id)?.name || "Unassigned";
@@ -85,6 +88,7 @@ function Tile({ device, locations, units, editing = false }) {
       className={`reading-card ${device.plug ? "plug-card" : ""}`}
       data-sensor-id={device.ieee}
       aria-label={device.name}
+      style={presentationCSS(layout, "all", device.ieee)}
     >
       <header className="reading-header">
         <div className="device-icon">
@@ -116,8 +120,9 @@ function Tile({ device, locations, units, editing = false }) {
           return (
             <div
               key={`${m.endpoint}:${m.cluster}:${m.attribute}`}
-              className={`measurement ${value.value.length > 9 ? "measurement-wide" : ""} ${q !== "valid" ? "measurement-warning" : ""}`}
+              className={`measurement ${device.plug && !["W", "on/off"].includes(m.unit) ? "measurement-secondary" : ""} ${value.value.length > 9 ? "measurement-wide" : ""} ${q !== "valid" ? "measurement-warning" : ""}`}
               data-quality={q}
+              style={{ "--series-color": seriesColor(m.cluster, m.attribute) }}
             >
               <dt>
                 {m.label}
@@ -137,6 +142,7 @@ function Tile({ device, locations, units, editing = false }) {
           );
         })}
       </dl>
+      {history && <MiniTrend history={history} units={units} />}
       {!main.length && (
         <p className="no-reading">Waiting for supported readings.</p>
       )}
@@ -168,10 +174,35 @@ function Tile({ device, locations, units, editing = false }) {
     </article>
   );
 }
+function MiniTrend({ history, units }) {
+  const plot = !history.error && geometry(history, units === "fahrenheit");
+  if (!plot) return null;
+  return (
+    <div
+      className="mini-trend"
+      style={{ "--series-color": seriesColor(history.cluster) }}
+    >
+      <svg
+        viewBox="48 20 496 164"
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="Recent recorded trend"
+      >
+        <path d={plot.path} className="history-line" />
+      </svg>
+      <p>
+        {history.metricLabel} · recent hour
+        {history.truncated ? " · sample limit reached" : ""}
+        {history.gaps.length ? " · recording gaps" : ""}
+      </p>
+    </div>
+  );
+}
 function App() {
   const api = useDashboard(),
     { snapshot, profile } = api;
-  const [password, setPassword] = useState(""),
+  const [locationEditing, setLocationEditing] = useState(false),
+    [password, setPassword] = useState(""),
     [page, setPage] = useState("all"),
     [draft, setDraft] = useState(null),
     [base, setBase] = useState(null),
@@ -181,6 +212,17 @@ function App() {
     [selected, setSelected] = useState(""),
     [screen, setScreen] = useState(() => breakpointFor(window.innerWidth)),
     [editScreen, setEditScreen] = useState("desktop");
+  const hasEdits = !!draft || locationEditing;
+  useEffect(() => {
+    const warn = (e) => {
+      if (hasEdits) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasEdits]);
   const configuration = snapshot?.configuration?.data,
     preferences = configuration?.dashboard;
   const settings = preferences?.grid_layout || emptyLayout(),
@@ -189,6 +231,55 @@ function App() {
     () => eligible(snapshot?.devices || [], snapshot?.state.devices || []),
     [snapshot?.devices, snapshot?.state.devices],
   );
+  const trendWidgets = useMemo(
+    () =>
+      page === "all" || page === "editor"
+        ? devices
+            .slice(0, 50)
+            .filter((d) => metricStyle(draft || settings, "all", d.ieee).trend)
+            .flatMap((d) => {
+              const m =
+                d.measurements.find((m) => m.cluster === 1026) ||
+                d.measurements.find(
+                  (m) => m.cluster !== 1 && typeof m.value === "number",
+                );
+              return m
+                ? [
+                    {
+                      id: d.ieee,
+                      type: "chart",
+                      sparkline: true,
+                      title: m.label,
+                      source: {
+                        ieee: d.ieee,
+                        endpoint: m.endpoint,
+                        cluster: m.cluster,
+                        attribute: m.attribute,
+                      },
+                      time_range: 3600,
+                    },
+                  ]
+                : [];
+            })
+        : [],
+    [devices, page, draft, settings],
+  );
+  const trends = useHistories(
+    trendWidgets,
+    snapshot?.devices || [],
+    api.request,
+    snapshot?.fetched,
+  );
+  const trendFor = (id) => {
+    const w = trendWidgets.find((w) => w.id === id);
+    return w && trends[historyKey(w)]
+      ? {
+          ...trends[historyKey(w)],
+          metricLabel: w.title,
+          cluster: w.source.cluster,
+        }
+      : null;
+  };
   const legacy = preferences?.all_layout || {
     columns: 0,
     min_tile_width: 240,
@@ -248,7 +339,7 @@ function App() {
     setSaveError("");
     try {
       const latest = reapply ? await api.reload() : base;
-      await api.saveGrid(draft, latest);
+      await api.saveGrid(draft, latest, base);
       discard();
     } catch (e) {
       if (e.name !== "AbortError")
@@ -287,7 +378,7 @@ function App() {
             className="brand"
             onClick={(e) => {
               e.preventDefault();
-              if (draft) setConfirm(() => discard);
+              if (hasEdits) setConfirm(() => discard);
               else setPage("all");
             }}
           >
@@ -295,7 +386,7 @@ function App() {
               <House size={20} />
             </span>
             <span>
-              habitat<span className="brand-subtitle">ZIGBEE HOME</span>
+              observatory<span className="brand-subtitle">ZIGBEE HOME</span>
             </span>
           </a>
           <Group gap="md" className="topbar-right">
@@ -311,7 +402,7 @@ function App() {
                 }
                 value={profile}
                 onChange={(id) => {
-                  if (draft) setConfirm(() => () => api.chooseProfile(id));
+                  if (hasEdits) setConfirm(() => () => api.chooseProfile(id));
                   else api.chooseProfile(id);
                 }}
                 leftSection={
@@ -384,13 +475,13 @@ function App() {
             <>
               <div className="page-heading">
                 <div>
-                  <Text className="eyebrow">YOUR CONNECTED SPACES</Text>
+                  <Text className="eyebrow">HOME OBSERVATORY</Text>
                   <h1>
                     {preferences.title}
                     <span className="heading-period">.</span>
                   </h1>
                   <Text className="heading-description">
-                    A little closer to every corner of your home.
+                    Environment / Energy / Live telemetry
                   </Text>
                 </div>
                 <div className="gateway-status">
@@ -419,10 +510,12 @@ function App() {
               <nav className="navigation" aria-label="Dashboard sections">
                 <div className="location-navigation">
                   <button
-                    className={page === "all" ? "selected" : ""}
+                    className={
+                      page === "all" || page === "editor" ? "selected" : ""
+                    }
                     aria-current={page === "all" ? "page" : undefined}
                     onClick={() =>
-                      draft ? setConfirm(() => discard) : setPage("all")
+                      hasEdits ? setConfirm(() => discard) : setPage("all")
                     }
                   >
                     <LayoutGrid size={16} />
@@ -440,7 +533,7 @@ function App() {
                           discard();
                           setPage("location:" + l.id);
                         };
-                        if (draft) setConfirm(() => navigate);
+                        if (hasEdits) setConfirm(() => navigate);
                         else setPage("location:" + l.id);
                       }}
                     >
@@ -450,11 +543,16 @@ function App() {
                 </div>
                 <button
                   className={
-                    page === "setup" || page === "editor"
-                      ? "selected setup-tab"
-                      : "setup-tab"
+                    page === "setup" ? "selected setup-tab" : "setup-tab"
                   }
-                  onClick={() => (draft ? setPage("editor") : setPage("setup"))}
+                  onClick={() => {
+                    const go = () => {
+                      discard();
+                      setPage("setup");
+                    };
+                    if (hasEdits) setConfirm(() => go);
+                    else go();
+                  }}
                 >
                   <SlidersHorizontal size={16} />
                   <span>Configuration & Setup</span>
@@ -476,8 +574,13 @@ function App() {
                 <section id="all-overview" aria-label="All sensors">
                   <div className="overview-heading">
                     <div>
-                      <h2>Every space, at a glance</h2>
-                      <p>Latest received readings. No device actions.</p>
+                      <h2>Live overview</h2>
+                      <p>
+                        Environmental sensors & energy · latest received values
+                      </p>
+                      <Button variant="light" mt="sm" onClick={begin}>
+                        Edit layout
+                      </Button>
                     </div>
                     <div className="overview-count">
                       <span>{String(devices.length).padStart(2, "0")}</span>
@@ -518,6 +621,8 @@ function App() {
                           device={devices.find((d) => d.ieee === id)}
                           locations={configuration.locations}
                           units={preferences.temperature_unit}
+                          layout={draft || settings}
+                          history={trendFor(id)}
                         />
                       )}
                     />
@@ -526,6 +631,7 @@ function App() {
               )}
               {currentLocation && (
                 <Location
+                  onEditingChange={setLocationEditing}
                   key={profile + ":" + currentLocation.id}
                   location={currentLocation}
                   configuration={configuration}
@@ -540,6 +646,7 @@ function App() {
                       device={device}
                       locations={configuration.locations}
                       units={preferences.temperature_unit}
+                      layout={draft || settings}
                     />
                   )}
                 />
@@ -554,7 +661,7 @@ function App() {
                   <div className="editor-heading">
                     <div>
                       <Text className="eyebrow">YOUR VIEW · {profileName}</Text>
-                      <h2>Make room for what matters.</h2>
+                      <h2>Edit All dashboard</h2>
                       <p>
                         Drag using the grip, resize from a corner, or use the
                         numbered controls. Changes stay here until you save.
@@ -663,6 +770,16 @@ function App() {
                       to make room.
                     </Text>
                   </Paper>
+                  {chosen && (
+                    <AppearanceEditor
+                      layout={draft}
+                      kind="all"
+                      id={chosen.id}
+                      onChange={(presentation) =>
+                        setDraft((d) => ({ ...d, presentation }))
+                      }
+                    />
+                  )}
                   <Text size="sm" c="dimmed" mb="sm">
                     Editing {mode} · {breakpoints[mode]} column
                     {breakpoints[mode] > 1 ? "s" : ""}. Viewing a different
@@ -679,6 +796,8 @@ function App() {
                         device={devices.find((d) => d.ieee === id)}
                         locations={configuration.locations}
                         units={preferences.temperature_unit}
+                        layout={draft || settings}
+                        history={trendFor(id)}
                         editing
                       />
                     )}
@@ -733,7 +852,8 @@ function App() {
               )}
               <footer className="page-footer">
                 <span>
-                  <Radio size={14} /> Local readings. A clearer perspective.
+                  <Radio size={14} /> Local telemetry · recorded on your
+                  Raspberry Pi.
                 </span>
                 <div>
                   <Text size="xs">
@@ -745,7 +865,7 @@ function App() {
                     size="compact-xs"
                     leftSection={<LogOut size={13} />}
                     onClick={() =>
-                      draft
+                      hasEdits
                         ? setConfirm(() => api.disconnect)
                         : api.disconnect()
                     }
@@ -764,7 +884,7 @@ function App() {
           centered
         >
           <Text size="sm" mb="lg">
-            {draft
+            {hasEdits
               ? "Unsaved layout changes will be discarded."
               : "Continue to the selected view."}
           </Text>

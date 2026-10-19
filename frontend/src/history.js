@@ -20,7 +20,11 @@ export function geometry(data, fahrenheit = false, isState = false) {
   const number = (p) =>
     Number(fahrenheit && p.unit === "°C" ? (p.value * 9) / 5 + 32 : p.value);
   const valid = data.items.filter(
-    (p) => p.value !== null && p.value !== undefined,
+    (p) =>
+      p.value !== null &&
+      p.value !== undefined &&
+      p.quality !== "invalid" &&
+      Number.isFinite(Number(p.value)),
   );
   if (!valid.length) return null;
   const values = valid.map(number);
@@ -42,7 +46,12 @@ export function geometry(data, fahrenheit = false, isState = false) {
   let previous = null,
     path = "";
   for (const p of data.items) {
-    if (p.value === null || p.value === undefined) {
+    if (
+      p.value === null ||
+      p.value === undefined ||
+      p.quality === "invalid" ||
+      !Number.isFinite(Number(p.value))
+    ) {
       previous = null;
       continue;
     }
@@ -59,4 +68,25 @@ export function geometry(data, fahrenheit = false, isState = false) {
     previous = p;
   }
   return { path, x, y, low, high, valid, number };
+}
+
+// Close each contiguous segment separately so fills never bridge recorded gaps.
+export function areaPath(path) {
+  return path
+    .split("M")
+    .filter(Boolean)
+    .map((segment) => {
+      const points = [...segment.matchAll(/(?:^|L)([\d.-]+),([\d.-]+)/g)];
+      if (points.length < 2 || /[HV]/.test(segment)) return "";
+      return (
+        "M" +
+        segment +
+        "L" +
+        points.at(-1)[1] +
+        ",180L" +
+        points[0][1] +
+        ",180Z"
+      );
+    })
+    .join("");
 }

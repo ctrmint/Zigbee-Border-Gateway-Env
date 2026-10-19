@@ -1,6 +1,6 @@
 # All overview
 
-After connecting with your dashboard token, select **All** at the left of the tab bar. It shows automatically generated tiles for registered sensors and identified S60ZBTPG metering plugs, including devices without a location. Location tabs remain available and Configuration & Setup stays on the right. Login still opens the first saved location, or Setup when no locations exist.
+After connecting with your dashboard token, select **All** at the left of the tab bar. It shows automatically generated tiles for registered sensors and identified S60ZBTPG metering plugs, including devices without a location. Location tabs remain available and Configuration & Setup stays on the right. Connection opens All; Configuration & Setup is not the default.
 
 Tiles contain data only: the sensor name, location, supported readings, units and the age/status of each reading. There are no tile controls, links, editing actions or radio-read buttons. Manage names, locations, units and freshness in Setup; existing location widgets remain independently configurable.
 
@@ -12,9 +12,11 @@ The overview uses the full available width, a compact header and a responsive ti
 
 ## Validation
 
-Automated Chromium coverage includes mixed capabilities, unassigned sensors, multiple endpoints, unknown/missing/invalid values, battery warnings, offline/API failure and recovery, logout, data-only markup, no extra command/history requests, stable tiles/scroll, long names, 31 sensors and viewport widths 390/507/768/1024/1180 pixels. Layout is also checked at 200% page zoom. The full existing dashboard browser suite is retained.
+Automated Chromium coverage includes mixed capabilities, unassigned sensors, multiple endpoints, unknown/missing/invalid values, battery warnings, offline/API failure and recovery, logout, data-only markup, no extra command requests (the new panel design optionally queries bounded stored-history sparklines), stable tiles/scroll, long names, 31 sensors and viewport widths 390/507/768/1024/1180 pixels. Layout is also checked at 200% page zoom. The full existing dashboard browser suite is retained.
 
 The user confirmed physical iPad acceptance, recorded in closed [#18](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/18) and subsequent layout [#25](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/25). Model, iPadOS/Safari versions and individual interaction results were not supplied; no additional checks are inferred. New S60ZBTPG tile/control acceptance on physical Safari remains part of #27; its three WebKit iPad-emulation cases are separate evidence.
+
+For the current React interface, see [appearance and editing](DASHBOARD_APPEARANCE.md), including saved typography, scaling, Edit layout and optional sparklines. The original acceptance below predates this redesign.
 
 ## Deployment and rollback
 

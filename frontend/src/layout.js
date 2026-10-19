@@ -1,7 +1,8 @@
+import { mergePresentation } from "./presentation.js";
 export const breakpoints = { desktop: 12, tablet: 6, mobile: 1 };
 export const emptyLayout = () => ({
   version: 1,
-  theme: "light",
+  theme: "dark",
   all: { desktop: [], tablet: [], mobile: [] },
   locations: {},
 });
@@ -159,7 +160,7 @@ export function widgetLayout(widgets, saved, breakpoint) {
         x: 0,
         y: 0,
         w: breakpoint === "mobile" ? 1 : cols / 2,
-        h: w.type === "chart" ? 6 : 4,
+        h: w.type === "chart" ? 8 : 4,
       };
       while (result.some((a) => overlaps(n, a))) {
         n.x += n.w;
@@ -173,10 +174,30 @@ export function widgetLayout(widgets, saved, breakpoint) {
   return result;
 }
 
-export function mergeAllLayout(current, edited) {
+export function mergeAllLayout(current, edited, before) {
   return {
     ...(current || emptyLayout()),
-    all: edited.all,
-    theme: edited.theme,
+    all: before
+      ? Object.fromEntries(
+          Object.keys(breakpoints).map((key) => [
+            key,
+            JSON.stringify(before.all?.[key] || []) ===
+            JSON.stringify(edited.all[key])
+              ? current?.all?.[key] || []
+              : edited.all[key],
+          ]),
+        )
+      : edited.all,
+    theme:
+      before && before.theme === edited.theme ? current.theme : edited.theme,
+    ...(edited.presentation
+      ? {
+          presentation: mergePresentation(
+            current?.presentation,
+            before?.presentation,
+            edited.presentation,
+          ),
+        }
+      : {}),
   };
 }
