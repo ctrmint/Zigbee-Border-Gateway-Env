@@ -2,6 +2,8 @@
 
 The Observatory dashboard uses React, Mantine and GridStack with the existing Python API and SQLite database. Its vivid monitoring-panel design takes inspiration from the [AlexNAS showcase](https://www.reddit.com/r/grafana/comments/g357u1/a_lot_of_people_have_been_showing_off_their/), [Aquamarine theme](https://docs.theme-park.dev/themes/grafana/) and Grafana stat/time-series panel patterns. Grafana is not installed, embedded or required. All assets stay local; no remote font service is used.
 
+Connected pages keep the gateway state, registered-device count and selected profile in the top banner. The former page-title and tagline block is removed so the navigation and dashboard content begin higher on screen; the token-entry screen is unchanged.
+
 ## Editing a dashboard
 
 Choose **Edit layout** on All or a location. Drag by the grip, resize from the bottom-right corner, or select a tile and enter column, row, width and height. Coordinates start at zero; neighbouring tiles move down to make room. Choose Desktop, Tablet or Phone to edit that screen's layout independently. Normal viewing cannot drag or resize tiles. All tiles remain data-only; the editor action is in the page toolbar.
@@ -39,9 +41,9 @@ Dashboard v2 contract 2.10.0 adds optional `dashboard.grid_layout.presentation` 
 ```json
 {
   "version": 1,
-  "defaults": {"size": 44, "font": "system", "scale": 100, "color": "auto"},
-  "all": {"0123456789abcdef": {"size": 60, "trend": false}},
-  "widgets": {"room-temperature": {"font": "mono", "color": "#38cdec"}}
+  "defaults": { "size": 44, "font": "system", "scale": 100, "color": "auto" },
+  "all": { "0123456789abcdef": { "size": 60, "trend": false } },
+  "widgets": { "room-temperature": { "font": "mono", "color": "#38cdec" } }
 }
 ```
 

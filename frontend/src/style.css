@@ -101,37 +101,11 @@ body {
   margin: 0 auto;
   padding: 0 44px 28px;
 }
-.page-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  padding: 43px 0 30px;
-}
 .eyebrow {
   font-size: 10px !important;
   font-weight: 700;
   letter-spacing: 2px;
   color: var(--muted);
-}
-.page-heading h1 {
-  font-size: clamp(38px, 5vw, 60px);
-  font-weight: 600;
-  letter-spacing: -2.6px;
-  line-height: 1.1;
-  margin: 9px 0 12px;
-  overflow-wrap: anywhere;
-}
-.heading-period {
-  color: var(--accent);
-}
-.heading-description {
-  color: var(--muted);
-  font-size: 14px !important;
-}
-.gateway-status {
-  text-align: right;
-  flex-shrink: 0;
 }
 .live-dot {
   width: 6px;
@@ -618,9 +592,6 @@ body {
   .edition {
     display: none;
   }
-  .page-heading {
-    padding-top: 30px;
-  }
   .navigation {
     gap: 8px;
   }
@@ -673,22 +644,6 @@ body {
   }
   .page-wrap {
     padding: 0 14px 20px;
-  }
-  .page-heading {
-    padding-top: 28px;
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 20px;
-  }
-  .gateway-status {
-    text-align: left;
-  }
-  .gateway-status > p {
-    display: inline;
-    margin-left: 8px;
-  }
-  .heading-description {
-    font-size: 12px !important;
   }
   .navigation {
     margin-bottom: 25px;
@@ -1065,21 +1020,6 @@ summary {
   max-width: 1920px;
   padding: 0 24px 24px;
 }
-.page-heading {
-  padding: 22px 0 18px;
-}
-.page-heading h1 {
-  font-size: clamp(27px, 3vw, 38px);
-  letter-spacing: -1px;
-  margin: 5px 0 6px;
-}
-.heading-period {
-  display: none;
-}
-.heading-description {
-  font-size: 11px !important;
-  letter-spacing: 1px;
-}
 .eyebrow {
   font-size: 9px !important;
   letter-spacing: 1.8px;
@@ -1298,9 +1238,6 @@ summary {
   .topbar {
     padding: 0 16px;
   }
-  .page-heading {
-    padding-top: 20px;
-  }
 }
 @media (max-width: 550px) {
   .appearance-fields {
@@ -1308,9 +1245,6 @@ summary {
   }
   .page-wrap {
     padding: 0 12px 16px;
-  }
-  .page-heading {
-    gap: 12px;
   }
   .navigation {
     padding: 0 3px;
@@ -1363,4 +1297,86 @@ summary {
 .location-widget .history-summary,
 .location-widget > .mantine-Text-root {
   font-size: calc(11px * var(--content-scale, 1)) !important;
+}
+
+/* Keep connection context in the banner instead of a separate page heading. */
+.topbar {
+  height: auto;
+  min-height: 66px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.topbar-status {
+  min-width: 0;
+  gap: 10px;
+}
+.topbar-status .mantine-Badge-root {
+  flex-shrink: 0;
+}
+.topbar-status-summary {
+  white-space: nowrap;
+}
+.topbar-right {
+  flex-shrink: 0;
+}
+@media (max-width: 850px) {
+  .topbar {
+    gap: 12px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .topbar-status {
+    gap: 7px;
+  }
+  .topbar-status-summary {
+    font-size: 10px !important;
+  }
+}
+@media (max-width: 700px) {
+  .topbar {
+    min-height: 74px;
+    flex-wrap: wrap;
+    align-content: center;
+    row-gap: 5px;
+  }
+  .topbar > .brand {
+    order: 1;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .topbar-right {
+    order: 2;
+    margin-left: auto;
+  }
+  .topbar-status {
+    order: 3;
+    flex: 1 0 100%;
+  }
+}
+@media (max-width: 550px) {
+  .topbar {
+    min-height: 74px;
+    padding: 8px 18px;
+    column-gap: 8px;
+  }
+  .topbar-status-summary {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+@media (max-width: 360px) {
+  .topbar {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .topbar > .brand {
+    font-size: 19px;
+  }
+  .topbar .brand-mark {
+    width: 30px;
+    height: 30px;
+  }
+  .profile-selector {
+    width: 112px;
+  }
 }
