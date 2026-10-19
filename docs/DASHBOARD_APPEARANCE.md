@@ -57,4 +57,4 @@ These screenshots use synthetic devices and generated history, not household dat
 - [Location and history panels](images/dashboard-observatory-location.png)
 - [Tablet portrait layout](images/dashboard-observatory-tablet.png)
 
-The user accepted this build on 19 October 2026. It is deployed on the normal dashboard port **8080** with the existing token; the temporary review on 8081 is retired. Physical iPad checks and extended observation remain separately recorded in the issue checklists.
+The user accepted this build on 19 October 2026. It is deployed on the normal dashboard port **8080** with the existing token; the temporary review on 8081 is retired. The user confirmed on 19 October 2026 that physical iPad checks are complete and the dashboard works well. The model and Safari version were not recorded in this repository. Extended performance observation remains separately tracked in #40.

@@ -4,7 +4,7 @@
 
 The React dashboard is the primary interface at `/` on the existing Python service (normally port 8080). The old HTML/controller/CSS dashboard has been removed. `/next` and `/next/` redirect to `/` for older links; they do not host a second interface. The temporary port-8081 review service is stopped when this build is deployed.
 
-The user confirmed that the framework and location navigation work, and requested replacing the old dashboard. **The appearance was explicitly reported as too similar to the original.** This is functional migration acceptance, not visual acceptance. A distinctly new design is tracked in [#35](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/35). Full physical iPad Safari acceptance remains separate from automated WebKit checks.
+The user confirmed that the framework and location navigation work, and requested replacing the old dashboard. **The appearance was explicitly reported as too similar to the original.** This is functional migration acceptance, not visual acceptance. A distinctly new design is tracked in [#35](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/35). The user later accepted the redesigned build and confirmed physical iPad checks are complete; see the dated note in [dashboard appearance](DASHBOARD_APPEARANCE.md). Automated WebKit emulation remains distinct from that physical-device report.
 
 All remains a compact data-only overview with temperature/humidity, battery, plug telemetry, metric age/quality and coordinator-reception RSSI. Location tabs show saved numeric/chart widgets in position order, or assigned-device readings when the profile has no widgets. Setup stays right, locations left and profile selection top right. All is the initial view after connecting.
 
