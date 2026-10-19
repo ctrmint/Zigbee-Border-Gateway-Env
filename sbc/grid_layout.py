@@ -1,11 +1,11 @@
-"""Versioned preview layouts, projected without rewriting legacy preferences."""
+"""Versioned dashboard geometry and presentation preferences."""
 import re
 
 BREAKPOINTS = {'desktop': 12, 'tablet': 6, 'mobile': 1}
 
 
 def default_grid_layout():
-    return {'version': 1, 'theme': 'light', 'all': {key: [] for key in BREAKPOINTS}, 'locations': {}}
+    return {'version': 1, 'theme': 'dark', 'all': {key: [] for key in BREAKPOINTS}, 'locations': {}}
 
 
 def validate_grid_layout(value, current=None):
@@ -13,7 +13,7 @@ def validate_grid_layout(value, current=None):
     path = 'dashboard.grid_layout'
     def fail(message, suffix=''):
         raise DashboardError(message, path=path+suffix)
-    if not isinstance(value, dict) or not {'version', 'theme', 'all'} <= set(value) or set(value)-{'version','theme','all','locations'}:
+    if not isinstance(value, dict) or not {'version', 'theme', 'all'} <= set(value) or set(value)-{'version','theme','all','locations','presentation'}:
         fail('Provide version, theme and all layouts.')
     if type(value['version']) is not int or value['version'] != 1:
         fail('Unsupported grid layout version.', '.version')
@@ -51,4 +51,42 @@ def validate_grid_layout(value, current=None):
         if not isinstance(identity,str) or not re.fullmatch('[a-zA-Z0-9-]{1,64}',identity) or not isinstance(layouts,dict) or set(layouts)!=set(BREAKPOINTS):
             fail('Provide valid location IDs and all screen layouts.','.locations')
         result['locations'][identity]={key:validate_items(layouts[key],columns,'[a-z][a-z0-9-]{0,63}',100,'.locations.'+identity+'.'+key) for key,columns in BREAKPOINTS.items()}
+    if 'presentation' in value:
+        result['presentation'] = validate_presentation(value['presentation'])
+    elif current and 'presentation' in current:
+        result['presentation'] = current['presentation']
+    return result
+
+
+def validate_presentation(value):
+    """Profile defaults plus sparse tile/widget overrides; omission preserves old clients."""
+    import math
+    from .dashboard import DashboardError
+    def fail(message):
+        raise DashboardError(message, path='dashboard.grid_layout.presentation')
+    if not isinstance(value, dict) or set(value) != {'version', 'defaults', 'all', 'widgets'} or type(value['version']) is not int or value['version'] != 1:
+        fail('Provide presentation version 1, defaults, all and widgets.')
+    def style(v):
+        if not isinstance(v, dict) or set(v) - {'scale', 'size', 'font', 'color', 'trend'}:
+            fail('Use scale, size, font and color styling fields.')
+        for key, lower, upper in [('scale', 75, 150), ('size', 24, 96)]:
+            if key in v and (type(v[key]) not in (int, float) or not math.isfinite(v[key]) or not lower <= v[key] <= upper):
+                fail(f'{key} must be between {lower} and {upper}.')
+        if 'font' in v and v['font'] not in ('system', 'mono', 'serif', 'rounded'):
+            fail('Choose a supported local font.')
+        if 'color' in v and (not isinstance(v['color'], str) or not (v['color'] == 'auto' or re.fullmatch('#[0-9a-fA-F]{6}', v['color']))):
+            fail('Choose auto or a six-digit hex colour.')
+        if 'trend' in v and type(v['trend']) is not bool:
+            fail('Trend visibility must be a boolean.')
+        return dict(v)
+    result = {'version': 1, 'defaults': style(value['defaults'])}
+    for key, pattern, maximum in [('all', '[0-9a-f]{16}', 50), ('widgets', '[a-z][a-z0-9-]{0,63}', 100)]:
+        entries = value[key]
+        if not isinstance(entries, dict) or len(entries) > maximum:
+            fail(f'Use at most {maximum} {key} styles.')
+        result[key] = {}
+        for identity, settings in entries.items():
+            if not isinstance(identity, str) or not re.fullmatch(pattern, identity):
+                fail('Invalid styled tile ID.')
+            result[key][identity] = style(settings)
     return result

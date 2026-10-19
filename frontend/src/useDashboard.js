@@ -187,11 +187,12 @@ export default function useDashboard() {
     setSnapshot((s) => (s ? { ...s, configuration: result } : s));
     return result;
   }
-  async function saveGrid(settings, base) {
+  async function saveGrid(settings, base, original = base) {
     return updateConfiguration((body) => {
       body.dashboard.grid_layout = mergeAllLayout(
         body.dashboard.grid_layout,
         settings,
+        original?.data.dashboard.grid_layout,
       );
     }, base);
   }

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.9.0"
+    "version": "2.10.0"
   },
   "servers": [
     {
@@ -1382,6 +1382,131 @@
               "grid_layout": {
                 "type": "object",
                 "properties": {
+                  "presentation": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "const": 1
+                      },
+                      "defaults": {
+                        "type": "object",
+                        "properties": {
+                          "trend": {
+                            "type": "boolean"
+                          },
+                          "scale": {
+                            "type": "number",
+                            "minimum": 75,
+                            "maximum": 150
+                          },
+                          "size": {
+                            "type": "number",
+                            "minimum": 24,
+                            "maximum": 96
+                          },
+                          "font": {
+                            "enum": [
+                              "system",
+                              "mono",
+                              "serif",
+                              "rounded"
+                            ]
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^(auto|#[0-9a-fA-F]{6})$"
+                          }
+                        },
+                        "required": [],
+                        "additionalProperties": false
+                      },
+                      "all": {
+                        "type": "object",
+                        "maxProperties": 50,
+                        "propertyNames": {
+                          "pattern": "^[0-9a-f]{16}$"
+                        },
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "trend": {
+                              "type": "boolean"
+                            },
+                            "scale": {
+                              "type": "number",
+                              "minimum": 75,
+                              "maximum": 150
+                            },
+                            "size": {
+                              "type": "number",
+                              "minimum": 24,
+                              "maximum": 96
+                            },
+                            "font": {
+                              "enum": [
+                                "system",
+                                "mono",
+                                "serif",
+                                "rounded"
+                              ]
+                            },
+                            "color": {
+                              "type": "string",
+                              "pattern": "^(auto|#[0-9a-fA-F]{6})$"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        }
+                      },
+                      "widgets": {
+                        "type": "object",
+                        "maxProperties": 100,
+                        "propertyNames": {
+                          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                        },
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "trend": {
+                              "type": "boolean"
+                            },
+                            "scale": {
+                              "type": "number",
+                              "minimum": 75,
+                              "maximum": 150
+                            },
+                            "size": {
+                              "type": "number",
+                              "minimum": 24,
+                              "maximum": 96
+                            },
+                            "font": {
+                              "enum": [
+                                "system",
+                                "mono",
+                                "serif",
+                                "rounded"
+                              ]
+                            },
+                            "color": {
+                              "type": "string",
+                              "pattern": "^(auto|#[0-9a-fA-F]{6})$"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "defaults",
+                      "all",
+                      "widgets"
+                    ],
+                    "additionalProperties": false
+                  },
                   "version": {
                     "const": 1
                   },
@@ -1871,6 +1996,131 @@
               "grid_layout": {
                 "type": "object",
                 "properties": {
+                  "presentation": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "const": 1
+                      },
+                      "defaults": {
+                        "type": "object",
+                        "properties": {
+                          "trend": {
+                            "type": "boolean"
+                          },
+                          "scale": {
+                            "type": "number",
+                            "minimum": 75,
+                            "maximum": 150
+                          },
+                          "size": {
+                            "type": "number",
+                            "minimum": 24,
+                            "maximum": 96
+                          },
+                          "font": {
+                            "enum": [
+                              "system",
+                              "mono",
+                              "serif",
+                              "rounded"
+                            ]
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^(auto|#[0-9a-fA-F]{6})$"
+                          }
+                        },
+                        "required": [],
+                        "additionalProperties": false
+                      },
+                      "all": {
+                        "type": "object",
+                        "maxProperties": 50,
+                        "propertyNames": {
+                          "pattern": "^[0-9a-f]{16}$"
+                        },
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "trend": {
+                              "type": "boolean"
+                            },
+                            "scale": {
+                              "type": "number",
+                              "minimum": 75,
+                              "maximum": 150
+                            },
+                            "size": {
+                              "type": "number",
+                              "minimum": 24,
+                              "maximum": 96
+                            },
+                            "font": {
+                              "enum": [
+                                "system",
+                                "mono",
+                                "serif",
+                                "rounded"
+                              ]
+                            },
+                            "color": {
+                              "type": "string",
+                              "pattern": "^(auto|#[0-9a-fA-F]{6})$"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        }
+                      },
+                      "widgets": {
+                        "type": "object",
+                        "maxProperties": 100,
+                        "propertyNames": {
+                          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                        },
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "trend": {
+                              "type": "boolean"
+                            },
+                            "scale": {
+                              "type": "number",
+                              "minimum": 75,
+                              "maximum": 150
+                            },
+                            "size": {
+                              "type": "number",
+                              "minimum": 24,
+                              "maximum": 96
+                            },
+                            "font": {
+                              "enum": [
+                                "system",
+                                "mono",
+                                "serif",
+                                "rounded"
+                              ]
+                            },
+                            "color": {
+                              "type": "string",
+                              "pattern": "^(auto|#[0-9a-fA-F]{6})$"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "defaults",
+                      "all",
+                      "widgets"
+                    ],
+                    "additionalProperties": false
+                  },
                   "version": {
                     "const": 1
                   },

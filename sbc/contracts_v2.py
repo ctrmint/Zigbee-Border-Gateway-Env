@@ -28,7 +28,15 @@ def contract_v2():
         ("id","x","y","w","h"),additionalProperties=False)
     location_grid_item = obj({**grid_item['properties'],'id':{'type':'string','pattern':'^[a-z][a-z0-9-]{0,63}$'}},grid_item['required'],additionalProperties=False)
     location_grid = obj({key:array(obj({**location_grid_item['properties'],'x':integer(0,cols-1),'w':integer(1,cols)},location_grid_item['required'],additionalProperties=False),maxItems=100) for key,cols in BREAKPOINTS.items()},tuple(BREAKPOINTS),additionalProperties=False)
-    grid_layout = obj({"version":{"const":1},"theme":{"enum":["light","dark"]},"locations":{"type":"object","maxProperties":50,"propertyNames":{"pattern":"^[a-zA-Z0-9-]{1,64}$"},"additionalProperties":location_grid},
+    metric_style = obj({'trend':{'type':'boolean'},'scale': {'type':'number','minimum':75,'maximum':150},
+        'size': {'type':'number','minimum':24,'maximum':96},
+        'font': {'enum':['system','mono','serif','rounded']},
+        'color': {'type':'string','pattern':'^(auto|#[0-9a-fA-F]{6})$'}}, additionalProperties=False)
+    presentation = obj({'version': {'const':1}, 'defaults':metric_style,
+        'all': {'type':'object','maxProperties':50,'propertyNames':{'pattern':'^[0-9a-f]{16}$'},'additionalProperties':metric_style},
+        'widgets': {'type':'object','maxProperties':100,'propertyNames':{'pattern':'^[a-z][a-z0-9-]{0,63}$'},'additionalProperties':metric_style}},
+        ('version','defaults','all','widgets'), additionalProperties=False)
+    grid_layout = obj({"presentation":presentation,"version":{"const":1},"theme":{"enum":["light","dark"]},"locations":{"type":"object","maxProperties":50,"propertyNames":{"pattern":"^[a-zA-Z0-9-]{1,64}$"},"additionalProperties":location_grid},
         "all":obj({key:array(obj({**grid_item["properties"],"x":integer(0,cols-1),"w":integer(1,cols)},
             grid_item["required"],additionalProperties=False),maxItems=50) for key,cols in BREAKPOINTS.items()},
             tuple(BREAKPOINTS),additionalProperties=False)},("version","theme","all"),additionalProperties=False)
@@ -185,6 +193,6 @@ def contract_v2():
     paths['/api/v2/plug-profiles']={'get':{'operationId':'plug_capabilities','responses':{'200':response('Pinned model support and unresolved physical capabilities',ref('PlugProfiles')),'401':plug_errors['401']}}}
     paths['/api/v2/plugs']={'get':{'operationId':'plug_jobs','responses':{'200':response('Active jobs plus latest terminal jobs, at most 100 shared records; confirmed and uncertain states are distinct',ref('PlugJobs')),'401':plug_errors['401']}},
         'post':{'operationId':'request_plug_action','description':'Explicit operator action only. Writes submitted once; no optimistic relay state or uncertain replay. 202 is queued, not confirmed. Jobs/settings are shared across presentation profiles.','requestBody':{'required':True,'content':{'application/json':{'schema':ref('PlugInput')}}},'responses':{'202':response('Queued',ref('PlugJob')),'200':response('Cancelled; in-flight effects may remain',ref('PlugJob')),**plug_errors}}}
-    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.9.0"},
+    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.10.0"},
         "servers": [{"url": "/"}], "security": [{"bearerAuth": []}], "paths": paths,
         "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": definitions}}

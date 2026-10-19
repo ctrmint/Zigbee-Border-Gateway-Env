@@ -28,7 +28,7 @@ class DashboardTests(base.BrowserFixture):
 
     def test_render_responsive_readonly_no_commands(self):
         self.connect()
-        self.assertEqual(self.page.locator('#all-overview button,#all-overview a,#all-overview input').count(),0)
+        self.assertEqual(self.page.locator('.reading-card button,.reading-card a,.reading-card input').count(),0)
         for width,height in ((1440,1000),(1024,768),(768,1024),(390,844)):
             self.page.set_viewport_size(dict(width=width,height=height))
             expect(self.page.locator('.reading-card')).to_have_count(3)
@@ -37,7 +37,7 @@ class DashboardTests(base.BrowserFixture):
         self.page.set_viewport_size(dict(width=1440,height=1000))
         self.page.screenshot(path='/tmp/issue34-desktop.png',full_page=True)
         self.assertTrue(all(m=='GET' for m,u in self.sent))
-        self.assertFalse(any('/history' in u or '/commands' in u for _,u in self.sent))
+        self.assertFalse(any('/commands' in u for _,u in self.sent))
         self.assertEqual(self.errors,[])
 
     def test_save_keyboard_resize_theme_discard_and_reload(self):
@@ -141,7 +141,7 @@ class DashboardTests(base.BrowserFixture):
         expect(self.page.locator('#location-overview')).to_contain_text('20.5')
         expect(self.page.locator('#location-overview svg[role=img]')).to_have_count(2)
         self.assertEqual(self.page.url,url)
-        queries=[u for m,u in self.sent if '/api/v2/history?' in u]
+        queries=[u for m,u in self.sent if '/api/v2/history?' in u and 'limit=500' in u]
         self.assertEqual(len(queries),1)
         self.page.get_by_role('button',name='South',exact=True).click()
         expect(self.page.locator('#location-overview')).to_contain_text('SNZB-02UL')
@@ -150,7 +150,7 @@ class DashboardTests(base.BrowserFixture):
         self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
         self.page.get_by_role('button',name='All',exact=True).click()
         expect(self.page.locator('#all-overview')).to_be_visible()
-        count=len([u for m,u in self.sent if '/api/v2/history?' in u]);self.page.wait_for_timeout(4500)
+        self.page.wait_for_timeout(500);count=len([u for m,u in self.sent if '/api/v2/history?' in u]);self.page.wait_for_timeout(4500)
         self.assertEqual(len([u for m,u in self.sent if '/api/v2/history?' in u]),count)
         self.assertEqual(self.page.url,url)
         self.assertTrue(all(m=='GET' for m,u in self.sent));self.assertEqual(self.errors,[])
@@ -201,12 +201,12 @@ class DashboardTests(base.BrowserFixture):
         self.page.get_by_label('Widget title',exact=True).fill('New reading')
         self.page.get_by_role('button',name='Save widget',exact=True).click()
         expect(self.page.get_by_role('heading',name='New reading',exact=True)).to_be_visible()
-        self.page.get_by_role('button',name='Arrange widgets',exact=True).click()
+        self.page.get_by_role('button',name='Edit layout',exact=True).click()
         desktop=self.page.get_by_role('radio',name='Desktop',exact=True).get_attribute('id')
         self.page.locator('label[for="'+desktop+'"]').click()
         self.page.get_by_label('Width',exact=True).fill('3')
         self.page.get_by_role('button',name='Save location layout',exact=True).click()
-        expect(self.page.get_by_role('button',name='Arrange widgets',exact=True)).to_be_enabled()
+        expect(self.page.get_by_role('button',name='Edit layout',exact=True)).to_be_enabled()
         self.assertTrue(self.store.configuration_document()['dashboard']['grid_layout']['locations'][self.north]['desktop'])
         widget=self.page.locator('.location-widget').filter(has=self.page.get_by_role('heading',name='New reading',exact=True))
         widget.get_by_role('button',name='Edit',exact=True).click()
@@ -289,4 +289,79 @@ class DashboardTests(base.BrowserFixture):
         maximum=self.page.get_by_label('Maximum report interval (seconds)',exact=True)
         expect(maximum).to_have_value('2700',timeout=10000)
         maximum.fill('2800');self.page.wait_for_timeout(3500);expect(maximum).to_have_value('2800')
+        self.assertTrue(all(m=='GET' for m,u in self.sent));self.assertEqual(self.errors,[])
+
+
+    def test_metric_typography_scale_preview_save_and_reset(self):
+        self.page.set_viewport_size(dict(width=1440,height=1000));self.connect()
+        self.page.get_by_role('button',name='Edit layout',exact=True).click()
+        self.page.get_by_label('Content scale (%)',exact=True).fill('125')
+        self.page.get_by_label('Metric font size (px)',exact=True).fill('60')
+        self.page.get_by_role('combobox',name='Metric typeface',exact=True).click()
+        self.page.get_by_role('option',name='Monospace',exact=True).click()
+        self.page.get_by_label('Metric colour (hex)',exact=True).fill('#38cdec')
+        expect(self.page.locator('.typography-preview .metric-reading')).to_have_css('font-size','75px')
+        self.page.get_by_role('button',name='Save layout',exact=True).click()
+        expect(self.page.locator('#all-overview')).to_be_visible()
+        p=self.store.configuration_document()['dashboard']['grid_layout']['presentation']
+        identity=next(iter(p['all']));self.assertEqual(p['all'][identity],dict(scale=125,size=60,font='mono',color='#38cdec'))
+        value=self.page.locator('[data-sensor-id="'+identity+'"] .measurement-value').first
+        expect(value).to_have_css('font-size','75px');expect(value).to_have_css('color','rgb(56, 205, 236)')
+        self.page.reload();self.connect();expect(self.page.locator('[data-sensor-id="'+identity+'"] .measurement-value').first).to_have_css('font-size','75px')
+        self.page.get_by_role('button',name='Edit layout',exact=True).click()
+        self.page.get_by_role('button',name='Use profile defaults',exact=True).click()
+        self.page.get_by_role('button',name='Save layout',exact=True).click()
+        expect(self.page.locator('#all-overview')).to_be_visible()
+        self.assertEqual(self.store.configuration_document()['dashboard']['grid_layout']['presentation']['all'],{})
+        self.assertTrue(all(m=='GET' or (m=='PUT' and '/api/v2/configuration' in u) for m,u in self.sent));self.assertEqual(self.errors,[])
+
+    def test_location_edit_navigation_guard_and_style_persistence(self):
+        self.prepare_locations();self.connect()
+        self.page.get_by_role('button',name='North',exact=True).click()
+        self.page.get_by_role('button',name='Edit layout',exact=True).click()
+        self.page.get_by_label('Metric font size (px)',exact=True).fill('64')
+        self.page.get_by_label('Content scale (%)',exact=True).fill('125')
+        self.page.get_by_role('button',name='All',exact=True).click()
+        expect(self.page.get_by_role('dialog')).to_be_visible()
+        self.page.get_by_role('button',name='Stay here',exact=True).click()
+        expect(self.page.get_by_label('Metric font size (px)',exact=True)).to_have_value('64')
+        self.page.get_by_role('button',name='Save location layout',exact=True).click()
+        expect(self.page.get_by_role('button',name='Edit layout',exact=True)).to_be_enabled()
+        style=self.store.configuration_document()['dashboard']['grid_layout']['presentation']
+        self.assertEqual(style['widgets']['room-now']['size'],64)
+        expect(self.page.locator('.location-numeric .metric-reading').first).to_have_css('font-size','80px')
+        expect(self.page.locator('.location-widget .measurement-age').first).to_have_css('font-size','13.75px')
+        self.page.get_by_role('button',name='Edit layout',exact=True).click()
+        self.page.get_by_label('Metric font size (px)',exact=True).fill('90')
+        self.page.get_by_role('button',name='Configuration & Setup',exact=True).click()
+        self.page.get_by_role('button',name='Continue',exact=True).click()
+        expect(self.page.get_by_role('tab',name='Gateway',exact=True)).to_be_visible()
+        self.assertEqual(self.store.configuration_document()['dashboard']['grid_layout']['presentation'],style)
+        self.assertEqual(self.errors,[])
+
+    def test_profile_default_typography_contrast_guidance_and_override(self):
+        self.connect();self.page.get_by_role('button',name='Edit layout',exact=True).click()
+        self.page.get_by_role('combobox',name='Appearance scope',exact=True).click()
+        self.page.get_by_role('option',name='Profile defaults',exact=True).click()
+        self.page.get_by_label('Metric font size (px)',exact=True).fill('54')
+        self.page.get_by_label('Metric colour (hex)',exact=True).fill('#152538')
+        expect(self.page.get_by_text('Low contrast against the panel background.',exact=False)).to_be_visible()
+        self.page.get_by_role('button',name='Automatic colour',exact=True).click()
+        self.page.get_by_role('button',name='Save layout',exact=True).click()
+        expect(self.page.locator('#all-overview')).to_be_visible()
+        self.assertEqual(self.store.configuration_document()['dashboard']['grid_layout']['presentation']['defaults']['size'],54)
+        self.assertNotIn('presentation',self.store.configuration_document(self.other)['dashboard']['grid_layout'])
+        self.assertEqual(self.errors,[])
+
+
+    def test_all_history_is_bounded_cached_and_hidden_work_is_cancelled(self):
+        self.connect();expect(self.page.locator('.mini-trend')).to_have_count(3)
+        initial=[u for m,u in self.sent if '/api/v2/history?' in u]
+        self.assertTrue(initial);self.assertTrue(all('limit=120' in u for u in initial))
+        self.page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,value:true}); document.dispatchEvent(new Event('visibilitychange'))")
+        count=len(initial);self.page.wait_for_timeout(4500)
+        self.assertEqual(len([u for m,u in self.sent if '/api/v2/history?' in u]),count)
+        self.page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,value:false}); document.dispatchEvent(new Event('visibilitychange'))")
+        self.page.wait_for_timeout(500)
+        self.assertEqual(len([u for m,u in self.sent if '/api/v2/history?' in u]),count)
         self.assertTrue(all(m=='GET' for m,u in self.sent));self.assertEqual(self.errors,[])

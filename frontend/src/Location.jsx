@@ -1,3 +1,10 @@
+import AppearanceEditor from "./AppearanceEditor.jsx";
+import {
+  presentationCSS,
+  seriesColor,
+  mergePresentation,
+  emptyPresentation,
+} from "./presentation.js";
 import Grid from "./Grid.jsx";
 import ConfigForm from "./ConfigForm.jsx";
 import PlugControls from "./PlugControls.jsx";
@@ -29,9 +36,15 @@ import {
 } from "@mantine/core";
 import { Signal, ChartNoAxesCombined, Grip } from "lucide-react";
 import { age, quality, display } from "./layout.js";
-import { geometry, historyKey, measurementFor } from "./history.js";
+import { areaPath, geometry, historyKey, measurementFor } from "./history.js";
 
-function useHistories(widgets, devices, request, fetched) {
+export function useHistories(widgets, devices, request, fetched) {
+  const [visible, setVisible] = useState(() => !document.hidden);
+  useEffect(() => {
+    const update = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
   const [data, setData] = useState({}),
     cache = useRef(new Map()),
     jobs = useRef(new Map()),
@@ -48,9 +61,25 @@ function useHistories(widgets, devices, request, fetched) {
     };
   }, []);
   useEffect(() => {
+    if (!visible) {
+      for (const job of jobs.current.values()) job.controller.abort();
+      jobs.current.clear();
+      queue.current = [];
+      return;
+    }
     const charts = new Map(
       widgets.filter((w) => w.type === "chart").map((w) => [historyKey(w), w]),
     );
+    for (const key of cache.current.keys())
+      if (!charts.has(key)) cache.current.delete(key);
+    setData((old) => {
+      const keys = Object.keys(old);
+      return keys.some((key) => !charts.has(key))
+        ? Object.fromEntries(
+            Object.entries(old).filter(([key]) => charts.has(key)),
+          )
+        : old;
+    });
     for (const [key, job] of jobs.current)
       if (!charts.has(key)) {
         job.controller.abort();
@@ -66,8 +95,8 @@ function useHistories(widgets, devices, request, fetched) {
       if (
         jobs.current.has(key) ||
         (saved &&
-          Date.now() - saved.loadedAt < 30000 &&
-          saved.latest === latest)
+          (Date.now() - saved.loadedAt < (w.sparkline ? 60000 : 30000) ||
+            (saved.latest === latest && Date.now() - saved.loadedAt < 60000)))
       )
         continue;
       const job = { key, widget: w, latest, controller: new AbortController() };
@@ -88,7 +117,7 @@ function useHistories(widgets, devices, request, fetched) {
               ...job.widget.source,
               from,
               to,
-              limit: 500,
+              limit: job.widget.sparkline ? 120 : 500,
             });
             let items = [],
               gaps = [],
@@ -105,7 +134,7 @@ function useHistories(widgets, devices, request, fetched) {
               gapsTruncated = response.data.gaps_truncated;
               cursor = response.data.next_cursor;
               pages++;
-            } while (cursor && pages < 20);
+            } while (cursor && pages < (job.widget.sparkline ? 1 : 20));
             result = {
               items,
               gaps,
@@ -134,7 +163,7 @@ function useHistories(widgets, devices, request, fetched) {
       }
     };
     pump();
-  }, [widgets, devices, request, fetched]);
+  }, [widgets, devices, request, fetched, visible]);
   return data;
 }
 function Chart({ widget, data, unit, units }) {
@@ -172,6 +201,15 @@ function Chart({ widget, data, unit, units }) {
     });
   return (
     <div className="history-chart">
+      <div className="chart-headline">
+        <span className="metric-reading">
+          {display(plot.valid.at(-1), units).value}
+        </span>
+        <small>{unit}</small>
+        <Text size="xs" c="dimmed">
+          Last in range
+        </Text>
+      </div>
       <svg
         viewBox="0 0 560 220"
         role="img"
@@ -250,6 +288,7 @@ function Chart({ widget, data, unit, units }) {
             </title>
           </rect>
         ))}
+        <path d={areaPath(plot.path)} className="history-area" />
         <path d={plot.path} className="history-line" />
         <circle
           cx={plot.x(point.received_at)}
@@ -267,6 +306,21 @@ function Chart({ widget, data, unit, units }) {
           {unit}
         </text>
       </svg>
+      <div className="history-summary">
+        {[
+          ["Min", Math.min(...plot.valid.map(plot.number))],
+          ["Max", Math.max(...plot.valid.map(plot.number))],
+        ].map(([name, value]) => (
+          <span key={name}>
+            {name}{" "}
+            <strong>
+              {value.toLocaleString(undefined, { maximumFractionDigits: 2 })}{" "}
+              {unit}
+            </strong>
+          </span>
+        ))}
+        <span>{plot.valid.length} recorded samples · selected period</span>
+      </div>
       <p className="chart-inspection">
         {label(point.received_at)} ·{" "}
         <strong>
@@ -300,6 +354,7 @@ function LocationWidget({
   disabled,
   first,
   last,
+  layout,
 }) {
   const measurement = measurementFor(device, w.source),
     value = display(measurement || { value: null, unit: "" }, units),
@@ -309,6 +364,10 @@ function LocationWidget({
       withBorder
       className={`location-widget ${w.type === "chart" ? "chart-widget" : ""}`}
       p="lg"
+      style={{
+        ...presentationCSS(layout, "widgets", w.id),
+        "--series-color": seriesColor(w.source.cluster, w.source.attribute),
+      }}
     >
       <div className="location-widget-heading">
         <div>
@@ -334,7 +393,7 @@ function LocationWidget({
         </>
       ) : (
         <div className="location-numeric">
-          <span>{value.value}</span>
+          <span className="metric-reading">{value.value}</span>
           <small>{value.unit}</small>
         </div>
       )}
@@ -407,6 +466,19 @@ function Arrange({ api, location, widgets, screen, renderWidget, onClose }) {
       label="Save location layout"
       onSaved={onClose}
       initial={(c) => ({
+        presentationBase: structuredClone(
+          c.dashboard.grid_layout?.presentation || emptyPresentation(),
+        ),
+        presentation: structuredClone(
+          c.dashboard.grid_layout?.presentation || emptyPresentation(),
+        ),
+        layoutBase: structuredClone(
+          c.dashboard.grid_layout?.locations?.[location.id] || {
+            desktop: [],
+            tablet: [],
+            mobile: [],
+          },
+        ),
         layout: structuredClone(
           c.dashboard.grid_layout?.locations?.[location.id] || {
             desktop: [],
@@ -418,7 +490,26 @@ function Arrange({ api, location, widgets, screen, renderWidget, onClose }) {
       apply={(c, v) => {
         c.dashboard.grid_layout ||= emptyLayout();
         c.dashboard.grid_layout.locations ||= {};
-        c.dashboard.grid_layout.locations[location.id] = v.layout;
+        if (!c.locations.some((l) => l.id === location.id))
+          throw Error("Location removed in another session.");
+        const current = c.dashboard.grid_layout.locations[location.id] || {
+          desktop: [],
+          tablet: [],
+          mobile: [],
+        };
+        c.dashboard.grid_layout.locations[location.id] = Object.fromEntries(
+          Object.keys(breakpoints).map((key) => [
+            key,
+            JSON.stringify(v.layoutBase[key]) === JSON.stringify(v.layout[key])
+              ? current[key]
+              : v.layout[key],
+          ]),
+        );
+        c.dashboard.grid_layout.presentation = mergePresentation(
+          c.dashboard.grid_layout.presentation,
+          v.presentationBase,
+          v.presentation,
+        );
       }}
     >
       {(v, set) => {
@@ -486,9 +577,20 @@ function Arrange({ api, location, widgets, screen, renderWidget, onClose }) {
                   />
                 ))}
             </Paper>
+            {chosen && (
+              <AppearanceEditor
+                layout={{
+                  ...api.snapshot.configuration.data.dashboard.grid_layout,
+                  presentation: v.presentation,
+                }}
+                kind="widgets"
+                id={chosen.id}
+                onChange={(p) => set("presentation", p)}
+              />
+            )}
             <Text size="sm" c="dimmed" mb="sm">
-              Drag by the grip or use the numbered controls. Changes are saved
-              only when requested.
+              Editing {mode} layout. Drag by the grip or use the numbered
+              controls. Changes are saved only when requested.
             </Text>
             <Grid
               key={mode + "-edit"}
@@ -498,7 +600,12 @@ function Arrange({ api, location, widgets, screen, renderWidget, onClose }) {
               onChange={change}
               renderTile={(id) => {
                 const w = widgets.find((w) => w.id === id);
-                return w ? renderWidget(w, true) : null;
+                return w
+                  ? renderWidget(w, true, {
+                      ...api.snapshot.configuration.data.dashboard.grid_layout,
+                      presentation: v.presentation,
+                    })
+                  : null;
               }}
             />
           </>
@@ -517,11 +624,16 @@ export default function Location({
   api,
   online,
   screen,
+  onEditingChange,
 }) {
   const members = devices.filter((d) => d.location_id === location.id),
     [editor, setEditor] = useState(null),
     [arranging, setArranging] = useState(false),
     action = useAction(request);
+  useEffect(() => {
+    onEditingChange?.(arranging);
+    return () => onEditingChange?.(false);
+  }, [arranging, onEditingChange]);
   const widgets = configuration.dashboard.widgets
     .filter(
       (w) => configuration.devices[w.source.ieee]?.location_id === location.id,
@@ -531,11 +643,16 @@ export default function Location({
     units = configuration.dashboard.temperature_unit;
   const choices = sources(devices, location.id);
   const mutate = (fn) => action.perform(() => api.updateConfiguration(fn));
-  const renderWidget = (w, editing = false) => {
+  const renderWidget = (
+    w,
+    editing = false,
+    layout = configuration.dashboard.grid_layout,
+  ) => {
     const index = widgets.findIndex((item) => item.id === w.id);
     return (
       <LocationWidget
         widget={w}
+        layout={layout}
         device={devices.find((d) => d.ieee === w.source.ieee)}
         history={histories[historyKey(w)]}
         units={units}
@@ -613,7 +730,7 @@ export default function Location({
             disabled={!widgets.length || arranging}
             onClick={() => setArranging(true)}
           >
-            Arrange widgets
+            Edit layout
           </Button>
           <Button
             variant="subtle"

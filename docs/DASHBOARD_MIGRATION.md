@@ -16,13 +16,15 @@ Viewing pages performs authenticated GETs only. Pairing, reads, discovery, repor
 
 Profiles have no login or security roles. Device state, names, locations and history remain shared; widget/layout/theme preferences are separate. The session cookie remembers profile selection, while bearer tokens remain only in page memory. Disconnect/profile changes abort pending requests and discard unsaved editors. Setup forms preserve local drafts through polling and use ETag conflict handling; users explicitly reload/discard or reapply edits to the latest configuration.
 
+See [appearance and editing](DASHBOARD_APPEARANCE.md) for the monitoring theme, metric typography, scaling and saved layouts.
+
 ## Widgets and layout
 
-Location pages support adding/editing/removing widgets, suggested numeric/chart widgets, saved chart ranges and order controls. Where a screen has a custom geometry, use **Arrange widgets** rather than up/down order buttons; this avoids discarding custom sizes/other screen layouts. Widgets continue following their device's location assignment.
+Location pages support adding/editing/removing widgets, suggested numeric/chart widgets, saved chart ranges and order controls. Where a screen has a custom geometry, use **Edit layout** rather than up/down order buttons; this avoids discarding custom sizes/other screen layouts. Widgets continue following their device's location assignment.
 
-Open Setup → Preferences → **Edit All dashboard layout** for the read-only overview's separate editor. Location widgets have their own **Arrange widgets** editor. Both use GridStack drag/resize plus accessible numbered column/row/width/height controls. Save, discard and reset are explicit; dragging never saves on its own. Desktop (viewport at least 1100 px), tablet (700–1099 px) and phone layouts are saved independently with 12, six and one columns respectively. Grid rows are 72 px. Browser resizing never writes projected coordinates back to storage. Narrow/short cards can scroll internally rather than silently omit readings.
+Open Setup → Preferences → **Edit All dashboard layout** for the read-only overview's separate editor. Location widgets have their own **Edit layout** editor. Both use GridStack drag/resize plus accessible numbered column/row/width/height controls. Save, discard and reset are explicit; dragging never saves on its own. Desktop (viewport at least 1100 px), tablet (700–1099 px) and phone layouts are saved independently with 12, six and one columns respectively. Grid rows are 72 px. Browser resizing never writes projected coordinates back to storage. Narrow/short cards can scroll internally rather than silently omit readings.
 
-Dashboard-v2 contract **2.9.0** adds `dashboard.grid_layout`:
+Dashboard-v2 contract **2.10.0** adds `dashboard.grid_layout`:
 
 ```json
 {
@@ -47,7 +49,7 @@ GET projects defaults without rewriting existing records/revisions. Empty All ge
 
 GridStack owns wrapper elements/geometry; React owns their contents through portals. There is one grid instance per mounted screen/editor, cleaned up with its handlers on unmount. Device strings are rendered as text, not injected HTML. Saved data contains only semantic IDs/coordinates, never generated HTML or callbacks.
 
-A sequential abortable polling cycle obtains state/configuration/device views/profiles every four seconds (15 seconds when hidden). Setup additionally polls stored reporting/display jobs and caches the profile reference; those GETs do not contact the radio. Identical chart source/range pairs share history requests, with at most two concurrent paginated queries, 500 samples/page and at most 20 pages/query. Cache freshness is bounded to 30 seconds while the latest source is unchanged. Leaving a location/profile or disconnecting aborts its pending history work. All never queries chart history.
+A sequential abortable polling cycle obtains state/configuration/device views/profiles every four seconds (15 seconds when hidden). Setup additionally polls stored reporting/display jobs and caches the profile reference; those GETs do not contact the radio. Identical chart source/range pairs share history requests, with at most two concurrent paginated queries, 500 samples/page and at most 20 pages/query. History is cached for at least 30 seconds and up to 60 seconds while the latest source is unchanged. Leaving a location/profile or disconnecting aborts its pending history work. All optionally queries bounded recorded-history sparklines; see [appearance and editing](DASHBOARD_APPEARANCE.md) for limits and styling.
 
 Charts preserve real zero, null/invalid readings, raw units and source times. Lines break across known gaps/nulls; shading marks recorded interruptions. Source/receipt estimates and static capability metadata retain their existing meanings. Partial response limits are labelled. Pointer/keyboard inspection selects actual samples; no data is invented to fill a gap.
 

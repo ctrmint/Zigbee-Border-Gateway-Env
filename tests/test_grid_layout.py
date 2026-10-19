@@ -73,3 +73,33 @@ class GridLayoutTests(base.AllLayoutTests):
         with self.assertRaises(DashboardError):self.save_grid(bad,other)
         self.assertEqual(self.store.configuration_document(other)['dashboard']['grid_layout'],result)
         doc=contract_v2();Draft202012Validator(dict(doc['components']['schemas']['Configuration'],components=doc['components'])).validate(self.store.configuration_document(other))
+
+    def test_presentation_persistence_isolation_omission_and_restart(self):
+        layout=default_grid_layout();layout['presentation']={'version':1,'defaults':{'size':52,'font':'mono'},'all':{'a'*16:{'scale':125,'color':'#38cdec','trend':False}},'widgets':{'reading-1':{'size':72}}}
+        other=self.store.save_profile({'name':'Typography'})['id']
+        self.save_grid(layout,other)
+        self.assertNotIn('presentation',self.body()['dashboard']['grid_layout'])
+        older=copy.deepcopy(layout);older.pop('presentation');older['theme']='dark'
+        self.save_grid(older,other)
+        self.assertEqual(self.body(other)['dashboard']['grid_layout']['presentation'],layout['presentation'])
+        self.store.close()
+        from sbc.core import Store
+        self.store=Store(self.path)
+        self.assertEqual(self.body(other)['dashboard']['grid_layout']['presentation'],layout['presentation'])
+        doc=contract_v2();Draft202012Validator(dict(doc['components']['schemas']['Configuration'],components=doc['components'])).validate(self.store.configuration_document(other))
+
+    def test_invalid_presentation_is_atomic_and_conflict_safe(self):
+        original=self.store.configuration_document()
+        valid={'version':1,'defaults':{},'all':{},'widgets':{}}
+        invalid=[None,{},dict(valid,version=True),dict(valid,version=2),dict(valid,all={'invalid':{}})]
+        for patch in ({'size':23},{'size':97},{'size':True},{'scale':74},{'scale':151},{'scale':float('nan')},{'font':'remote-url'},{'color':'red'},{'color':'#fff'},{'color':'url(https://example.com)'},{'trend':1},{'unexpected':1}):
+            invalid.append(dict(valid,defaults=patch))
+        for presentation in invalid:
+            with self.subTest(presentation=presentation):
+                layout=default_grid_layout();layout['presentation']=presentation
+                with self.assertRaises(DashboardError):self.save_grid(layout)
+                self.assertEqual(self.store.configuration_document(),original)
+        layout=default_grid_layout();layout['presentation']=dict(valid,defaults={'size':96,'scale':150,'font':'serif','color':'#FFFFFF'})
+        self.save_grid(layout)
+        with self.assertRaises(DashboardError) as e:self.store.replace_configuration(self.body(),'"configuration-1"')
+        self.assertEqual(e.exception.status,412)

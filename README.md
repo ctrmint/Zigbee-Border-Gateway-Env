@@ -109,3 +109,5 @@ cover static builds, per-profile theme/layouts and preservation of existing data
 The user reported that the appearance is too similar to the original;
 [a distinct visual redesign is tracked in #35](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/35).
 Functional migration does not imply visual or full physical iPad acceptance.
+
+Dashboard users: see [appearance, fonts, scaling and layout editing](docs/DASHBOARD_APPEARANCE.md).
