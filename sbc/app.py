@@ -4,6 +4,7 @@ import json
 import os
 import re
 from pathlib import Path
+import mimetypes
 import threading
 import uuid
 from urllib.parse import urlsplit, parse_qs
@@ -155,20 +156,27 @@ def make_handler(store, poller, gateway, token):
             if self.path.startswith('/api/v2/'): return self.v2("DELETE")
             self.configuration("DELETE")
         def do_GET(self):
-            if self.path.startswith('/api/v2/'): return self.v2("GET")
-            files = {"/": ("index.html", "text/html; charset=utf-8"),
-                     "/app.js": ("app.js", "text/javascript"), "/style.css": ("style.css", "text/css")}
-            if self.path in files:
-                name, mime = files[self.path]
-                data = (STATIC / name).read_bytes()
+            path = urlsplit(self.path).path
+            if path in ('/next','/next/'):
+                self.send_response(302);self.send_header('Location','/')
+                self.send_header('Content-Length','0');self.end_headers();return
+            if path == '/' or path.startswith('/assets/'):
+                relative = 'index.html' if path == '/' else path.lstrip('/')
+                root = (STATIC / 'dashboard').resolve()
+                candidate = (root / relative).resolve()
+                if not candidate.is_relative_to(root) or not candidate.is_file():
+                    return self.send(404, {'error': 'not found'})
+                data = candidate.read_bytes()
                 self.send_response(200)
-                self.send_header("Content-Type", mime)
-                self.send_header("Content-Length", str(len(data)))
-                self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'")
-                self.send_header("X-Content-Type-Options", "nosniff")
-                self.end_headers()
-                self.wfile.write(data)
-                return
+                self.send_header('Content-Type', mimetypes.guess_type(candidate.name)[0] or 'application/octet-stream')
+                self.send_header('Content-Length', str(len(data)))
+                self.send_header('Cache-Control', 'no-cache')
+                self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'")
+                self.send_header('X-Content-Type-Options','nosniff')
+                self.end_headers();self.wfile.write(data);return
+            if path in ('/app.js','/style.css') or path.startswith('/next/assets/'):
+                return self.send(404, {'error':'not found'})
+            if self.path.startswith('/api/v2/'): return self.v2("GET")
             if not self.auth():
                 return self.send(401, {"error": "token required"})
             if self.path == "/api/v1/state":

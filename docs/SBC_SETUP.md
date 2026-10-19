@@ -105,3 +105,11 @@ S60ZBTPG smart-plug operation, observed hardware results and remaining hardware/
 
 
 For diagnosing loss of Pi access, distinguish a Wi-Fi disconnect from a subsequent manual reboot. Check whether previous-boot logs are retained before an incident; the observed Pi OS installation uses volatile journals. See [Pi incident logging](OPERATIONS.md#pi-access-loss-and-persistent-incident-logs). The documentation commands are optional administrator setup and have not been applied automatically.
+
+## Frontend runtime
+
+The React/Mantine/GridStack dashboard is served at `/` by the same Python service.
+Node is needed only when rebuilding `frontend/`; committed production assets are
+in `sbc/static/dashboard/`. The old dashboard and temporary 8081 preview are removed
+from normal deployment. Older `/next/` links redirect to `/`. See
+[framework migration](DASHBOARD_MIGRATION.md) for build and rollback details.

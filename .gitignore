@@ -27,3 +27,7 @@ sdkconfig.old
 *.bin
 *.elf
 *.map
+
+# Frontend dependencies and development caches.
+frontend/node_modules/
+frontend/.vite/

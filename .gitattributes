@@ -1,0 +1,2 @@
+# Reproducible bundles include upstream licence/comment formatting.
+sbc/static/dashboard/assets/* linguist-generated=true whitespace=-blank-at-eol,-blank-at-eof,cr-at-eol
