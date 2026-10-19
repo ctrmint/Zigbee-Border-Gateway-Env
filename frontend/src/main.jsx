@@ -389,6 +389,27 @@ function App() {
               observatory<span className="brand-subtitle">ZIGBEE HOME</span>
             </span>
           </a>
+          {api.connected && snapshot && (
+            <Group gap="sm" className="topbar-status">
+              <Badge
+                color={online ? "teal" : "orange"}
+                variant="light"
+                leftSection={
+                  online ? <span className="live-dot" /> : <WifiOff size={13} />
+                }
+              >
+                {snapshot.state.gateway.mode === "simulator"
+                  ? "Simulator · "
+                  : ""}
+                {online ? "Gateway connected" : "Gateway unavailable"}
+              </Badge>
+              <Text size="xs" c="dimmed" className="topbar-status-summary">
+                {snapshot.state.devices.length} devices registered ·{" "}
+                {profileName}
+                ’s view
+              </Text>
+            </Group>
+          )}
           <Group gap="md" className="topbar-right">
             {api.connected && (
               <Select
@@ -473,40 +494,6 @@ function App() {
           )}
           {snapshot && (
             <>
-              <div className="page-heading">
-                <div>
-                  <Text className="eyebrow">HOME OBSERVATORY</Text>
-                  <h1>
-                    {preferences.title}
-                    <span className="heading-period">.</span>
-                  </h1>
-                  <Text className="heading-description">
-                    Environment / Energy / Live telemetry
-                  </Text>
-                </div>
-                <div className="gateway-status">
-                  <Badge
-                    color={online ? "teal" : "orange"}
-                    variant="light"
-                    leftSection={
-                      online ? (
-                        <span className="live-dot" />
-                      ) : (
-                        <WifiOff size={13} />
-                      )
-                    }
-                  >
-                    {snapshot.state.gateway.mode === "simulator"
-                      ? "Simulator · "
-                      : ""}
-                    {online ? "Gateway connected" : "Gateway unavailable"}
-                  </Badge>
-                  <Text size="xs" c="dimmed" mt={7}>
-                    {snapshot.state.devices.length} devices registered ·{" "}
-                    {profileName}’s view
-                  </Text>
-                </div>
-              </div>
               <nav className="navigation" aria-label="Dashboard sections">
                 <div className="location-navigation">
                   <button
