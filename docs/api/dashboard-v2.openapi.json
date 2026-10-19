@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.8.0"
+    "version": "2.9.0"
   },
   "servers": [
     {
@@ -1379,6 +1379,301 @@
                 },
                 "maxItems": 100
               },
+              "grid_layout": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "const": 1
+                  },
+                  "theme": {
+                    "enum": [
+                      "light",
+                      "dark"
+                    ]
+                  },
+                  "locations": {
+                    "type": "object",
+                    "maxProperties": 50,
+                    "propertyNames": {
+                      "pattern": "^[a-zA-Z0-9-]{1,64}$"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "desktop": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                              },
+                              "x": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 11
+                              },
+                              "y": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1000
+                              },
+                              "w": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 12
+                              },
+                              "h": {
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 20
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "x",
+                              "y",
+                              "w",
+                              "h"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "maxItems": 100
+                        },
+                        "tablet": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                              },
+                              "x": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 5
+                              },
+                              "y": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1000
+                              },
+                              "w": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 6
+                              },
+                              "h": {
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 20
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "x",
+                              "y",
+                              "w",
+                              "h"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "maxItems": 100
+                        },
+                        "mobile": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                              },
+                              "x": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 0
+                              },
+                              "y": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1000
+                              },
+                              "w": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1
+                              },
+                              "h": {
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 20
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "x",
+                              "y",
+                              "w",
+                              "h"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "maxItems": 100
+                        }
+                      },
+                      "required": [
+                        "desktop",
+                        "tablet",
+                        "mobile"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "all": {
+                    "type": "object",
+                    "properties": {
+                      "desktop": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{16}$"
+                            },
+                            "x": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 11
+                            },
+                            "y": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1000
+                            },
+                            "w": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 12
+                            },
+                            "h": {
+                              "type": "integer",
+                              "minimum": 3,
+                              "maximum": 20
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "x",
+                            "y",
+                            "w",
+                            "h"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 50
+                      },
+                      "tablet": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{16}$"
+                            },
+                            "x": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 5
+                            },
+                            "y": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1000
+                            },
+                            "w": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 6
+                            },
+                            "h": {
+                              "type": "integer",
+                              "minimum": 3,
+                              "maximum": 20
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "x",
+                            "y",
+                            "w",
+                            "h"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 50
+                      },
+                      "mobile": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{16}$"
+                            },
+                            "x": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 0
+                            },
+                            "y": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1000
+                            },
+                            "w": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 1
+                            },
+                            "h": {
+                              "type": "integer",
+                              "minimum": 3,
+                              "maximum": 20
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "x",
+                            "y",
+                            "w",
+                            "h"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 50
+                      }
+                    },
+                    "required": [
+                      "desktop",
+                      "tablet",
+                      "mobile"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "version",
+                  "theme",
+                  "all"
+                ],
+                "additionalProperties": false
+              },
               "all_layout": {
                 "type": "object",
                 "properties": {
@@ -1572,6 +1867,301 @@
                   "additionalProperties": false
                 },
                 "maxItems": 100
+              },
+              "grid_layout": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "const": 1
+                  },
+                  "theme": {
+                    "enum": [
+                      "light",
+                      "dark"
+                    ]
+                  },
+                  "locations": {
+                    "type": "object",
+                    "maxProperties": 50,
+                    "propertyNames": {
+                      "pattern": "^[a-zA-Z0-9-]{1,64}$"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "desktop": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                              },
+                              "x": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 11
+                              },
+                              "y": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1000
+                              },
+                              "w": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 12
+                              },
+                              "h": {
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 20
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "x",
+                              "y",
+                              "w",
+                              "h"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "maxItems": 100
+                        },
+                        "tablet": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                              },
+                              "x": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 5
+                              },
+                              "y": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1000
+                              },
+                              "w": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 6
+                              },
+                              "h": {
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 20
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "x",
+                              "y",
+                              "w",
+                              "h"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "maxItems": 100
+                        },
+                        "mobile": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                              },
+                              "x": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 0
+                              },
+                              "y": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1000
+                              },
+                              "w": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1
+                              },
+                              "h": {
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 20
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "x",
+                              "y",
+                              "w",
+                              "h"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "maxItems": 100
+                        }
+                      },
+                      "required": [
+                        "desktop",
+                        "tablet",
+                        "mobile"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "all": {
+                    "type": "object",
+                    "properties": {
+                      "desktop": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{16}$"
+                            },
+                            "x": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 11
+                            },
+                            "y": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1000
+                            },
+                            "w": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 12
+                            },
+                            "h": {
+                              "type": "integer",
+                              "minimum": 3,
+                              "maximum": 20
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "x",
+                            "y",
+                            "w",
+                            "h"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 50
+                      },
+                      "tablet": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{16}$"
+                            },
+                            "x": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 5
+                            },
+                            "y": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1000
+                            },
+                            "w": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 6
+                            },
+                            "h": {
+                              "type": "integer",
+                              "minimum": 3,
+                              "maximum": 20
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "x",
+                            "y",
+                            "w",
+                            "h"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 50
+                      },
+                      "mobile": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{16}$"
+                            },
+                            "x": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 0
+                            },
+                            "y": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1000
+                            },
+                            "w": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 1
+                            },
+                            "h": {
+                              "type": "integer",
+                              "minimum": 3,
+                              "maximum": 20
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "x",
+                            "y",
+                            "w",
+                            "h"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 50
+                      }
+                    },
+                    "required": [
+                      "desktop",
+                      "tablet",
+                      "mobile"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "version",
+                  "theme",
+                  "all"
+                ],
+                "additionalProperties": false
               },
               "all_layout": {
                 "type": "object",

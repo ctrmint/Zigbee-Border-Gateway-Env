@@ -99,3 +99,13 @@ The read-only [All sensors overview](docs/DASHBOARD_ALL.md) displays compact sen
 [Continuous Wi-Fi recovery](docs/WIFI_RECOVERY.md) covers autonomous reconnection, authenticated rediscovery and outage validation.
 
 S60ZBTPG smart-plug operation, observed hardware results and remaining acceptance: [docs/S60ZBTPG.md](docs/S60ZBTPG.md).
+
+## Dashboard framework migration (#34)
+
+The primary dashboard now uses React, Mantine and GridStack, including Setup,
+location readings/charts, widget editing and explicit device controls. The old
+HTML/JavaScript dashboard is removed. [Migration and deployment details](docs/DASHBOARD_MIGRATION.md)
+cover static builds, per-profile theme/layouts and preservation of existing data.
+The user reported that the appearance is too similar to the original;
+[a distinct visual redesign is tracked in #35](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/35).
+Functional migration does not imply visual or full physical iPad acceptance.

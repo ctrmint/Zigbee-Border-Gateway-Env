@@ -58,3 +58,11 @@ Extend the existing bounded binding/reporting and SONOFF adapters at the firmwar
 - [Espressif board hardware and schematic](https://docs.espressif.com/projects/esp-thread-br/en/latest/hardware_platforms.html)
 - [Zigbee gateway reference](https://github.com/espressif/esp-zigbee-sdk/tree/7b9a2e090d5327240a4fad5c2f41da396de05e49/examples/zigbee_gateway)
 - [ESP-Zigbee SDK](https://github.com/espressif/esp-zigbee-sdk), ESP-IDF 5.5.4 / Zigbee library 2.0.4 selected for this repository.
+
+## Dashboard frontend
+
+React and Mantine render the primary dashboard, Setup and device/widget forms;
+GridStack owns wrapper geometry for All and location widgets. Static production
+assets are served by Python; Node is build-time only. Profile configuration stores
+versioned layouts and uses existing ETag concurrency checks. Source/history/device
+semantics and firmware APIs are unchanged. See [migration architecture](docs/DASHBOARD_MIGRATION.md).

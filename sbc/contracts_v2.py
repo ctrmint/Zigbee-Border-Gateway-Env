@@ -1,11 +1,12 @@
 """Implemented dashboard v2 contracts, separate from the board API."""
 from .contracts import obj, array, integer, ref, response
 from .dashboard import RANGES
+from .grid_layout import BREAKPOINTS
 
 
 def capabilities_v2():
     return {"api_version": "2", "widget_types": ["numeric", "chart"],
-        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True,"smart_plugs":True},
+        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True,"smart_plugs":True,"grid_layouts":True},
         "limits": {"configuration_bytes": 65536, "widgets": 100, "locations": 50,
             "device_overrides": 50, "history_page": 500, "history_days": 31,
             "history_retention_days": 30,"all_columns":6,"all_min_tile_width":200,"all_max_tile_width":640,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
@@ -22,10 +23,20 @@ def contract_v2():
     settings = obj({"name": {"type": "string", "minLength": 1, "maxLength": 80},
         "location_id": {"type": ["string", "null"]}, "freshness_seconds": integer(60, 604800)},
         additionalProperties=False)
+    grid_item = obj({"id":{"type":"string","pattern":"^[0-9a-f]{16}$"},
+        "x":integer(0,11),"y":integer(0,1000),"w":integer(1,12),"h":integer(3,20)},
+        ("id","x","y","w","h"),additionalProperties=False)
+    location_grid_item = obj({**grid_item['properties'],'id':{'type':'string','pattern':'^[a-z][a-z0-9-]{0,63}$'}},grid_item['required'],additionalProperties=False)
+    location_grid = obj({key:array(obj({**location_grid_item['properties'],'x':integer(0,cols-1),'w':integer(1,cols)},location_grid_item['required'],additionalProperties=False),maxItems=100) for key,cols in BREAKPOINTS.items()},tuple(BREAKPOINTS),additionalProperties=False)
+    grid_layout = obj({"version":{"const":1},"theme":{"enum":["light","dark"]},"locations":{"type":"object","maxProperties":50,"propertyNames":{"pattern":"^[a-zA-Z0-9-]{1,64}$"},"additionalProperties":location_grid},
+        "all":obj({key:array(obj({**grid_item["properties"],"x":integer(0,cols-1),"w":integer(1,cols)},
+            grid_item["required"],additionalProperties=False),maxItems=50) for key,cols in BREAKPOINTS.items()},
+            tuple(BREAKPOINTS),additionalProperties=False)},("version","theme","all"),additionalProperties=False)
     editable = obj({"locations": array(obj({"id": {"type": "string"}, "name": {"type": "string", "minLength": 1, "maxLength": 80}}, ("id", "name"), additionalProperties=False), maxItems=50),
         "devices": {"type": "object", "maxProperties": 50, "propertyNames": {"pattern": "^[0-9a-f]{16}$"}, "additionalProperties": settings},
         "dashboard": obj({"title": {"type": "string", "minLength": 1, "maxLength": 80},
             "temperature_unit": {"enum": ["celsius", "fahrenheit"]}, "widgets": array(widget, maxItems=100),
+            "grid_layout": grid_layout,
             "all_layout": obj({"columns":integer(0,6),"min_tile_width":dict(integer(200,640),multipleOf=20),
                 "order":array({"type":"string","pattern":"^[0-9a-f]{16}$"},maxItems=50,uniqueItems=True)},
                 ("columns","min_tile_width","order"),additionalProperties=False)},
@@ -174,6 +185,6 @@ def contract_v2():
     paths['/api/v2/plug-profiles']={'get':{'operationId':'plug_capabilities','responses':{'200':response('Pinned model support and unresolved physical capabilities',ref('PlugProfiles')),'401':plug_errors['401']}}}
     paths['/api/v2/plugs']={'get':{'operationId':'plug_jobs','responses':{'200':response('Active jobs plus latest terminal jobs, at most 100 shared records; confirmed and uncertain states are distinct',ref('PlugJobs')),'401':plug_errors['401']}},
         'post':{'operationId':'request_plug_action','description':'Explicit operator action only. Writes submitted once; no optimistic relay state or uncertain replay. 202 is queued, not confirmed. Jobs/settings are shared across presentation profiles.','requestBody':{'required':True,'content':{'application/json':{'schema':ref('PlugInput')}}},'responses':{'202':response('Queued',ref('PlugJob')),'200':response('Cancelled; in-flight effects may remain',ref('PlugJob')),**plug_errors}}}
-    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.8.0"},
+    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.9.0"},
         "servers": [{"url": "/"}], "security": [{"bearerAuth": []}], "paths": paths,
         "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": definitions}}

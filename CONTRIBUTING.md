@@ -6,3 +6,5 @@ Install test dependencies from `requirements-dev.txt` in a virtual environment.
 When changing an API, update the applicable definitions in `sbc/contracts.py` and `sbc/contracts_v2.py`, regenerate descriptions with
 `python3 -m sbc.contracts`, and run `python3 -m sbc.contracts --check`. Keep planned
 routes in `docs/DASHBOARD_API_DESIGN.md` distinct from implemented contracts.
+
+Frontend source is in `frontend/`. Run `npm ci`, `npm test` and `npm run build` there; commit the production bundle and licence notices in `sbc/static/dashboard/` with its source/lockfile. The Python service needs no Node runtime. Browser checks use `python -m unittest discover -s tests -p browser_dashboard.py -v` with Playwright installed separately; actuator tests use synthetic fixtures.

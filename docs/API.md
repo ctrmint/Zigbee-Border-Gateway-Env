@@ -273,3 +273,5 @@ S60ZBTPG smart-plug operation, observed hardware results and remaining hardware/
 
 
 The implemented S60ZBTPG API is `GET /api/v2/plug-profiles` and `GET/POST /api/v2/plugs`; actions include read/commission/relay/startup_behavior/network_indicator/outlet_protection/protection/inching. Job acceptance, remote response and matching readback are distinct. `acknowledged_unverified` for inching is not a measured timing result. Capabilities marked `not_tested`/`prepared` in runtime metadata are conservative static declarations, not a live certification database; see the dated [hardware evidence](HARDWARE_VALIDATION_2026-10-18.md) for checks completed since the implementation was merged.
+
+The React dashboard uses the existing API plus the additive `grid_layout` field in dashboard-v2 2.9.0; [layout contract and migration](DASHBOARD_MIGRATION.md) describe All and per-location screen geometry. No firmware API or device write protocol changed.
