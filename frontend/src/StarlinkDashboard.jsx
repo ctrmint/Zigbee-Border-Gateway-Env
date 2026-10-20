@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Badge,
@@ -12,6 +12,7 @@ import {
   Title,
 } from "@mantine/core";
 import { Activity, RefreshCw, Router } from "lucide-react";
+import { buildChartModel, CHART_HEIGHT, formatTime, nearestChartPoint } from "./starlinkChart.js";
 
 function age(value) {
   if (!value) return "No successful sample";
@@ -84,36 +85,59 @@ function ClientChart({ history = [] }) {
   );
 }
 
-function PerformanceChart({ history = [], fields, label, format = (value) => value.toFixed(1) }) {
-  const valid = history.filter((point) => point.status === "available" && fields.some(([key]) => Number.isFinite(point[key])));
-  if (valid.length < 2)
+function PerformanceChart({ history = [], fields, label }) {
+  const wrapper = useRef(null);
+  const [width, setWidth] = useState(640);
+  const [selected, setSelected] = useState(null);
+  const [keyboardIndex, setKeyboardIndex] = useState(0);
+  useEffect(() => {
+    if (!wrapper.current || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.max(280, entry.contentRect.width)));
+    observer.observe(wrapper.current);
+    return () => observer.disconnect();
+  }, []);
+  const model = useMemo(() => buildChartModel(history, fields, width), [history, fields, width]);
+  const points = model.lines.flatMap((line) => line.segments.flat());
+  useEffect(() => {
+    if (points.length) setSelected(points.at(-1));
+    else setSelected(null);
+    setKeyboardIndex(0);
+  }, [history, fields]);
+  if (points.length < 2)
     return <Text size="sm" c="dimmed">Collecting dish samples; a trend will appear after two successful polls.</Text>;
-  const values = fields.flatMap(([key]) => valid.map((point) => point[key]).filter(Number.isFinite));
-  const min = Math.min(0, ...values), max = Math.max(1, ...values), span = max-min || 1;
-  const coords = (index, value) => `${(index * 300) / Math.max(1, history.length - 1)},${94 - ((value-min)/span)*78}`;
+  const pointFromEvent = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const target = { x: ((event.clientX - bounds.left) / bounds.width) * width, y: ((event.clientY - bounds.top) / bounds.height) * CHART_HEIGHT };
+    const point = nearestChartPoint(model, target, 32);
+    if (point) setSelected(point);
+  };
+  const selectByKey = (event) => {
+    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? 0 : event.key === "End" ? points.length - 1 : (keyboardIndex + (event.key === "ArrowRight" ? 1 : -1) + points.length) % points.length;
+    setKeyboardIndex(next);
+    setSelected(points[next]);
+  };
+  const selectedPosition = selected ? { left: `${Math.min(88, Math.max(10, (selected.x / width) * 100))}%`, top: `${Math.min(72, Math.max(5, (selected.y / CHART_HEIGHT) * 100))}%` } : undefined;
   return (
     <>
-      <svg className="starlink-chart" viewBox="0 0 300 110" role="img" aria-label={label}>
-        <line x1="0" y1="94" x2="300" y2="94" className="starlink-chart-axis" />
-        {fields.map(([key, name, color]) => {
-          const segments=[]; let segment=[];
-          history.forEach((point,index) => {
-            const value=point.status === "available" ? point[key] : null;
-            if (!Number.isFinite(value)) { if(segment.length>1)segments.push(segment); segment=[]; }
-            else segment.push(coords(index,value));
-          });
-          if(segment.length>1)segments.push(segment);
-          return segments.map((points,index)=><polyline key={`${key}-${index}`} points={points.join(" ")} fill="none" className={color}/>);
-        })}
-      </svg>
+      <div className="starlink-chart-wrap" ref={wrapper}>
+        <svg className="starlink-chart" viewBox={`0 0 ${width} ${CHART_HEIGHT}`} role="img" aria-label={`${label}. Y axis in ${fields[0].unit}; X axis shows sample time.`} tabIndex={0} onKeyDown={selectByKey} onPointerMove={(event) => { if (event.pointerType === "mouse" || event.pointerType === "pen") pointFromEvent(event); }} onPointerDown={(event) => { if (event.pointerType === "touch") pointFromEvent(event); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") { /* Keep the last selected reading available. */ } }}>
+          {model.yAxis.ticks.map((tick) => {
+            const y = model.plot.y + model.plot.height - (tick / model.yAxis.max) * model.plot.height;
+            return <g key={`y-${tick}`}><line x1={model.plot.x} y1={y} x2={model.plot.x + model.plot.width} y2={y} className="starlink-chart-grid"/><text x={model.plot.x - 9} y={y + 4} textAnchor="end" className="starlink-chart-tick">{model.yAxis.format(tick)}</text></g>;
+          })}
+          <text x={12} y={model.plot.y + model.plot.height / 2} textAnchor="middle" className="starlink-chart-unit" transform={`rotate(-90 12 ${model.plot.y + model.plot.height / 2})`}>{fields[0].unit}</text>
+          {model.ticks.map((tick) => { const x = model.plot.x + ((tick - model.start) / Math.max(1, model.end - model.start)) * model.plot.width; return <g key={`x-${tick}`}><line x1={x} y1={model.plot.y} x2={x} y2={model.plot.y + model.plot.height} className="starlink-chart-grid starlink-chart-grid-vertical"/><text x={x} y={model.plot.y + model.plot.height + 22} textAnchor="middle" className="starlink-chart-tick">{formatTime(tick, model.end - model.start, width < 420)}</text></g>; })}
+          {model.lines.flatMap(({ field, segments }) => segments.map((segment, index) => <polyline key={`${field.key}-${index}`} points={segment.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" className={field.color}/>))}
+          {selected && <g className="starlink-chart-marker"><line x1={selected.x} y1={model.plot.y} x2={selected.x} y2={model.plot.y + model.plot.height} className="starlink-chart-crosshair"/><circle cx={selected.x} cy={selected.y} r="5"/></g>}
+        </svg>
+        {selected && <div className="starlink-chart-tooltip" style={selectedPosition} role="status" aria-live="polite"><strong>{selected.field.label}: {selected.field.format(selected.value)}</strong><span>{new Date(selected.time * 1000).toLocaleString()}</span></div>}
+      </div>
       <Group gap="md" wrap="wrap" className="starlink-chart-legend">
-        {fields.map(([key,name,color])=><Text key={key} size="xs" className={color}>{name}</Text>)}
+        {fields.map((field)=><Text key={field.key} size="xs" className={field.color}>{field.label}</Text>)}
       </Group>
-      <Group justify="space-between" mt="xs">
-        <Text size="xs" c="dimmed">{new Date(valid[0].received_at*1000).toLocaleString()}</Text>
-        <Text size="xs" c="dimmed">{new Date(valid.at(-1).received_at*1000).toLocaleString()}</Text>
-      </Group>
-      <Text size="xs" c="dimmed" mt={4}>{valid.length} retained samples shown · current value {format(valid.slice().reverse().find((point)=>Number.isFinite(point[fields[0][0]]))?.[fields[0][0]])}</Text>
+      <Text size="xs" c="dimmed" mt={4}>{points.length} retained samples · focus chart and use arrow keys to inspect; hover or tap a line for its value and time. Missing samples and gaps over two minutes are left unconnected.</Text>
     </>
   );
 }
@@ -233,9 +257,9 @@ export default function StarlinkDashboard({ api }) {
           <Metric label="Packet loss" value={Number.isFinite(metrics.pop_ping_drop_rate) ? `${(metrics.pop_ping_drop_rate*100).toFixed(2)}%` : "Unavailable"} />
           <Metric label="Obstruction" value={Number.isFinite(metrics.fraction_obstructed) ? `${(metrics.fraction_obstructed*100).toFixed(2)}%` : "Unavailable"} detail={metrics.currently_obstructed === null || metrics.currently_obstructed === undefined ? "Current status unavailable" : metrics.currently_obstructed ? "Currently obstructed" : "Currently clear"} />
         </SimpleGrid>
-        <div className="starlink-panels">
-          <Paper withBorder p="md"><Title order={4} mb="sm">Dish throughput</Title><Text size="xs" c="dimmed" mb="sm">Actual instantaneous traffic, not a speed test.</Text><PerformanceChart history={dish?.history} fields={[["downlink_throughput_bps","Download","starlink-line-5ghz"],["uplink_throughput_bps","Upload","starlink-line-2ghz"]]} label="Dish downlink and uplink throughput history" format={rateMbps} /></Paper>
-          <Paper withBorder p="md"><Title order={4} mb="sm">Latency and packet loss</Title><div className="starlink-dish-series"><PerformanceChart history={dish?.history} fields={[["pop_ping_latency_ms","PoP latency (ms)","starlink-line-ethernet"]]} label="Dish point-of-presence latency history" format={(value)=>`${value.toFixed(1)} ms`} /><PerformanceChart history={dish?.history} fields={[["pop_ping_drop_rate","Packet loss (%)","starlink-line-2ghz"]]} label="Dish packet loss history" format={(value)=>`${(value*100).toFixed(2)}%`} /></div></Paper>
+        <div className="starlink-panels starlink-dish-charts">
+          <Paper withBorder p="md"><Title order={4} mb="sm">Dish throughput</Title><Text size="xs" c="dimmed" mb="sm">Actual instantaneous traffic, not a speed test.</Text><PerformanceChart history={dish?.history} fields={[{key:"downlink_throughput_bps",label:"Download",color:"starlink-line-5ghz",factor:1e-6,unit:"Mbps",format:(value)=>`${value.toFixed(2)} Mbps`},{key:"uplink_throughput_bps",label:"Upload",color:"starlink-line-2ghz",factor:1e-6,unit:"Mbps",format:(value)=>`${value.toFixed(2)} Mbps`}]} label="Dish downlink and uplink throughput history" /></Paper>
+          <Paper withBorder p="md"><Title order={4} mb="sm">PoP latency history</Title><PerformanceChart history={dish?.history} fields={[{key:"pop_ping_latency_ms",label:"PoP latency",color:"starlink-line-ethernet",factor:1,unit:"ms",format:(value)=>`${value.toFixed(1)} ms`}]} label="Dish point-of-presence latency history" /></Paper>
         </div>
         <Text size="xs" c="dimmed" mt="md">Dish status is sampled once per minute. Latency, packet loss, throughput and obstruction are terminal-reported values; throughput is not available capacity.</Text>
       </Paper>

@@ -234,9 +234,8 @@ body {
 .starlink-panels > * {
   min-width: 0;
 }
-.starlink-dish-series {
-  display: grid;
-  gap: 1.25rem;
+.starlink-panels.starlink-dish-charts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .starlink-table-wrap {
   min-width: 0;
@@ -244,8 +243,61 @@ body {
 .starlink-chart {
   display: block;
   width: 100%;
-  min-height: 170px;
+  height: 360px;
   overflow: visible;
+  outline-offset: 3px;
+  touch-action: pan-y;
+}
+.starlink-chart-wrap {
+  position: relative;
+  min-width: 0;
+  overflow: visible;
+}
+.starlink-chart-grid {
+  stroke: var(--mantine-color-default-border);
+  stroke-dasharray: 2 4;
+  vector-effect: non-scaling-stroke;
+}
+.starlink-chart-grid-vertical {
+  opacity: .45;
+}
+.starlink-chart-tick,
+.starlink-chart-unit {
+  fill: var(--mantine-color-dimmed);
+  font-family: var(--mantine-font-family);
+  font-size: 11px;
+}
+.starlink-chart-marker circle {
+  fill: var(--mantine-color-body);
+  stroke: var(--mantine-color-blue-6);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+.starlink-chart-crosshair {
+  stroke: var(--mantine-color-blue-6);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+.starlink-chart-tooltip {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  gap: 3px;
+  max-width: min(250px, 88%);
+  padding: 8px 10px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-body);
+  box-shadow: var(--mantine-shadow-md);
+  color: var(--mantine-color-text);
+  font-size: var(--mantine-font-size-xs);
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  overflow-wrap: anywhere;
+}
+.starlink-chart-tooltip span {
+  color: var(--mantine-color-dimmed);
 }
 .starlink-chart-axis {
   stroke: var(--mantine-color-default-border);
@@ -279,6 +331,11 @@ body {
 }
 @media (max-width: 900px) {
   .starlink-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .starlink-panels.starlink-dish-charts {
     grid-template-columns: minmax(0, 1fr);
   }
 }
