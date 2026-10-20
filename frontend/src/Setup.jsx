@@ -17,6 +17,7 @@ import { useAction, Feedback } from "./actions.jsx";
 import ConfigForm from "./ConfigForm.jsx";
 import SensorControls from "./SensorControls.jsx";
 import PlugControls from "./PlugControls.jsx";
+import StarlinkSettings from "./StarlinkSettings.jsx";
 import { age, display } from "./layout.js";
 function useAdminData(request) {
   const [data, setData] = useState({
@@ -439,6 +440,7 @@ export default function Setup({ api, online, onLayout }) {
         <Tabs.List className="setup-sections">
           {[
             ["gateway", "Gateway"],
+            ["starlink", "Starlink"],
             ["devices", "Devices"],
             ["spaces", "Locations"],
             ["profiles", "Profiles"],
@@ -508,6 +510,9 @@ export default function Setup({ api, online, onLayout }) {
             </Text>
             <Feedback action={action} />
           </Paper>
+        </Tabs.Panel>
+        <Tabs.Panel value="starlink" pt="xl">
+          <StarlinkSettings api={api} />
         </Tabs.Panel>
         <Tabs.Panel value="devices" pt="xl">
           <Accordion

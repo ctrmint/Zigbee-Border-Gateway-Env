@@ -6,7 +6,7 @@ from .grid_layout import BREAKPOINTS
 
 def capabilities_v2():
     return {"api_version": "2", "widget_types": ["numeric", "chart"],
-        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True,"smart_plugs":True,"grid_layouts":True,"system_dashboard":True,"radio_dashboard":True},
+        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True,"smart_plugs":True,"grid_layouts":True,"system_dashboard":True,"radio_dashboard":True,"starlink_monitoring":True},
         "limits": {"configuration_bytes": 65536, "widgets": 100, "locations": 50,
             "device_overrides": 50, "history_page": 500, "history_days": 31,
             "history_retention_days": 60,"all_columns":6,"all_min_tile_width":200,"all_max_tile_width":640,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
@@ -97,9 +97,53 @@ def contract_v2():
             "routes":array({"type":"object","additionalProperties":True},maxItems=64),
             "route_records":array({"type":"object","additionalProperties":True},maxItems=64)},
             ("status","source","neighbors","routes","route_records")),
+        "StarlinkConfig": obj({"enabled":{"type":"boolean"},"host":{"type":"string","format":"ipv4"},
+            "port":integer(1,65535),"dish_enabled":{"type":"boolean"},"dish_host":{"type":"string","format":"ipv4"},
+            "dish_port":integer(1,65535),"revision":integer(1)},
+            ("enabled","host","port","dish_enabled","dish_host","dish_port","revision"),additionalProperties=False),
+        "StarlinkNetwork": obj({"domain":{"type":"string","maxLength":32},"ipv4":{"type":"string","maxLength":64},
+            "ipv6":array({"type":"string","maxLength":80},maxItems=8),"clients_ethernet":{"type":["integer","null"],"minimum":0,"maximum":100000},
+            "clients_2ghz":{"type":["integer","null"],"minimum":0,"maximum":100000},"clients_5ghz":{"type":["integer","null"],"minimum":0,"maximum":100000}},
+            ("domain","ipv4","ipv6","clients_ethernet","clients_2ghz","clients_5ghz"),additionalProperties=False),
+        "StarlinkHistoryPoint": obj({"received_at":{"type":"number","minimum":0},
+            "status":{"enum":["available","stale","unavailable","unsupported"]},
+            **{k:{"type":["integer","null"],"minimum":0,"maximum":9600000} for k in ("ethernet_clients","clients_2ghz","clients_5ghz","total_clients")}},
+            ("received_at","status","ethernet_clients","clients_2ghz","clients_5ghz","total_clients"),additionalProperties=False),
+        "StarlinkDishMetrics": obj({"state":{"type":["string","null"],"maxLength":32},
+            **{k:{"type":["number","null"],"minimum":low,"maximum":high} for k,low,high in (
+                ("pop_ping_latency_ms",0,60000),("pop_ping_drop_rate",0,1),
+                ("downlink_throughput_bps",0,10**12),("uplink_throughput_bps",0,10**12),
+                ("snr",-1000,1000),("fraction_obstructed",0,1))},
+            "currently_obstructed":{"type":["boolean","null"]}},
+            ("state","pop_ping_latency_ms","pop_ping_drop_rate","downlink_throughput_bps",
+             "uplink_throughput_bps","snr","fraction_obstructed","currently_obstructed"),additionalProperties=False),
+        "StarlinkDishHistoryPoint": obj({"received_at":{"type":"number","minimum":0},
+            "status":{"enum":["available","stale","unavailable","unsupported"]},
+            "state":{"type":["string","null"],"maxLength":32},
+            **{k:{"type":["number","null"],"minimum":low,"maximum":high} for k,low,high in (
+                ("pop_ping_latency_ms",0,60000),("pop_ping_drop_rate",0,1),
+                ("downlink_throughput_bps",0,10**12),("uplink_throughput_bps",0,10**12),
+                ("snr",-1000,1000),("fraction_obstructed",0,1))},
+            "currently_obstructed":{"type":["boolean","null"]}},
+            ("received_at","status","state","pop_ping_latency_ms","pop_ping_drop_rate",
+             "downlink_throughput_bps","uplink_throughput_bps","snr","fraction_obstructed","currently_obstructed"),additionalProperties=False),
+        "StarlinkDishSnapshot": obj({"status":{"enum":["disabled","available","stale","unavailable","unsupported"]},
+            "observed_at":{"type":["number","null"],"minimum":0},"last_attempt_at":{"type":["number","null"],"minimum":0},
+            "last_success_at":{"type":["number","null"],"minimum":0},"error":{"type":["string","null"],"maxLength":64},
+            "metrics":{"anyOf":[{"type":"null"},ref("StarlinkDishMetrics")]},
+            "history":array(ref("StarlinkDishHistoryPoint"),maxItems=500)},
+            ("status","observed_at","last_attempt_at","last_success_at","error","metrics","history"),additionalProperties=False),
+        "StarlinkSnapshot": obj({"status":{"enum":["disabled","available","stale","unavailable","unsupported"]},
+            "observed_at":{"type":["number","null"],"minimum":0},"last_attempt_at":{"type":["number","null"],"minimum":0},
+            "last_success_at":{"type":["number","null"],"minimum":0},"error":{"type":["string","null"],"maxLength":64},
+            "router":{"anyOf":[{"type":"null"},obj({"hardware_version":{"type":["string","null"],"maxLength":128},
+                "software_version":{"type":["string","null"],"maxLength":128}},("hardware_version","software_version"),additionalProperties=False)]},
+            "networks":array(ref("StarlinkNetwork"),maxItems=32),"history":array(ref("StarlinkHistoryPoint"),maxItems=500),
+            "dish":ref("StarlinkDishSnapshot")},
+            ("status","observed_at","last_attempt_at","last_success_at","error","router","networks","history","dish"),additionalProperties=False),
         "Capabilities": obj({"api_version": {"const": "2"}, "widget_types": array({"enum": ["numeric", "chart"]}),
-            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs", "grid_layouts", "system_dashboard", "radio_dashboard")},
-                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs", "grid_layouts", "system_dashboard", "radio_dashboard")),
+            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs", "grid_layouts", "system_dashboard", "radio_dashboard", "starlink_monitoring")},
+                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs", "grid_layouts", "system_dashboard", "radio_dashboard", "starlink_monitoring")),
             "limits": obj({k: ({"type": "array", "items": {"type": "integer"}} if k == "chart_ranges" else {"type": "integer"}) for k in capabilities_v2()["limits"]}, capabilities_v2()["limits"])},
             ("api_version", "widget_types", "features", "limits"))}
     policy = obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"}, "endpoint":integer(1,240),
@@ -149,6 +193,24 @@ def contract_v2():
         "description": "Passive snapshot of coordinator-local neighbor, route and source-route tables; no Zigbee requests are sent to devices.",
         "responses": {"200": response("Current or last-known bounded coordinator radio snapshot", ref("RadioSnapshot")),
             "401": response("Unauthorized", ref("Error"))}}}
+    paths['/api/v2/starlink'] = {"get": {"operationId": "starlink_snapshot",
+        "description": "Cached read-only local router diagnostics and dish service telemetry with bounded histories.",
+        "responses": {"200": response("Current or last-known router and dish telemetry", ref("StarlinkSnapshot")),
+            "401": response("Unauthorized", ref("Error"))}}}
+    paths['/api/v2/starlink/config'] = {"get": {"operationId": "starlink_router_configuration",
+        "responses": {"200": response("Router polling configuration", ref("StarlinkConfig")),
+            "401": response("Unauthorized", ref("Error"))}},
+        "put": {"operationId": "replace_starlink_router_configuration",
+            "parameters": [{"name":"If-Match","in":"header","required":True,"schema":{"type":"string"}}],
+            "requestBody": {"required":True,"content":{"application/json":{"schema":obj({
+                "enabled":{"type":"boolean"},"host":{"type":"string","format":"ipv4"},"port":integer(1,65535),
+                "dish_enabled":{"type":"boolean"},"dish_host":{"type":"string","format":"ipv4"},"dish_port":integer(1,65535)},
+                ("enabled","host","port","dish_enabled","dish_host","dish_port"),additionalProperties=False)}}},
+            "responses": {"200": response("Saved router polling configuration", ref("StarlinkConfig")),
+                "401": response("Unauthorized", ref("Error")),"412":response("Revision conflict",ref("Error")),
+                "422":response("Invalid private router target",ref("Error")),"428":response("If-Match required",ref("Error"))}}}
+    paths['/api/v2/starlink/config']['get']['responses']['200']['headers'] = {"ETag":{"schema":{"type":"string"}}}
+    paths['/api/v2/starlink/config']['put']['responses']['200']['headers'] = {"ETag":{"schema":{"type":"string"}}}
     paths['/api/v2/configuration']["get"]["responses"]["200"]["headers"] = {"ETag": {"schema": {"type": "string"}}}
     paths['/api/v2/configuration']["put"] = {"operationId": "replace_configuration",
         "parameters": [{"name": "If-Match", "in": "header", "required": True, "schema": {"type": "string"}}],
@@ -214,6 +276,6 @@ def contract_v2():
     paths['/api/v2/system/database/check'] = {"post": {"operationId": "check_system_database", "description": "Explicit, bounded SQLite quick_check; not run during dashboard polling.", "responses": {"200": response("Integrity check result", system_obj), "401": response("Unauthorized", ref("Error")), "503": response("Database unavailable", ref("Error"))}}}
     paths['/api/v2/system/purge-preview'] = {"get": {"operationId": "preview_history_purge", "description": "Creates a five-minute in-memory preview for timestamped history older than 60 days.", "responses": {"200": response("Purge counts and confirmation token", ref("PurgePreview")), "401": response("Unauthorized", ref("Error"))}}}
     paths['/api/v2/system/purge'] = {"post": {"operationId": "purge_old_history", "description": "Deletes only timestamped telemetry tables represented by an unexpired preview in one transaction. Preserves registry, latest readings and configuration.", "requestBody": {"required": True, "content": {"application/json": {"schema": obj({"preview_id": {"type": "string", "minLength": 20, "maxLength": 100}}, ("preview_id",), additionalProperties=False)}}}, "responses": {"200": response("Deleted history row counts", ref("PurgeResult")), "401": response("Unauthorized", ref("Error")), "409": response("Preview expired", ref("Error")), "422": response("Invalid preview", ref("Error")), "503": response("Database unavailable", ref("Error"))}}}
-    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.11.0"},
+    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.13.0"},
         "servers": [{"url": "/"}], "security": [{"bearerAuth": []}], "paths": paths,
         "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": definitions}}

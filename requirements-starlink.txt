@@ -1,0 +1,3 @@
+# Optional local Starlink router gRPC integration.
+grpcio>=1.51.1,<2
+protobuf>=3.21,<8

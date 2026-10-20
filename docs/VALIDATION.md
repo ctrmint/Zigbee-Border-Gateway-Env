@@ -1,5 +1,30 @@
 # Validation record
 
+## Starlink router and dish dashboard, issue #52, 2026-10-20
+
+- PASS: all 112 Python integration/unit tests, including fake gRPC router
+  `GetDiagnostics` and dish `GetStatus` exchanges, dish link metrics/history,
+  independent stale handling, target validation, disabled polling, persistence,
+  retention, authentication and revision-checked configuration.
+- PASS: all 15 frontend unit tests, production Vite build (including the lazy
+  Starlink dashboard asset), Python compilation, exported API contract check,
+  and Git whitespace check.
+- NOT RUN: browser interaction suite; Playwright is not installed in the
+  available Python environment.
+- PASS: the router diagnostics endpoint returned a live `available` response
+  from the connected router after the optional runtime was installed.
+- PASS: on 20 October 2026, the Pi saved the dish target and received live dish
+  status. The sample included downlink/uplink throughput and PoP latency.
+- PARTIAL: that live dish response omitted link state, packet-loss rate, SNR,
+  and obstruction fields. The terminal model/firmware was not recorded, so the
+  reason for each omission and cross-firmware behavior remain unverified.
+- NOT RUN: physical iPad acceptance for the Starlink tab. The user confirmed
+  the settings could be saved; the live API response confirms telemetry
+  availability with the fields above.
+
+See [Starlink monitoring](STARLINK_MONITORING.md) for the read-only scope,
+optional dependencies, configuration and data-retention details.
+
 ## Current evidence index
 
 See [18 October 2026 hardware validation](HARDWARE_VALIDATION_2026-10-18.md) for the three S60ZBTPG units, completed reporting/switching/settings/restart checks, scoped iPad acceptance and Pi incident limitations. Older entries below are historical milestone records; statements such as “hardware pending” describe the evidence at that milestone, not a claim that no later testing occurred. The current product guides and dated record identify remaining work.

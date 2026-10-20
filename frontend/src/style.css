@@ -220,6 +220,68 @@ body {
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
+.starlink-dashboard {
+  min-width: 0;
+}
+.starlink-metric .mantine-Text-root:nth-child(2) {
+  overflow-wrap: anywhere;
+}
+.starlink-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 1rem;
+}
+.starlink-panels > * {
+  min-width: 0;
+}
+.starlink-dish-series {
+  display: grid;
+  gap: 1.25rem;
+}
+.starlink-table-wrap {
+  min-width: 0;
+}
+.starlink-chart {
+  display: block;
+  width: 100%;
+  min-height: 170px;
+  overflow: visible;
+}
+.starlink-chart-axis {
+  stroke: var(--mantine-color-default-border);
+  stroke-dasharray: 3 4;
+}
+.starlink-chart-legend .starlink-line-ethernet {
+  color: var(--mantine-color-violet-6);
+}
+.starlink-chart-legend .starlink-line-2ghz {
+  color: var(--mantine-color-teal-6);
+}
+.starlink-chart-legend .starlink-line-5ghz {
+  color: var(--mantine-color-blue-6);
+}
+.starlink-line-ethernet,
+.starlink-line-2ghz,
+.starlink-line-5ghz {
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.starlink-line-ethernet {
+  stroke: var(--mantine-color-violet-6);
+}
+.starlink-line-2ghz {
+  stroke: var(--mantine-color-teal-6);
+}
+.starlink-line-5ghz {
+  stroke: var(--mantine-color-blue-6);
+}
+@media (max-width: 900px) {
+  .starlink-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .overview-heading {
   display: flex;
   align-items: center;

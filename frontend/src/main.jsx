@@ -40,6 +40,7 @@ import {
   Check,
   RotateCcw,
   Database,
+  Router,
 } from "lucide-react";
 import "@mantine/core/styles.css";
 import "./style.css";
@@ -49,6 +50,7 @@ import { geometry, historyKey } from "./history.js";
 const Setup = React.lazy(() => import("./Setup.jsx"));
 const SystemDashboard = React.lazy(() => import("./SystemDashboard.jsx"));
 const RadioDashboard = React.lazy(() => import("./RadioDashboard.jsx"));
+const StarlinkDashboard = React.lazy(() => import("./StarlinkDashboard.jsx"));
 import useDashboard from "./useDashboard.js";
 import {
   age,
@@ -568,6 +570,23 @@ function App() {
                   </button>
                   <button
                     className={
+                      page === "starlink" ? "selected setup-tab" : "setup-tab"
+                    }
+                    aria-current={page === "starlink" ? "page" : undefined}
+                    onClick={() => {
+                      const go = () => {
+                        discard();
+                        setPage("starlink");
+                      };
+                      if (hasEdits) setConfirm(() => go);
+                      else go();
+                    }}
+                  >
+                    <Router size={16} />
+                    <span>Starlink</span>
+                  </button>
+                  <button
+                    className={
                       page === "radio" ? "selected setup-tab" : "setup-tab"
                     }
                     aria-current={page === "radio" ? "page" : undefined}
@@ -695,6 +714,13 @@ function App() {
                   fallback={<Text>Loading Radio dashboard…</Text>}
                 >
                   <RadioDashboard api={api} />
+                </React.Suspense>
+              )}
+              {page === "starlink" && (
+                <React.Suspense
+                  fallback={<Text>Loading Starlink dashboard…</Text>}
+                >
+                  <StarlinkDashboard api={api} />
                 </React.Suspense>
               )}
               {page === "editor" && draft && (

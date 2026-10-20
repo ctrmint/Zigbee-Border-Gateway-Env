@@ -10,7 +10,7 @@ import threading
 import uuid
 from urllib.parse import urlsplit, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from .core import ConfigurationError, Gateway, Store, Poller, validate_command
+from .core import ConfigurationError, Gateway, Store, Poller, StarlinkPoller, validate_command
 from .contracts import capabilities, contract
 from .profiles import requested_profile
 from .dashboard import DashboardError
@@ -20,7 +20,7 @@ from .contracts_v2 import contract_v2, capabilities_v2
 
 STATIC = Path(__file__).parent / "static"
 
-def make_handler(store, poller, gateway, token):
+def make_handler(store, poller, gateway, token, starlink_poller=None):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
             pass
@@ -89,6 +89,9 @@ def make_handler(store, poller, gateway, token):
                     if route.path == "/api/v2/devices": return self.send(200, store.device_views())
                     if route.path == "/api/v2/gateway": return self.send(200, dict(poller.status))
                     if route.path == "/api/v2/radio": return self.send(200, dict(poller.radio))
+                    if route.path == "/api/v2/starlink": return self.send(200, store.starlink_document())
+                    if route.path == "/api/v2/starlink/config":
+                        return self.send(200, store.starlink_configuration(), {"ETag":store.starlink_etag()})
                     if route.path == "/api/v2/history":
                         params = parse_qs(route.query, keep_blank_values=True, strict_parsing=True)
                         if any(len(values) != 1 for values in params.values()):
@@ -101,6 +104,14 @@ def make_handler(store, poller, gateway, token):
                     return self.send(202,store.start_plug(body))
                 if method == "POST" and route.path == "/api/v2/system/database/check":
                     return self.send(200, store.system_database_check())
+                if method == "PUT" and route.path == "/api/v2/starlink/config":
+                    expected = self.headers.get("If-Match")
+                    if expected is None:
+                        return self.v2_error(428, "revision_required", "Reload Starlink settings before saving.")
+                    data = store.replace_starlink_configuration(self.read_body(1024), expected)
+                    if starlink_poller:
+                        starlink_poller.wake()
+                    return self.send(200, data, {"ETag":store.starlink_etag()})
                 if method == "POST" and route.path == "/api/v2/system/purge":
                     body = self.read_body(1024)
                     if set(body) != {"preview_id"} or not isinstance(body["preview_id"], str):
@@ -245,9 +256,12 @@ def main():
     gateway = Gateway(os.environ.get("GATEWAY_URL", "http://127.0.0.1:8081"), gt)
     poller = Poller(gateway, store)
     thread = threading.Thread(target=poller.run, daemon=True)
+    starlink_poller = StarlinkPoller(store)
+    starlink_thread = threading.Thread(target=starlink_poller.run, daemon=True)
     thread.start()
+    starlink_thread.start()
     server = ThreadingHTTPServer((os.environ.get("BIND_HOST", "127.0.0.1"), int(os.environ.get("PORT", "8080"))),
-        make_handler(store, poller, gateway, token))
+        make_handler(store, poller, gateway, token, starlink_poller))
     server.daemon_threads = True
     print(f"Dashboard listening on {server.server_address[0]}:{server.server_address[1]}", flush=True)
     try:
@@ -256,7 +270,10 @@ def main():
         pass
     finally:
         poller.stop.set()
+        starlink_poller.stop.set()
+        starlink_poller.wake()
         thread.join(timeout=10)
+        starlink_thread.join(timeout=10)
         server.server_close()
         store.close()
 if __name__ == "__main__":

@@ -68,6 +68,45 @@ class DashboardTests(base.BrowserFixture):
         self.assertFalse(any('/api/v1/commands' in url for _,url in self.sent))
         self.assertEqual(self.errors,[])
 
+    def test_starlink_dashboard_and_setup_are_readonly_and_responsive(self):
+        current = self.store.starlink_configuration()
+        settings = {key: current[key] for key in ("enabled", "host", "port", "dish_enabled", "dish_host", "dish_port")}
+        settings.update(enabled=True, dish_enabled=True)
+        self.store.replace_starlink_configuration(settings, self.store.starlink_etag())
+        self.store.starlink_record("available", time.time(),
+            router={"hardware_version": "v2", "software_version": "2026.20.0"},
+            networks=[{"domain": "lan", "ipv4": "192.168.1.0/24", "ipv6": [],
+                "clients_ethernet": 1, "clients_2ghz": 2, "clients_5ghz": 3}])
+        self.store.starlink_dish_record("available", time.time(), metrics={
+            "state":"CONNECTED", "pop_ping_latency_ms":28.5, "pop_ping_drop_rate":0.01,
+            "downlink_throughput_bps":9_000_000, "uplink_throughput_bps":800_000,
+            "snr":None, "fraction_obstructed":0.02, "currently_obstructed":False})
+        self.connect()
+        tabs = self.page.get_by_role('button', name='System', exact=True)
+        self.assertTrue(tabs.is_visible())
+        self.page.get_by_role('button', name='Starlink', exact=True).click()
+        expect(self.page.get_by_role('heading', name='Starlink', exact=True)).to_be_visible()
+        expect(self.page.get_by_text('2026.20.0', exact=True)).to_be_visible()
+        expect(self.page.get_by_text('192.168.1.0/24', exact=True)).to_be_visible()
+        expect(self.page.get_by_role('heading', name='Satellite link performance', exact=True)).to_be_visible()
+        expect(self.page.get_by_text('28.5 ms', exact=True)).to_be_visible()
+        for width,height in ((1024,768),(768,1024),(390,844)):
+            self.page.set_viewport_size(dict(width=width,height=height))
+            self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+        self.page.get_by_role('button', name='Configuration & Setup', exact=True).click()
+        self.page.get_by_role('tab', name='Starlink', exact=True).click()
+        expect(self.page.get_by_label('Router private IPv4 address')).to_have_value('192.168.1.1')
+        self.page.get_by_label('Router private IPv4 address').fill('192.168.1.2')
+        self.page.get_by_label('Dish private IPv4 address').fill('192.168.100.2')
+        self.page.get_by_role('button', name='Save Starlink settings', exact=True).click()
+        expect(self.page.get_by_role('status')).to_contain_text('Saved')
+        self.assertEqual(self.store.starlink_configuration()['host'], '192.168.1.2')
+        self.assertEqual(self.store.starlink_configuration()['dish_host'], '192.168.100.2')
+        self.assertTrue(all(method == 'GET' or (method == 'PUT' and '/api/v2/starlink/config' in url)
+            for method,url in self.sent))
+        self.assertFalse(any('/api/v1/commands' in url for _,url in self.sent))
+        self.assertEqual(self.errors,[])
+
     def test_save_keyboard_resize_theme_discard_and_reload(self):
         self.page.set_viewport_size(dict(width=1440,height=1000));self.connect();self.edit()
         self.page.get_by_label('Width',exact=True).fill('6')
