@@ -29,7 +29,7 @@ BACKUP
 
 Protect the backup: it contains device identifiers and household activity. This backs up application history, not the Zigbee network/security state. No safe Zigbee network backup/restore tool is provided. Do not erase S3 flash/NVS unless deliberately rebuilding the network and accepting re-pairing. Frame counters and keys make raw flash restoration security-sensitive.
 
-Raw event retention is 30 days, pruned periodically while polling succeeds. Latest attributes remain in device projections. Tune retention only after measuring storage usage. Database vacuuming is manual; run while the service is stopped if reclaiming disk is needed.
+Timestamped telemetry retention is 60 days, pruned periodically while polling succeeds. This covers raw events, measurements, signal samples, ingestion gaps, and plug energy discontinuities; latest attributes remain in device projections. The System dashboard can preview and explicitly purge history older than 60 days. Registry/configuration and operational jobs are excluded. Database vacuuming is manual; run while the service is stopped if reclaiming disk is needed. Existing history already removed under the former 30-day policy cannot be recovered by upgrading.
 
 ## Test plan on hardware
 

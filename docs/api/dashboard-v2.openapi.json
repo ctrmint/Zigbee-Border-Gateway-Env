@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Zigbee dashboard v2 API",
-    "version": "2.10.0"
+    "version": "2.11.0"
   },
   "servers": [
     {
@@ -1212,6 +1212,206 @@
           },
           "503": {
             "description": "Gateway upgrade/offline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/system": {
+      "get": {
+        "operationId": "system_host_health",
+        "responses": {
+          "200": {
+            "description": "Bounded host health snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHost"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/system/database": {
+      "get": {
+        "operationId": "system_database_metrics",
+        "responses": {
+          "200": {
+            "description": "SQLite size, counts, retention and last integrity check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemDatabase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/system/database/check": {
+      "post": {
+        "operationId": "check_system_database",
+        "description": "Explicit, bounded SQLite quick_check; not run during dashboard polling.",
+        "responses": {
+          "200": {
+            "description": "Integrity check result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/system/purge-preview": {
+      "get": {
+        "operationId": "preview_history_purge",
+        "description": "Creates a five-minute in-memory preview for timestamped history older than 60 days.",
+        "responses": {
+          "200": {
+            "description": "Purge counts and confirmation token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgePreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/system/purge": {
+      "post": {
+        "operationId": "purge_old_history",
+        "description": "Deletes only timestamped telemetry tables represented by an unexpired preview in one transaction. Preserves registry, latest readings and configuration.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "preview_id": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "preview_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deleted history row counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgeResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Preview expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -2953,6 +3153,12 @@
               },
               "smart_plugs": {
                 "const": true
+              },
+              "grid_layouts": {
+                "const": true
+              },
+              "system_dashboard": {
+                "const": true
               }
             },
             "required": [
@@ -2964,7 +3170,9 @@
               "user_profiles",
               "signal_history",
               "all_overview_layout",
-              "smart_plugs"
+              "smart_plugs",
+              "grid_layouts",
+              "system_dashboard"
             ]
           },
           "limits": {
@@ -4362,6 +4570,22 @@
           "routing",
           "capabilities"
         ]
+      },
+      "SystemHost": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "SystemDatabase": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "PurgePreview": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "PurgeResult": {
+        "type": "object",
+        "additionalProperties": true
       }
     }
   }

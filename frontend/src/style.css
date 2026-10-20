@@ -169,6 +169,17 @@ body {
 .setup-tab {
   flex-shrink: 0;
 }
+.utility-navigation {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.utility-navigation .setup-tab { flex-shrink: 0; }
+.system-dashboard { padding-bottom: 32px; }
+.system-dashboard h3 svg { vertical-align: -3px; margin-right: 7px; }
+.system-metric { min-width: 0; }
+.system-metric .mantine-Text-root { overflow-wrap: anywhere; }
 .overview-heading {
   display: flex;
   align-items: center;

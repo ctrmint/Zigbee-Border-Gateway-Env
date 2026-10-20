@@ -77,6 +77,8 @@ The service and simulator themselves still require no third-party packages.
 Run `python3 -m sbc.contracts --check` to verify the exported API descriptions.
 See the [API contracts](docs/API.md) and
 [configurable dashboard development plan](docs/DASHBOARD_API_DESIGN.md).
+The [System dashboard guide](docs/SYSTEM_DASHBOARD.md) documents host metrics,
+database health, 60-day retention, and the confirmed history-purge scope.
 
 This repository is maintained on GitHub. Work on a branch, validate the change, and merge through a reviewed pull request. Keep hardware acceptance evidence separate from simulator results and update the relevant product guide and issue when new physical checks are completed.
 

@@ -14,6 +14,7 @@ from .sensors import sensor_endpoint
 from .plug_jobs import PlugStore,drive_plugs
 from . import plugs
 from .display import DisplayStore,drive_display,drive_clock
+from .system import SystemStore, RETENTION_DAYS
 
 OPS = {"permit_join", "discover", "read", "on_off", "bind", "configure_reporting", "read_reporting", "reporting_window", "write_display", "read_display", "sync_clock"}
 
@@ -97,9 +98,10 @@ def normalize(cluster, attribute, data_type, raw, device=None, endpoint=None):
         return bool(raw), "on/off"
     return None, None
 
-class Store(DashboardStore, CommissioningStore, DisplayStore, PlugStore):
+class Store(DashboardStore, CommissioningStore, DisplayStore, PlugStore, SystemStore):
     def __init__(self, path):
         self.lock = threading.RLock()
+        self._init_system(path)
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
@@ -118,6 +120,9 @@ class Store(DashboardStore, CommissioningStore, DisplayStore, PlugStore):
         self._init_commissioning()
         self._init_display()
         self._init_plugs()
+        self.db.execute('CREATE INDEX IF NOT EXISTS event_retention_time ON events(received)')
+        self.db.execute('CREATE INDEX IF NOT EXISTS measurement_retention_time ON measurements(received)')
+        self.db.execute('CREATE INDEX IF NOT EXISTS plug_discontinuity_retention_time ON plug_discontinuities(received)')
         self.db.execute('CREATE TABLE IF NOT EXISTS gateway_bindings(config_key TEXT PRIMARY KEY,identity TEXT NOT NULL,url TEXT NOT NULL)')
         self.db.commit()
     def cursor(self):
@@ -297,7 +302,7 @@ class Poller:
                 interval = .1 if self.once() else 2
                 cycles += 1
                 if cycles % 1800 == 0:
-                    self.store.prune(30)
+                    self.store.prune(RETENTION_DAYS)
             except Exception as e:
                 # Avoid logging URLs/tokens or credentials from upstream failures.
                 self.status = dict(self.status, connected=False, error=type(e).__name__)
