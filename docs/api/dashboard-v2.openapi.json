@@ -714,6 +714,34 @@
         }
       }
     },
+    "/api/v2/radio": {
+      "get": {
+        "operationId": "radio_mesh_snapshot",
+        "description": "Passive snapshot of coordinator-local neighbor, route and source-route tables; no Zigbee requests are sent to devices.",
+        "responses": {
+          "200": {
+            "description": "Current or last-known bounded coordinator radio snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RadioSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/openapi.json": {
       "get": {
         "operationId": "v2_contract",
@@ -3109,6 +3137,103 @@
           "error"
         ]
       },
+      "RadioSnapshot": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "available",
+              "stale",
+              "unavailable",
+              "unsupported"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "boot_id": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "uptime_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "channel": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 11,
+            "maximum": 26
+          },
+          "pan_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "scope": {
+            "type": "string"
+          },
+          "neighbor_source": {
+            "type": "string"
+          },
+          "route_source": {
+            "type": "string"
+          },
+          "neighbors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "maxItems": 64
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "maxItems": 64
+          },
+          "route_records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "maxItems": 64
+          }
+        },
+        "required": [
+          "status",
+          "source",
+          "neighbors",
+          "routes",
+          "route_records"
+        ]
+      },
       "Capabilities": {
         "type": "object",
         "properties": {
@@ -3159,6 +3284,9 @@
               },
               "system_dashboard": {
                 "const": true
+              },
+              "radio_dashboard": {
+                "const": true
               }
             },
             "required": [
@@ -3172,7 +3300,8 @@
               "all_overview_layout",
               "smart_plugs",
               "grid_layouts",
-              "system_dashboard"
+              "system_dashboard",
+              "radio_dashboard"
             ]
           },
           "limits": {

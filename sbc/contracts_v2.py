@@ -6,7 +6,7 @@ from .grid_layout import BREAKPOINTS
 
 def capabilities_v2():
     return {"api_version": "2", "widget_types": ["numeric", "chart"],
-        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True,"smart_plugs":True,"grid_layouts":True,"system_dashboard":True},
+        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True,"smart_plugs":True,"grid_layouts":True,"system_dashboard":True,"radio_dashboard":True},
         "limits": {"configuration_bytes": 65536, "widgets": 100, "locations": 50,
             "device_overrides": 50, "history_page": 500, "history_days": 31,
             "history_retention_days": 60,"all_columns":6,"all_min_tile_width":200,"all_max_tile_width":640,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
@@ -87,9 +87,19 @@ def contract_v2():
             ("code", "message", "details")), "request_id": {"type": "string"}}, ("error", "request_id")),
         "Gateway": obj({"gateway_id":{"type":"string"},"network":{"type":"object"},"connected": {"type": "boolean"}, "ready": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "mode": {"enum": ["hardware", "simulator"]}}, ("connected", "error")),
+        "RadioSnapshot": obj({"status":{"enum":["available","stale","unavailable","unsupported"]},
+            "source":{"type":"string"},"observed_at":{"type":["number","null"]},"error":{"type":["string","null"]},
+            "boot_id":{"type":"string"},"ready":{"type":"boolean"},"mode":{"type":"string"},
+            "uptime_ms":integer(0),"channel":{"type":["integer","null"],"minimum":11,"maximum":26},
+            "pan_id":{"type":["integer","null"],"minimum":0,"maximum":65535},"scope":{"type":"string"},
+            "neighbor_source":{"type":"string"},"route_source":{"type":"string"},
+            "neighbors":array({"type":"object","additionalProperties":True},maxItems=64),
+            "routes":array({"type":"object","additionalProperties":True},maxItems=64),
+            "route_records":array({"type":"object","additionalProperties":True},maxItems=64)},
+            ("status","source","neighbors","routes","route_records")),
         "Capabilities": obj({"api_version": {"const": "2"}, "widget_types": array({"enum": ["numeric", "chart"]}),
-            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs", "grid_layouts", "system_dashboard")},
-                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs", "grid_layouts", "system_dashboard")),
+            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs", "grid_layouts", "system_dashboard", "radio_dashboard")},
+                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs", "grid_layouts", "system_dashboard", "radio_dashboard")),
             "limits": obj({k: ({"type": "array", "items": {"type": "integer"}} if k == "chart_ranges" else {"type": "integer"}) for k in capabilities_v2()["limits"]}, capabilities_v2()["limits"])},
             ("api_version", "widget_types", "features", "limits"))}
     policy = obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"}, "endpoint":integer(1,240),
@@ -135,6 +145,10 @@ def contract_v2():
     for route, name in (("configuration", "Configuration"), ("devices", "Devices"), ("history", "History"), ("gateway", "Gateway"), ("capabilities", "Capabilities")):
         paths['/api/v2/' + route] = {"get": {"operationId": "v2_" + route,
             "responses": {"200": response("Current " + route, ref(name)), "401": response("Unauthorized", ref("Error"))}}}
+    paths['/api/v2/radio'] = {"get": {"operationId": "radio_mesh_snapshot",
+        "description": "Passive snapshot of coordinator-local neighbor, route and source-route tables; no Zigbee requests are sent to devices.",
+        "responses": {"200": response("Current or last-known bounded coordinator radio snapshot", ref("RadioSnapshot")),
+            "401": response("Unauthorized", ref("Error"))}}}
     paths['/api/v2/configuration']["get"]["responses"]["200"]["headers"] = {"ETag": {"schema": {"type": "string"}}}
     paths['/api/v2/configuration']["put"] = {"operationId": "replace_configuration",
         "parameters": [{"name": "If-Match", "in": "header", "required": True, "schema": {"type": "string"}}],

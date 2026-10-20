@@ -11,7 +11,7 @@ The board runs Zigbee coordinator firmware, exposes an authenticated local REST 
 - S3 firmware: coordinator formation and persistence, explicit 0–180 second pairing, 50-entry IEEE-address registry, automatic endpoint/cluster discovery on announcement, standard scalar attribute reports and reads, On/Off commands, bounded event history.
 - H2 RCP build recipe using ESP-IDF's supplied `ot_rcp` source.
 - SBC Python service with SQLite history, restart-aware polling, deduplication, gap detection and authenticated command proxy.
-- Tabbed dashboard: read-only All overview, location tabs and Configuration & Setup, configurable numeric readings/history charts, pairing, inventory and endpoint inspection. Presentation profiles have session-cookie selection and independent layouts; device state/settings remain shared.
+- Tabbed dashboard: read-only All overview, location tabs, Configuration & Setup, System and a read-only Radio view of coordinator-local mesh tables and passive RSSI history; configurable numeric readings/history charts, pairing, inventory and endpoint inspection. Presentation profiles have session-cookie selection and independent layouts; device state/settings remain shared.
 - Bounded sensor reporting/display and S60ZBTPG plug jobs with acknowledgements/readback, metering/state/RSSI history and model-specific controls.
 - Continuous gateway Wi-Fi recovery and authenticated identity-pinned rediscovery; retained event ages and recording gaps remain visible.
 - Named locations: create/rename locations, assign multiple sensors and group readings; saved on the SBC across restarts.
@@ -113,3 +113,5 @@ The user reported that the appearance is too similar to the original;
 Functional migration does not imply visual or full physical iPad acceptance.
 
 Dashboard users: see [appearance, fonts, scaling and layout editing](docs/DASHBOARD_APPEARANCE.md).
+The [Radio dashboard guide](docs/RADIO_DASHBOARD.md) describes mesh-table scope,
+signal history and the current telemetry limits.

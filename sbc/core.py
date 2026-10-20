@@ -5,6 +5,7 @@ import sqlite3
 import threading
 import time
 import unicodedata
+import urllib.error
 import urllib.request
 import uuid
 from .dashboard import DashboardStore
@@ -249,7 +250,7 @@ class Store(DashboardStore, CommissioningStore, DisplayStore, PlugStore, SystemS
                 self.db.execute("SELECT data,received,boot FROM events ORDER BY received DESC LIMIT ?", (limit,))]
     def prune(self, days):
         with self.lock, self.db:
-            self._prune_signal(time.time())
+            self._prune_signal(time.time(), days)
             self.db.execute("DELETE FROM events WHERE received < ?", (time.time()-days*86400,))
             self.db.execute("DELETE FROM measurements WHERE received < ?", (time.time()-days*86400,))
             self.db.execute("DELETE FROM ingestion_gaps WHERE end < ?", (time.time()-days*86400,))
@@ -262,7 +263,29 @@ class Poller:
         self.gateway, self.store = gateway, store
         if isinstance(gateway, Gateway):gateway.attach_store(store)
         self.status = {"connected": False, "error": "Waiting for gateway", "gap": False}
+        self.radio = {"status": "unsupported", "source": "gateway_local_tables", "neighbors": [], "routes": [], "route_records": []}
+        self._radio_polled_at = 0
         self.stop = threading.Event()
+    def _refresh_radio(self):
+        now = time.time()
+        if now - self._radio_polled_at < 30:
+            return
+        self._radio_polled_at = now
+        try:
+            snapshot = self.gateway.request("/api/v1/radio")
+            self.radio = dict(snapshot, status="available", source=snapshot.get("scope", "gateway_radio_snapshot"), observed_at=now, error=None)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                self.radio = {"status": "unsupported", "source": "gateway_local_tables",
+                    "neighbors": [], "routes": [], "route_records": [], "observed_at": now,
+                    "error": "Gateway firmware does not expose radio snapshots."}
+            else:
+                self._radio_failed(now, type(e).__name__)
+        except Exception as e:
+            self._radio_failed(now, type(e).__name__)
+    def _radio_failed(self, now, error):
+        self.radio = dict(self.radio, status="stale" if self.radio.get("status") == "available" else "unavailable",
+            last_attempt_at=now, error=error)
     def once(self):
         h = self.gateway.request("/api/v1/health")
         health_received = time.time()
@@ -289,6 +312,7 @@ class Poller:
             gap_reason="gateway_restart" if changed else "history_gap" if batch.get("gap") else "connection_interrupted")
         self.status = dict(h, connected=True, error=None,
             gap=bool(batch.get("gap") or self.status.get("gap")), last_poll=time.time())
+        self._refresh_radio()
         drive_commissioning(self.store,self.gateway,h)
         drive_display(self.store,self.gateway,h)
         drive_clock(self,h)

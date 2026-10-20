@@ -163,8 +163,17 @@ def make_handler(sim, token):
             p=urlparse(self.path)
             with sim.lock:
                 if p.path == "/api/v1/health":
-                    obj={"plug_extensions":True,"sensor_extensions":True,"time_server_valid":bool(sim.clock and time.monotonic()-sim.clock["synced"]<900),"reporting_commissioning":True,"mode":"simulator","boot_id":sim.boot,"ready":True,"latest_seq":sim.seq,
+                    obj={"plug_extensions":True,"sensor_extensions":True,"time_server_valid":bool(sim.clock and time.monotonic()-sim.clock["synced"]<900),"reporting_commissioning":True,"mode":"simulator","boot_id":sim.boot,"ready":True,"latest_seq":sim.seq,"uptime_ms":int(time.monotonic()*1000),"channel":20,"pan_id":0x1a62,
                          "join_seconds":max(0,int(sim.join_until-time.time())),"dropped_events":0}
+                elif p.path == "/api/v1/radio":
+                    obj={"boot_id":sim.boot,"mode":"simulator","ready":True,"uptime_ms":int(time.monotonic()*1000),
+                        "channel":20,"pan_id":0x1a62,"scope":"simulated_coordinator_local_tables",
+                        "neighbor_source":"synthetic_fixture_not_radio_observation",
+                        "route_source":"synthetic_fixture_not_radio_observation",
+                        "neighbors":[{"ieee":d["ieee"],"nwk":d["nwk"],"device_type":2,"depth":1,"rx_on_when_idle":False,
+                            "relationship":1,"lqi":180-i*12,"rssi_dbm":-48-i*7,"outgoing_cost":2+i,"age_periods":0,
+                            "device_timeout_seconds":0,"timeout_ms":0} for i,d in enumerate(sim.devices[:2])],
+                        "routes":[],"route_records":[]}
                 elif p.path == "/api/v1/devices": obj={"boot_id":sim.boot,"devices":sim.devices}
                 elif p.path == "/api/v1/events":
                     try: after=int(parse_qs(p.query).get("after",[0])[0])

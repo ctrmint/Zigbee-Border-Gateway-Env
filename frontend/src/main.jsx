@@ -48,6 +48,7 @@ import Location, { useHistories } from "./Location.jsx";
 import { geometry, historyKey } from "./history.js";
 const Setup = React.lazy(() => import("./Setup.jsx"));
 const SystemDashboard = React.lazy(() => import("./SystemDashboard.jsx"));
+const RadioDashboard = React.lazy(() => import("./RadioDashboard.jsx"));
 import useDashboard from "./useDashboard.js";
 import {
   age,
@@ -565,6 +566,23 @@ function App() {
                     <Database size={16} />
                     <span>System</span>
                   </button>
+                  <button
+                    className={
+                      page === "radio" ? "selected setup-tab" : "setup-tab"
+                    }
+                    aria-current={page === "radio" ? "page" : undefined}
+                    onClick={() => {
+                      const go = () => {
+                        discard();
+                        setPage("radio");
+                      };
+                      if (hasEdits) setConfirm(() => go);
+                      else go();
+                    }}
+                  >
+                    <Radio size={16} />
+                    <span>Radio</span>
+                  </button>
                 </div>
               </nav>
               {api.error && (
@@ -670,6 +688,13 @@ function App() {
                   fallback={<Text>Loading System dashboard…</Text>}
                 >
                   <SystemDashboard api={api} />
+                </React.Suspense>
+              )}
+              {page === "radio" && (
+                <React.Suspense
+                  fallback={<Text>Loading Radio dashboard…</Text>}
+                >
+                  <RadioDashboard api={api} />
                 </React.Suspense>
               )}
               {page === "editor" && draft && (
