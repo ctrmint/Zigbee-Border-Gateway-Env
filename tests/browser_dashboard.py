@@ -77,10 +77,14 @@ class DashboardTests(base.BrowserFixture):
             router={"hardware_version": "v2", "software_version": "2026.20.0"},
             networks=[{"domain": "lan", "ipv4": "192.168.1.0/24", "ipv6": [],
                 "clients_ethernet": 1, "clients_2ghz": 2, "clients_5ghz": 3}])
-        self.store.starlink_dish_record("available", time.time(), metrics={
-            "state":"CONNECTED", "pop_ping_latency_ms":28.5, "pop_ping_drop_rate":0.01,
-            "downlink_throughput_bps":9_000_000, "uplink_throughput_bps":800_000,
-            "snr":None, "fraction_obstructed":0.02, "currently_obstructed":False})
+        sample_time = time.time() - 120
+        for index in range(3):
+            self.store.starlink_dish_record("available", sample_time + index * 60, metrics={
+                "state":"CONNECTED", "pop_ping_latency_ms":28.5 + index,
+                "pop_ping_drop_rate":0.01 + index * 0.002,
+                "downlink_throughput_bps":9_000_000 + index * 1_000_000,
+                "uplink_throughput_bps":800_000 + index * 100_000,
+                "snr":None, "fraction_obstructed":0.02, "currently_obstructed":False})
         self.connect()
         tabs = self.page.get_by_role('button', name='System', exact=True)
         self.assertTrue(tabs.is_visible())
@@ -90,6 +94,13 @@ class DashboardTests(base.BrowserFixture):
         expect(self.page.get_by_text('192.168.1.0/24', exact=True)).to_be_visible()
         expect(self.page.get_by_role('heading', name='Satellite link performance', exact=True)).to_be_visible()
         expect(self.page.get_by_text('28.5 ms', exact=True)).to_be_visible()
+        throughput_chart = self.page.get_by_role('img', name='Dish downlink and uplink throughput history')
+        expect(throughput_chart).to_be_visible()
+        expect(self.page.get_by_text('Mbps', exact=True).first).to_be_visible()
+        throughput_chart.focus(); throughput_chart.press('End')
+        expect(self.page.locator('.starlink-chart-tooltip').first).to_contain_text('Mbps')
+        expect(self.page.locator('.starlink-chart-tooltip').first).to_contain_text('2026')
+        self.assertEqual(self.page.get_by_role('img', name='Dish packet loss history').count(), 0)
         for width,height in ((1024,768),(768,1024),(390,844)):
             self.page.set_viewport_size(dict(width=width,height=height))
             self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth<=innerWidth'))

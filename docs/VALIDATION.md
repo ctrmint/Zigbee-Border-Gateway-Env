@@ -1,5 +1,22 @@
 # Validation record
 
+## Starlink dish chart scales and inspection, issue #55, 2026-10-20
+
+- PASS: 19 frontend unit tests, including readable Y-axis divisions,
+  timestamp-proportional X positions, irregular-gap preservation, and point
+  selection.
+- PASS: Vite production build and generated dashboard asset/license check.
+- PASS: 112 Python unit/integration tests and `git diff --check`.
+- NOT RUN: browser interaction and iPad touch acceptance; Playwright is not
+  installed in the available Python environment. The browser acceptance case
+  now covers labeled throughput units and keyboard inspection of an exact
+  sample/time.
+- The Starlink history plots now show labeled units and time ticks, and expose
+  exact sample values/timestamps through pointer, keyboard, and touch selection.
+  The packet-loss history chart is omitted because no usable packet-loss
+  history is available. Missing values and gaps over two minutes are left
+  unconnected in the remaining charts.
+
 ## Starlink router and dish dashboard, issue #52, 2026-10-20
 
 - PASS: all 112 Python integration/unit tests, including fake gRPC router
