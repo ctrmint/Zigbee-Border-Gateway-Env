@@ -30,6 +30,7 @@ export default function PlugControls({
   gateway,
   request,
   compact = false,
+  variant = "all",
 }) {
   const action = useAction(request),
     [relayDebouncing, setRelayDebouncing] = useState(false),
@@ -135,94 +136,89 @@ export default function PlugControls({
             : relayMeasurement?.quality === "invalid"
               ? "Relay state is invalid. Read plug values before switching."
               : "Relay state has not been reported. Read plug values before switching.";
+  const toggleControl = (
+    <div className="plug-toggle-cell" key={device.ieee}>
+      <Text fw={600} className="plug-toggle-name" title={device.name}>
+        {device.name}
+      </Text>
+      <button
+        type="button"
+        className="relay-rocker"
+        data-state={relayState === null ? "unknown" : relayState ? "on" : "off"}
+        role={relayState === null ? undefined : "switch"}
+        aria-checked={relayState === null ? undefined : relayState}
+        aria-label={
+          relayState === null
+            ? `Relay state unknown for ${device.name}`
+            : `Relay for ${device.name}`
+        }
+        disabled={relayDisabled}
+        onClick={toggleRelay}
+      >
+        <span>OFF</span>
+        <span className="relay-rocker-track" aria-hidden="true">
+          <span className="relay-rocker-thumb" />
+        </span>
+        <span>ON</span>
+      </button>
+      <Text size="xs" c="dimmed" role="status" aria-live="polite">
+        {statusMessage}
+      </Text>
+    </div>
+  );
+  const operationPanel = (
+    <div
+      className="plug-operation-panel"
+      role="group"
+      aria-label={`${device.name} plug operation status`}
+      key={device.ieee}
+    >
+      <Text fw={600} size="sm" className="plug-operation-heading">
+        {device.name} operation
+      </Text>
+      {job ? (
+        <Job
+          job={job}
+          title="Plug operation"
+          disabled={action.busy}
+          cancel={() =>
+            action.run("/api/v2/plugs", {
+              job_id: job.id,
+              action: "cancel",
+            })
+          }
+        />
+      ) : (
+        <Text size="sm" c="dimmed" role="status">
+          No recent plug operation.
+        </Text>
+      )}
+      <Feedback action={action} />
+      {relayState === null && (
+        <Button
+          size="xs"
+          variant="light"
+          disabled={disabled}
+          onClick={() => send("read")}
+          aria-label={`Read plug values for ${device.name}`}
+        >
+          Read plug values to refresh state
+        </Button>
+      )}
+    </div>
+  );
+  if (variant === "toggle") return toggleControl;
+  if (variant === "operation") return operationPanel;
   return (
     <section
       className={`plug-actions${compact ? " plug-actions-compact" : ""}`}
       aria-label={"Plug controls for " + device.name}
     >
-      <Group justify="space-between" className="plug-controls-heading">
-        <Text fw={600}>{device.name}</Text>
-        <Text size="xs" c="dimmed">
-          Gateway-reported state is authoritative
-        </Text>
-      </Group>
-      <div className="plug-controls-grid">
-        <div className="plug-relay-panel">
-          <div className="plug-relay-copy">
-            <Text fw={600}>Relay</Text>
-            <Text size="xs" c="dimmed" role="status" aria-live="polite">
-              {statusMessage}
-            </Text>
-          </div>
-          <button
-            type="button"
-            className="relay-rocker"
-            data-state={
-              relayState === null ? "unknown" : relayState ? "on" : "off"
-            }
-            role={relayState === null ? undefined : "switch"}
-            aria-checked={relayState === null ? undefined : relayState}
-            aria-label={
-              relayState === null
-                ? `Relay state unknown for ${device.name}`
-                : `Relay for ${device.name}`
-            }
-            disabled={relayDisabled}
-            onClick={toggleRelay}
-          >
-            <span>OFF</span>
-            <span className="relay-rocker-track" aria-hidden="true">
-              <span className="relay-rocker-thumb" />
-            </span>
-            <span>ON</span>
-          </button>
-          <Text size="xs" c="dimmed" className="relay-request-hint">
-            {relayJobActive && job.action === "relay"
-              ? "Switch request pending confirmation"
-              : relayState === null
-                ? "Switching unavailable until state is refreshed"
-                : `Tap to request ${relayState ? "off" : "on"}`}
-          </Text>
-        </div>
-        <div
-          className="plug-operation-panel"
-          role="group"
-          aria-label="Plug operation status"
-        >
-          <Text fw={600} size="sm" className="plug-operation-heading">
-            Plug operation
-          </Text>
-          {job ? (
-            <Job
-              job={job}
-              title="Plug operation"
-              disabled={action.busy}
-              cancel={() =>
-                action.run("/api/v2/plugs", {
-                  job_id: job.id,
-                  action: "cancel",
-                })
-              }
-            />
-          ) : (
-            <Text size="sm" c="dimmed" role="status">
-              No recent plug operation.
-            </Text>
-          )}
-          <Feedback action={action} />
-          {relayState === null && (
-            <Button
-              size="xs"
-              variant="light"
-              disabled={disabled}
-              onClick={() => send("read")}
-              aria-label={`Read plug values for ${device.name}`}
-            >
-              Read plug values to refresh state
-            </Button>
-          )}
-        </div>
-      </div>
+      <Text size="xs" c="dimmed" mb="xs">
+        Gateway-reported state is authoritative.
+      </Text>
+      <div className="plug-toggle-board">{toggleControl}</div>
+      <div className="plug-operations-grid">{operationPanel}</div>
       {!compact && (
         <>
           <div className="plug-secondary-actions">

@@ -782,18 +782,59 @@ export default function Location({
           </span>
         ))}
       </div>
-      {members
-        .filter((d) => d.plug)
-        .map((d) => (
-          <PlugControls
-            key={d.ieee}
-            device={d}
-            request={request}
-            gateway={api.snapshot.state.gateway}
-            online={online}
-            compact
-          />
-        ))}
+      {!!members.filter((d) => d.plug).length && (
+        <section
+          className="plug-controls-section"
+          aria-label="Smart plug controls"
+        >
+          <Text fw={600} mb="xs">
+            Plug switches
+          </Text>
+          <Text size="xs" c="dimmed" mb="sm">
+            Gateway-reported state is authoritative.
+          </Text>
+          <div className="plug-toggle-board">
+            {members
+              .filter((d) => d.plug)
+              .map((d) => (
+                <PlugControls
+                  key={d.ieee}
+                  device={d}
+                  request={request}
+                  gateway={api.snapshot.state.gateway}
+                  online={online}
+                  compact
+                  variant="toggle"
+                />
+              ))}
+          </div>
+        </section>
+      )}
+      {!!members.filter((d) => d.plug).length && (
+        <section
+          className="plug-operation-section"
+          aria-label="Plug operation outputs"
+        >
+          <Text fw={600} mb="xs">
+            Plug operation
+          </Text>
+          <div className="plug-operations-grid">
+            {members
+              .filter((d) => d.plug)
+              .map((d) => (
+                <PlugControls
+                  key={d.ieee}
+                  device={d}
+                  request={request}
+                  gateway={api.snapshot.state.gateway}
+                  online={online}
+                  compact
+                  variant="operation"
+                />
+              ))}
+          </div>
+        </section>
+      )}
       <Feedback action={action} />
       {!members.length && (
         <Paper p="xl" withBorder>
