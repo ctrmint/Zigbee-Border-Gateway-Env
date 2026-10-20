@@ -231,12 +231,32 @@ class DashboardTests(base.BrowserFixture):
         self.assertEqual(len([u for m,u in self.sent if m=='POST' and '/api/v2/display' in u]),1)
         self.assertEqual(self.errors,[])
 
-    def test_plug_controls_queue_once_with_protection_limits_and_no_load_on_view(self):
+    def test_plug_rocker_debounces_and_compacts_controls(self):
         self.poller.status.update(plug_extensions=True)
         self.connect();self.setup_tab('Devices');self.page.get_by_role('button',name='S60ZBTPG',exact=True).click()
         self.assertFalse(any(m=='POST' for m,u in self.sent))
-        self.page.get_by_role('button',name='Request On',exact=True).click()
+        rocker=self.page.get_by_role('switch',name='Relay for S60ZBTPG',exact=True)
+        expect(rocker).to_be_checked()
+        self.assertEqual(self.page.get_by_role('button',name='Request On',exact=True).count(),0)
+        self.assertEqual(self.page.get_by_role('button',name='Request Off',exact=True).count(),0)
+        self.page.evaluate("""() => {
+          const rocker = document.querySelector('.relay-rocker');
+          for (let i = 0; i < 3; i++)
+            rocker.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        }""")
         expect(self.page.get_by_role('button',name='Cancel plug operation',exact=True)).to_be_visible(timeout=10000)
+        expect(rocker).to_be_disabled()
+        jobs=self.store.plug_document()['jobs']
+        relays=[j for j in jobs if j['action']=='relay']
+        self.assertEqual(len(relays),1)
+        self.assertEqual(relays[0]['settings'],{'state':False})
+        self.assertEqual(self.page.locator('.plug-controls-grid').evaluate('(e) => getComputedStyle(e).display'),'grid')
+        self.page.set_viewport_size({'width':390,'height':844})
+        expect(self.page.locator('.plug-controls-grid')).to_be_visible()
+        tracks=self.page.locator('.plug-controls-grid').evaluate('(e) => getComputedStyle(e).gridTemplateColumns.split(" ").length')
+        self.assertEqual(tracks,1)
+        self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
+        self.page.set_viewport_size({'width':1440,'height':1000})
         self.page.get_by_role('button',name='Cancel plug operation',exact=True).click()
         self.page.get_by_role('button',name='Protection thresholds · 13 A / 3250 W maximum',exact=True).click()
         self.page.get_by_label('Maximum current (A)',exact=True).fill('13')
@@ -249,6 +269,41 @@ class DashboardTests(base.BrowserFixture):
         self.assertEqual(len([j for j in jobs if j['action']=='relay']),1)
         self.assertEqual(self.errors,[])
 
+    def test_unknown_or_stale_relay_state_requires_refresh_before_toggle(self):
+        self.poller.status.update(plug_extensions=True)
+        def stale_relay(route):
+            response=route.fetch();data=response.json()
+            for device in data['devices']:
+                if device['profile']=='SONOFF S60ZBTPG':
+                    for measurement in device['measurements']:
+                        if measurement['cluster']==6 and measurement['attribute']==0:
+                            measurement['quality']='stale'
+            route.fulfill(response=response,json=data)
+        self.page.route('**/api/v2/devices',stale_relay)
+        self.connect();self.setup_tab('Devices');self.page.get_by_role('button',name='S60ZBTPG',exact=True).click()
+        rocker=self.page.locator('.relay-rocker')
+        expect(rocker).to_be_disabled()
+        self.assertIsNone(rocker.get_attribute('role'))
+        expect(self.page.get_by_text('Relay state is stale. Read plug values before switching.',exact=True)).to_be_visible()
+        self.page.get_by_role('button',name='Read plug values for S60ZBTPG',exact=True).click()
+        expect(self.page.get_by_role('button',name='Cancel plug operation',exact=True)).to_be_visible(timeout=10000)
+        self.assertTrue(any(j['action']=='read' for j in self.store.plug_document()['jobs']))
+        self.assertEqual(self.errors,[])
+
+    def test_location_plug_uses_the_same_confirmed_state_rocker(self):
+        self.poller.status.update(plug_extensions=True)
+        location=self.store.save_location('Utility room')['id']
+        self.store.assign_location(self.sim.devices[-1]['ieee'],location)
+        self.page.set_viewport_size({'width':1024,'height':768})
+        self.connect()
+        self.page.get_by_role('button',name='Utility room',exact=True).click()
+        rocker=self.page.get_by_role('switch',name='Relay for S60ZBTPG',exact=True)
+        expect(rocker).to_be_checked()
+        self.assertEqual(self.page.locator('.plug-actions-compact').count(),1)
+        self.assertFalse(any(m=='POST' for m,u in self.sent))
+        self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
+        self.assertEqual(self.errors,[])
+
     def test_opening_device_panels_never_writes_and_offline_disables_actions(self):
         self.poller.status.update(plug_extensions=True,reporting_commissioning=True,sensor_extensions=True)
         before=self.store.configuration_document();self.connect();self.setup_tab('Devices')
@@ -257,7 +312,7 @@ class DashboardTests(base.BrowserFixture):
         self.assertTrue(all(m=='GET' for m,u in self.sent))
         self.assertEqual(self.store.configuration_document(),before)
         self.poller.status['connected']=False
-        expect(self.page.get_by_role('button',name='Request On',exact=True)).to_be_disabled(timeout=10000)
+        expect(self.page.get_by_role('switch',name='Relay for S60ZBTPG',exact=True)).to_be_disabled(timeout=10000)
         self.assertEqual(self.errors,[])
 
     def test_all_keeps_invalid_stale_zero_and_low_battery_distinct(self):
