@@ -175,11 +175,22 @@ body {
   margin-left: auto;
   flex-shrink: 0;
 }
-.utility-navigation .setup-tab { flex-shrink: 0; }
-.system-dashboard { padding-bottom: 32px; }
-.system-dashboard h3 svg { vertical-align: -3px; margin-right: 7px; }
-.system-metric { min-width: 0; }
-.system-metric .mantine-Text-root { overflow-wrap: anywhere; }
+.utility-navigation .setup-tab {
+  flex-shrink: 0;
+}
+.system-dashboard {
+  padding-bottom: 32px;
+}
+.system-dashboard h3 svg {
+  vertical-align: -3px;
+  margin-right: 7px;
+}
+.system-metric {
+  min-width: 0;
+}
+.system-metric .mantine-Text-root {
+  overflow-wrap: anywhere;
+}
 .overview-heading {
   display: flex;
   align-items: center;
@@ -880,6 +891,10 @@ body {
   .location-device-grid {
     grid-template-columns: 1fr;
   }
+  .plug-controls-grid,
+  .plug-secondary-actions {
+    grid-template-columns: 1fr;
+  }
   .location-numeric {
     font-size: 44px;
   }
@@ -913,11 +928,147 @@ body {
   font-weight: 550;
 }
 .plug-actions {
-  margin: 16px 0;
-  padding: 18px;
+  container-type: inline-size;
+  margin: 10px 0;
+  padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--surface);
+}
+.plug-controls-heading {
+  margin-bottom: 10px;
+}
+.plug-controls-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.2fr);
+  gap: 10px;
+  align-items: stretch;
+}
+.plug-relay-panel,
+.plug-operation-panel {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+.plug-relay-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.plug-relay-copy {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.relay-rocker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  min-height: 48px;
+  min-width: 142px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.relay-rocker[data-state="on"] {
+  border-color: #3f9872;
+  color: var(--ink);
+}
+.relay-rocker[data-state="off"] {
+  color: var(--muted);
+}
+.relay-rocker[data-state="unknown"] {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.relay-rocker:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+.relay-rocker:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.relay-rocker-track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 52px;
+  height: 28px;
+  padding: 3px;
+  border-radius: 6px;
+  background: #68736e;
+}
+.relay-rocker[data-state="on"] .relay-rocker-track {
+  background: #31815f;
+}
+.relay-rocker-thumb {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 3px #0005;
+  transform: translateX(0);
+  transition: transform 120ms ease;
+}
+.relay-rocker[data-state="on"] .relay-rocker-thumb {
+  transform: translateX(24px);
+}
+.relay-request-hint {
+  flex: 1 1 100%;
+}
+.plug-operation-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+}
+.plug-operation-heading {
+  margin-bottom: 2px;
+}
+.plug-operation-panel .job-status {
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+}
+.plug-operation-panel .job-status details pre {
+  max-height: 180px;
+  overflow: auto;
+}
+.plug-operation-panel .mantine-Button-root {
+  max-width: 100%;
+  white-space: normal;
+}
+.plug-secondary-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+.plug-actions .mantine-Accordion-root {
+  margin-top: 9px;
+}
+@container (max-width: 540px) {
+  .plug-controls-grid,
+  .plug-secondary-actions {
+    grid-template-columns: 1fr;
+  }
 }
 .job-status {
   margin: 14px 0;

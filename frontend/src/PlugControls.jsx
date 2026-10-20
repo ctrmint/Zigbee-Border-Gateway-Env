@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Accordion,
   Button,
@@ -32,6 +32,8 @@ export default function PlugControls({
   compact = false,
 }) {
   const action = useAction(request),
+    [relayDebouncing, setRelayDebouncing] = useState(false),
+    [relayNeedsRefresh, setRelayNeedsRefresh] = useState(false),
     [scalar, setScalar] = useState({}),
     [inching, setInching] = useState({
       enabled: false,
@@ -41,6 +43,39 @@ export default function PlugControls({
     [protection, setProtection] = useState({});
   const plug = device.plug,
     job = plug?.latest_job;
+  const relayRequest = useRef(false),
+    lastRelayRequest = useRef(0),
+    relayBaselineReceived = useRef(0),
+    relayJobId = useRef(null),
+    [relayQueued, setRelayQueued] = useState(false);
+  const relayMeasurement = device.measurements?.find(
+      (measurement) =>
+        measurement.endpoint === plug?.endpoint &&
+        measurement.cluster === 6 &&
+        measurement.attribute === 0,
+    ),
+    relayOutcomeUncertain =
+      job?.action === "relay" &&
+      ["uncertain", "cancelled", "expired"].includes(job.state) &&
+      (relayMeasurement?.received_at || 0) <= job.created_at,
+    relayState =
+      !relayNeedsRefresh &&
+      !relayOutcomeUncertain &&
+      relayMeasurement?.quality === "valid" &&
+      typeof relayMeasurement.value === "boolean"
+        ? relayMeasurement.value
+        : null;
+  useEffect(() => {
+    if (relayJobId.current && job?.id === relayJobId.current) {
+      relayJobId.current = null;
+      setRelayQueued(false);
+    }
+    if (
+      relayNeedsRefresh &&
+      (relayMeasurement?.received_at || 0) > relayBaselineReceived.current
+    )
+      setRelayNeedsRefresh(false);
+  }, [job?.id, relayQueued, relayNeedsRefresh, relayMeasurement?.received_at]);
   if (!plug) return null;
   const disabled =
     action.busy ||
@@ -55,44 +90,142 @@ export default function PlugControls({
       action: name,
       settings,
     });
+  const toggleRelay = async () => {
+    const now = Date.now();
+    if (
+      relayState === null ||
+      disabled ||
+      relayRequest.current ||
+      now - lastRelayRequest.current < 750
+    )
+      return;
+    relayRequest.current = true;
+    setRelayDebouncing(true);
+    lastRelayRequest.current = now;
+    relayBaselineReceived.current = relayMeasurement?.received_at || 0;
+    try {
+      const result = await send("relay", { state: !relayState });
+      if (result?.data?.id) {
+        relayJobId.current = result.data.id;
+        setRelayQueued(true);
+      } else setRelayNeedsRefresh(true);
+    } finally {
+      const remaining = Math.max(0, 750 - (Date.now() - now));
+      if (remaining)
+        await new Promise((resolve) => setTimeout(resolve, remaining));
+      relayRequest.current = false;
+      setRelayDebouncing(false);
+    }
+  };
+  const relayJobActive = activeJob(job),
+    relayDisabled =
+      disabled ||
+      relayDebouncing ||
+      relayQueued ||
+      relayState === null ||
+      relayJobActive,
+    relayLabel = relayState === null ? "Unknown" : relayState ? "On" : "Off",
+    statusMessage =
+      relayState !== null
+        ? `Last confirmed relay state: ${relayLabel}.`
+        : relayNeedsRefresh || relayOutcomeUncertain
+          ? "The switch result is uncertain. Read plug values before switching."
+          : relayMeasurement?.quality === "stale"
+            ? "Relay state is stale. Read plug values before switching."
+            : relayMeasurement?.quality === "invalid"
+              ? "Relay state is invalid. Read plug values before switching."
+              : "Relay state has not been reported. Read plug values before switching.";
   return (
     <section
-      className="plug-actions"
+      className={`plug-actions${compact ? " plug-actions-compact" : ""}`}
       aria-label={"Plug controls for " + device.name}
     >
-      <Group justify="space-between">
+      <Group justify="space-between" className="plug-controls-heading">
         <Text fw={600}>{device.name}</Text>
         <Text size="xs" c="dimmed">
-          Reported relay state remains authoritative
+          Gateway-reported state is authoritative
         </Text>
       </Group>
-      <Group mt="sm">
-        <Button
-          disabled={disabled}
-          onClick={() => send("relay", { state: true })}
+      <div className="plug-controls-grid">
+        <div className="plug-relay-panel">
+          <div className="plug-relay-copy">
+            <Text fw={600}>Relay</Text>
+            <Text size="xs" c="dimmed" role="status" aria-live="polite">
+              {statusMessage}
+            </Text>
+          </div>
+          <button
+            type="button"
+            className="relay-rocker"
+            data-state={
+              relayState === null ? "unknown" : relayState ? "on" : "off"
+            }
+            role={relayState === null ? undefined : "switch"}
+            aria-checked={relayState === null ? undefined : relayState}
+            aria-label={
+              relayState === null
+                ? `Relay state unknown for ${device.name}`
+                : `Relay for ${device.name}`
+            }
+            disabled={relayDisabled}
+            onClick={toggleRelay}
+          >
+            <span>OFF</span>
+            <span className="relay-rocker-track" aria-hidden="true">
+              <span className="relay-rocker-thumb" />
+            </span>
+            <span>ON</span>
+          </button>
+          <Text size="xs" c="dimmed" className="relay-request-hint">
+            {relayJobActive && job.action === "relay"
+              ? "Switch request pending confirmation"
+              : relayState === null
+                ? "Switching unavailable until state is refreshed"
+                : `Tap to request ${relayState ? "off" : "on"}`}
+          </Text>
+        </div>
+        <div
+          className="plug-operation-panel"
+          role="group"
+          aria-label="Plug operation status"
         >
-          Request On
-        </Button>
-        <Button
-          variant="default"
-          disabled={disabled}
-          onClick={() => send("relay", { state: false })}
-        >
-          Request Off
-        </Button>
-      </Group>
-      <Job
-        job={job}
-        title="Plug operation"
-        disabled={action.busy}
-        cancel={() =>
-          action.run("/api/v2/plugs", { job_id: job.id, action: "cancel" })
-        }
-      />
-      <Feedback action={action} />
+          <Text fw={600} size="sm" className="plug-operation-heading">
+            Plug operation
+          </Text>
+          {job ? (
+            <Job
+              job={job}
+              title="Plug operation"
+              disabled={action.busy}
+              cancel={() =>
+                action.run("/api/v2/plugs", {
+                  job_id: job.id,
+                  action: "cancel",
+                })
+              }
+            />
+          ) : (
+            <Text size="sm" c="dimmed" role="status">
+              No recent plug operation.
+            </Text>
+          )}
+          <Feedback action={action} />
+          {relayState === null && (
+            <Button
+              size="xs"
+              variant="light"
+              disabled={disabled}
+              onClick={() => send("read")}
+              aria-label={`Read plug values for ${device.name}`}
+            >
+              Read plug values to refresh state
+            </Button>
+          )}
+        </div>
+      </div>
       {!compact && (
         <>
-          <Group mt="md">
+          <div className="plug-secondary-actions">
             <Button
               variant="light"
               disabled={disabled}
@@ -107,7 +240,7 @@ export default function PlugControls({
             >
               Configure plug reporting
             </Button>
-          </Group>
+          </div>
           <Accordion mt="md" variant="separated">
             <Accordion.Item value="settings">
               <Accordion.Control>
