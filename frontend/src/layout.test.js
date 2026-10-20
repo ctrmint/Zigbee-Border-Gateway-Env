@@ -6,6 +6,7 @@ import {
   overlaps,
   mergePresent,
   editItem,
+  serializeGridItems,
   quality,
   display,
 } from "./layout.js";
@@ -15,6 +16,25 @@ const devices = [
   { ieee: "c", measurements: [], plug: {} },
 ];
 const legacy = { columns: 2, min_tile_width: 240, order: ["b", "a"] };
+test("GridStack serialization always supplies the required layout fields", () => {
+  const items = serializeGridItems([
+    {
+      gridstackNode: { x: 2, y: 3, w: 4, h: 6 },
+      dataset: { sensorId: "power-now" },
+      getAttribute: () => null,
+    },
+    {
+      gridstackNode: { id: "temperature", x: 0, y: 0, w: 6, h: 4 },
+      dataset: {},
+      getAttribute: () => null,
+    },
+  ]);
+  assert.deepEqual(items, [
+    { id: "power-now", x: 2, y: 3, w: 4, h: 6 },
+    { id: "temperature", x: 0, y: 0, w: 6, h: 4 },
+  ]);
+  assert.deepEqual(Object.keys(items[0]).sort(), ["h", "id", "w", "x", "y"]);
+});
 test("legacy order migrates deterministically without mutating preferences", () => {
   const settings = emptyLayout(),
     before = structuredClone(settings),

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { GridStack } from "gridstack";
 import { createPortal } from "react-dom";
 import { useState } from "react";
+import { serializeGridItems } from "./layout.js";
 import "gridstack/dist/gridstack.min.css";
 
 // GridStack owns empty tile shells and geometry; React owns their contents via portals.
@@ -38,9 +39,7 @@ export default function Grid({
     grid.current = g;
     g.on("change", () => {
       if (applying.current || !editing) return;
-      callback.current?.(
-        g.save(false).map(({ id, x, y, w, h }) => ({ id, x, y, w, h })),
-      );
+      callback.current?.(serializeGridItems(g.getGridItems()));
     });
     return () => {
       g.offAll();
@@ -83,10 +82,7 @@ export default function Grid({
   useEffect(() => {
     const g = grid.current;
     if (!g) return;
-    const done = () =>
-      callback.current?.(
-        g.save(false).map(({ id, x, y, w, h }) => ({ id, x, y, w, h })),
-      );
+    const done = () => callback.current?.(serializeGridItems(g.getGridItems()));
     if (editing) g.on("dragstop resizestop", done);
     return () => {
       if (editing) g.off("dragstop resizestop");

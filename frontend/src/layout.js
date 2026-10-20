@@ -76,6 +76,30 @@ export function effectiveLayout(devices, settings, legacy, breakpoint) {
 }
 export const overlaps = (a, b) =>
   a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+export function serializeGridItems(elements) {
+  return elements.flatMap((element) => {
+    const node = element.gridstackNode || {};
+    const id =
+      node.id || element.dataset?.sensorId || element.getAttribute?.("gs-id");
+    if (!id) return [];
+    const coordinate = (value, attribute, fallback) => {
+      if (Number.isInteger(value)) return value;
+      const raw = element.getAttribute?.(attribute);
+      if (raw === null || raw === undefined) return fallback;
+      const parsed = Number(raw);
+      return Number.isInteger(parsed) ? parsed : fallback;
+    };
+    return [
+      {
+        id,
+        x: coordinate(node.x, "gs-x", 0),
+        y: coordinate(node.y, "gs-y", 0),
+        w: coordinate(node.w, "gs-w", 1),
+        h: coordinate(node.h, "gs-h", 1),
+      },
+    ];
+  });
+}
 export function mergePresent(saved, current) {
   const present = new Set(current.map((n) => n.id));
   // Retain absent tiles below the edited surface to prevent overlapping saved rectangles.
