@@ -1,2 +1,3 @@
-# Contract verification only; the SBC service has no third-party dependencies.
+# Contract verification and Starlink's in-process gRPC tests.
 jsonschema>=4.18,<5
+-r requirements-starlink.txt

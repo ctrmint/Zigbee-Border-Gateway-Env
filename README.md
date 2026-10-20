@@ -11,7 +11,7 @@ The board runs Zigbee coordinator firmware, exposes an authenticated local REST 
 - S3 firmware: coordinator formation and persistence, explicit 0–180 second pairing, 50-entry IEEE-address registry, automatic endpoint/cluster discovery on announcement, standard scalar attribute reports and reads, On/Off commands, bounded event history.
 - H2 RCP build recipe using ESP-IDF's supplied `ot_rcp` source.
 - SBC Python service with SQLite history, restart-aware polling, deduplication, gap detection and authenticated command proxy.
-- Tabbed dashboard: read-only All overview, location tabs, Configuration & Setup, System and a read-only Radio view of coordinator-local mesh tables and passive RSSI history; configurable numeric readings/history charts, pairing, inventory and endpoint inspection. Presentation profiles have session-cookie selection and independent layouts; device state/settings remain shared.
+- Tabbed dashboard: read-only All overview, location tabs, Configuration & Setup, System, Starlink router and dish satellite-link telemetry, and a read-only Radio view of coordinator-local mesh tables and passive RSSI history; configurable numeric readings/history charts, pairing, inventory and endpoint inspection. Presentation profiles have session-cookie selection and independent layouts; device state/settings remain shared.
 - Bounded sensor reporting/display and S60ZBTPG plug jobs with acknowledgements/readback, metering/state/RSSI history and model-specific controls.
 - Continuous gateway Wi-Fi recovery and authenticated identity-pinned rediscovery; retained event ages and recording gaps remain visible.
 - Named locations: create/rename locations, assign multiple sensors and group readings; saved on the SBC across restarts.
@@ -50,6 +50,8 @@ Open <http://127.0.0.1:8080>, paste `DASHBOARD_TOKEN`, then Connect. The dashboa
 4. Start the SBC service and open pairing for one device at a time. Wake sleepy devices during discovery.
 5. Inspect endpoints before controlling devices. Read attributes to verify reports and state.
 
+Starlink router and dish monitoring are optional and disabled until configured. On Raspberry Pi OS install `python3-grpcio` and `python3-protobuf` with apt, or install `requirements-starlink.txt` in the Python environment used by the service. Configure the private IPv4 targets in Configuration & Setup → Starlink. Router diagnostics and dish performance use separate local gRPC endpoints. Dish status fields are optional and vary by terminal firmware; missing fields remain unavailable. See [Starlink monitoring](docs/STARLINK_MONITORING.md).
+
 For another machine to access the dashboard, set `BIND_HOST=0.0.0.0` only on a trusted LAN, firewall its port, or keep localhost and use an SSH tunnel. For ongoing use, see [SBC deployment](docs/SBC_SETUP.md).
 
 ## Repository
@@ -73,7 +75,9 @@ python3 -m compileall -q sbc tests
 
 Install contract-test dependencies first with
 `python3 -m pip install -r requirements-dev.txt` (prefer a virtual environment).
-The service and simulator themselves still require no third-party packages.
+The base service and simulator need no third-party packages when optional
+Starlink monitoring is disabled. The test dependencies include the gRPC client
+and protobuf runtime used by the Starlink integration.
 Run `python3 -m sbc.contracts --check` to verify the exported API descriptions.
 See the [API contracts](docs/API.md) and
 [configurable dashboard development plan](docs/DASHBOARD_API_DESIGN.md).

@@ -67,6 +67,9 @@ All v2 routes require the dashboard bearer token and return no-store JSON.
 | --- | --- |
 | GET `/api/v2/capabilities` | Actual widget types, features and limits |
 | GET `/api/v2/gateway` | Gateway readiness/connectivity and ingestion status |
+| GET `/api/v2/starlink` | Cached router diagnostics, dish status and bounded histories |
+| GET `/api/v2/starlink/config` | Shared local router/dish targets and independent polling enablement |
+| PUT `/api/v2/starlink/config` | Revision-checked router/dish targets and polling enablement |
 | GET `/api/v2/devices` | Named devices and endpoint measurement views |
 | GET `/api/v2/configuration` | Installation-wide configuration and strong ETag |
 | PUT `/api/v2/configuration` | Validated atomic replacement, requiring If-Match |
@@ -78,6 +81,15 @@ location/assignment mutations advance the same configuration revision. A new
 device changes the configuration revision because GET includes its default
 settings; ordinary telemetry does not. Capability flags remain false for
 unimplemented command tracking and streaming.
+
+The Starlink extension polls the local Wi-Fi router diagnostics API and dish
+terminal status API from a separate bounded worker, with independent enablement,
+targets and cached state. Router client counts and dish satellite-link metrics
+are stored separately; dish link history and router count history are retained
+with the other telemetry for 60 days. Dish status fields are optional and
+firmware-dependent; a successful poll may return only a subset. See
+[Starlink monitoring](STARLINK_MONITORING.md) for the collected fields,
+optional runtime dependencies, API limits and unsupported states.
 
 ## Configuration and concurrency
 

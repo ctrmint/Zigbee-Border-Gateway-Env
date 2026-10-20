@@ -16,6 +16,7 @@ from .plug_jobs import PlugStore,drive_plugs
 from . import plugs
 from .display import DisplayStore,drive_display,drive_clock
 from .system import SystemStore, RETENTION_DAYS
+from .starlink import StarlinkPoller, StarlinkStore
 
 OPS = {"permit_join", "discover", "read", "on_off", "bind", "configure_reporting", "read_reporting", "reporting_window", "write_display", "read_display", "sync_clock"}
 
@@ -99,7 +100,7 @@ def normalize(cluster, attribute, data_type, raw, device=None, endpoint=None):
         return bool(raw), "on/off"
     return None, None
 
-class Store(DashboardStore, CommissioningStore, DisplayStore, PlugStore, SystemStore):
+class Store(DashboardStore, CommissioningStore, DisplayStore, PlugStore, SystemStore, StarlinkStore):
     def __init__(self, path):
         self.lock = threading.RLock()
         self._init_system(path)
@@ -121,6 +122,7 @@ class Store(DashboardStore, CommissioningStore, DisplayStore, PlugStore, SystemS
         self._init_commissioning()
         self._init_display()
         self._init_plugs()
+        self._init_starlink()
         self.db.execute('CREATE INDEX IF NOT EXISTS event_retention_time ON events(received)')
         self.db.execute('CREATE INDEX IF NOT EXISTS measurement_retention_time ON measurements(received)')
         self.db.execute('CREATE INDEX IF NOT EXISTS plug_discontinuity_retention_time ON plug_discontinuities(received)')
@@ -255,6 +257,7 @@ class Store(DashboardStore, CommissioningStore, DisplayStore, PlugStore, SystemS
             self.db.execute("DELETE FROM measurements WHERE received < ?", (time.time()-days*86400,))
             self.db.execute("DELETE FROM ingestion_gaps WHERE end < ?", (time.time()-days*86400,))
             self.db.execute("DELETE FROM plug_discontinuities WHERE received < ?", (time.time()-days*86400,))
+            self.starlink_prune(days)
     def close(self):
         self.db.close()
 

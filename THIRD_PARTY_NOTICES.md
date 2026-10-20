@@ -4,6 +4,19 @@
 
 ESP-IDF, ESP-Zigbee library, RCP update components and their dependencies retain their respective licenses; they are fetched at build time, not relicensed by this repository. The Zigbee stack includes Espressif proprietary prebuilt libraries. See upstream licenses before redistribution or commercial use. No prebuilt vendor binaries are included in the archive.
 
+## Starlink local Device API schema subset
+
+`sbc/starlink_device.proto` and its generated Python message module implement
+read-only router `GetDiagnostics` and dish `GetStatus` field subsets. Router
+field numbers and service/package name follow Space Exploration Technologies'
+published [Local Device API](https://github.com/SpaceExplorationTechnologies/enterprise-api/tree/master/device-api).
+Dish status field numbers are based on the public [dish schema subset](https://docs.rs/crate/starlink/latest/source/proto/spacex/api/device/dish.proto),
+also used by the [Starlink gRPC tools reference](https://github.com/sparky8512/starlink-grpc-tools).
+This repository does not include Starlink's full schema or generated API
+implementation. The dish status interface is firmware-dependent and is not
+specified by the currently published SpaceX proto. Upstream APIs and device
+firmware remain subject to their own terms and compatibility limits.
+
 `firmware/rcp/main` and the RCP build/default/partition files derive from ESP-IDF v5.5.4 `examples/openthread/ot_rcp` (commit `735507283d5b2f9fb363a1901172dbd9e847945d`), under retained CC0/public-domain notices. Optional console and coexistence helpers are omitted in this minimal source.
 
 ## Dashboard migration frontend

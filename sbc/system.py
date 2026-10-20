@@ -14,6 +14,8 @@ PURGE_TABLES = {
     "signal_samples": ("received",),
     "ingestion_gaps": ("end",),
     "plug_discontinuities": ("received",),
+    "starlink_history": ("received",),
+    "starlink_dish_history": ("received",),
 }
 
 
@@ -155,7 +157,9 @@ class SystemStore:
             names = {"devices": "devices", "locations": "locations", "profiles": "user_profiles", "events": "events",
                      "measurements": "measurements", "signal_samples": "signal_samples", "ingestion_gaps": "ingestion_gaps",
                      "plug_discontinuities": "plug_discontinuities", "commissioning_jobs": "commissioning_jobs",
-                     "display_jobs": "display_jobs", "plug_jobs": "plug_jobs"}
+                     "display_jobs": "display_jobs", "plug_jobs": "plug_jobs",
+                     "starlink_samples": "starlink_history",
+                     "starlink_dish_samples": "starlink_dish_history"}
             counts = {label: (self.db.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0] if table in tables else 0)
                       for label, table in names.items()}
             oldest_newest = {}
