@@ -52,8 +52,8 @@ class SignalStore:
         if not old or json.loads(old[0])['received_at'] <= received:
             self.db.execute('INSERT OR REPLACE INTO signal_latest VALUES(?,?)',(sample['ieee'],json.dumps(sample)))
 
-    def _prune_signal(self, now):
-        self.db.execute('DELETE FROM signal_samples WHERE received < ?', (now-SIGNAL_RETENTION_DAYS*86400,))
+    def _prune_signal(self, now, days=SIGNAL_RETENTION_DAYS):
+        self.db.execute('DELETE FROM signal_samples WHERE received < ?', (now-days*86400,))
 
     def signal_view(self, ieee, freshness, now):
         row = self.db.execute('SELECT data FROM signal_latest WHERE ieee=?',(ieee,)).fetchone()

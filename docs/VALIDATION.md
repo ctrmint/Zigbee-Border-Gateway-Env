@@ -4,6 +4,33 @@
 
 See [18 October 2026 hardware validation](HARDWARE_VALIDATION_2026-10-18.md) for the three S60ZBTPG units, completed reporting/switching/settings/restart checks, scoped iPad acceptance and Pi incident limitations. Older entries below are historical milestone records; statements such as “hardware pending” describe the evidence at that milestone, not a claim that no later testing occurred. The current product guides and dated record identify remaining work.
 
+## Radio dashboard, issue #50, 2026-10-20
+
+- PASS: ESP32-S3 gateway build with ESP-IDF 5.5.4 / ESP-Zigbee 2.0.4. The
+  authenticated radio endpoint reads coordinator-local neighbor, route and
+  source-route tables with 64-entry bounds while holding the Zigbee stack lock.
+- PASS: native firmware regression tests and Python simulator/API tests for
+  schema-valid radio snapshots, cached status, unsupported old firmware and
+  stale snapshot handling. The simulator's radio entries are synthetic.
+- PASS: dashboard unit tests and production Vite build; built assets include the
+  lazy-loaded Radio tab. API contract exports and Python compilation pass.
+- NOT COMPLETED: browser interaction acceptance. Chromium can launch with the
+  locally extracted libraries, but the existing browser fixture did not submit
+  the access-token field in this runner, so no visual/responsive result is
+  claimed for the Radio page.
+- PASS: deployed the built S3 application on 2026-10-20 after saving a full 8 MiB
+  flash backup and confirming the existing partition table matches the build.
+  Only the factory application at `0x20000` was flashed and verified; bootloader,
+  partition table, NVS/Zigbee state and H2 radio firmware were preserved. The
+  gateway returned authenticated health with `ready=true`, and authenticated
+  `/api/v1/radio` returned five coordinator-local neighbor entries. The live
+  dashboard returned `status=available` from `/api/v2/radio` and retained all
+  six registered devices. This verifies API operation and retained access-token
+  authentication, not route accuracy or complete topology.
+- NOT TESTED: physical radio table population, live route accuracy, iPad Safari
+  layout for this tab, channel utilization, noise/interference, and Zigbee
+  retries/delivery counters.
+
 Validation performed 2026-10-10. This distinguishes compilation and simulation from physical hardware verification.
 
 | Check | Result |

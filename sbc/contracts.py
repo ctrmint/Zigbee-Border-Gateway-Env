@@ -70,6 +70,23 @@ def schemas(strict_commands):
         "Error": obj({"error": {"type": "string"}}, ("error",)),
         "RegistryDevice": obj({"ieee": ieee, "nwk": integer(0, 65535), "active": {"type": "boolean", "description": "Registered, not proof of reachability."}}, ("ieee", "nwk", "active")),
         "Registry": obj({"boot_id": {"type": "string"}, "devices": array(ref("RegistryDevice"), maxItems=50)}, ("boot_id", "devices")),
+        "RadioNeighbor": obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"},"nwk":integer(0,65535),
+            "device_type":integer(0,255),"depth":integer(0,255),"rx_on_when_idle":{"type":"boolean"},"relationship":integer(0,3),
+            "lqi":integer(0,255),"rssi_dbm":integer(-128,127),"outgoing_cost":integer(0,255),"age_periods":integer(0,255),
+            "device_timeout_seconds":integer(),"timeout_ms":integer()},
+            ("ieee","nwk","device_type","depth","rx_on_when_idle","relationship","lqi","rssi_dbm","outgoing_cost","age_periods","device_timeout_seconds","timeout_ms"),additionalProperties=False),
+        "RadioRoute": obj({"destination_nwk":integer(0,65535),"next_hop_nwk":integer(0,65535),"state":integer(0,7),
+            "no_route_cache":{"type":"boolean"},"many_to_one":{"type":"boolean"},"route_record_required":{"type":"boolean"}},
+            ("destination_nwk","next_hop_nwk","state","no_route_cache","many_to_one","route_record_required"),additionalProperties=False),
+        "RadioRouteRecord": obj({"destination_nwk":integer(0,65535),"relay_count":integer(0,255),"path":array(integer(0,65535),maxItems=12)},
+            ("destination_nwk","relay_count","path"),additionalProperties=False),
+        "RadioSnapshot": obj({"boot_id":{"type":"string"},"ready":{"type":"boolean"},"uptime_ms":integer(),
+            "pan_id":integer(0,65535),"channel":integer(0,26),"dropped_events":integer(),"latest_seq":integer(),
+            "scope":{"const":"coordinator_local_tables"},"neighbor_source":{"const":"coordinator_neighbor_table_direct_links"},
+            "route_source":{"const":"coordinator_routing_and_source_route_tables"},
+            "neighbors":array(ref("RadioNeighbor"),maxItems=64),"routes":array(ref("RadioRoute"),maxItems=64),
+            "route_records":array(ref("RadioRouteRecord"),maxItems=64)},
+            ("boot_id","ready","uptime_ms","pan_id","channel","dropped_events","latest_seq","scope","neighbor_source","route_source","neighbors","routes","route_records"),additionalProperties=False),
         "Event": obj({**base_event,
             "endpoint": integer(1, 240), "cluster": integer(0, 65535), "attribute": integer(0, 65535),
             "raw_hex":{"type":"string","pattern":"^[0-9a-f]{0,58}$"},"data_type": integer(0, 255), "raw": {"type": ["number", "string", "boolean", "null"]},
@@ -184,7 +201,7 @@ def contract(service="dashboard"):
     error_mime = "text/html" if board else "application/json"
     unauthorized = response("Missing or invalid bearer token", error, error_mime)
     paths = {}
-    routes = {"health": "Health", "devices": "Registry", "events": "EventBatch"} if board else {
+    routes = {"health": "Health", "devices": "Registry", "events": "EventBatch", "radio":"RadioSnapshot"} if board else {
         "state": "State", "events": "History", "locations": "LocationList", "capabilities": "Capabilities", "openapi.json": None}
     for route, schema in routes.items():
         op = {"operationId": service + "_" + route.replace(".", "_"),
@@ -195,6 +212,8 @@ def contract(service="dashboard"):
                 "description": "Single decimal cursor; no additional query parameters. Reset to zero when boot_id changes (restart or sequence epoch rollover).",
                 "schema": dict(integer(0, 4294967295), default=0)}]
         paths["/api/v1/" + route] = {"get": op}
+    if board:
+        paths["/api/v1/radio"]["get"]["responses"]["503"] = response("Coordinator not ready or Zigbee stack busy", error, error_mime)
     busy = {"oneOf": [ref("CommandResult"), ref("Error")]}
     paths["/api/v1/commands"] = {"post": {
         "operationId": service + "_command", "description": "No automatic retries. A timeout can mean the request executed. No delivery or state confirmation.",

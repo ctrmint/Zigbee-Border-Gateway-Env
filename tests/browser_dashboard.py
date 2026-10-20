@@ -1,5 +1,6 @@
 """Opt-in React/Mantine/GridStack prototype browser acceptance, synthetic devices only."""
 import copy
+import time
 from playwright.sync_api import expect
 import browser_support as base
 
@@ -38,6 +39,33 @@ class DashboardTests(base.BrowserFixture):
         self.page.screenshot(path='/tmp/issue34-desktop.png',full_page=True)
         self.assertTrue(all(m=='GET' for m,u in self.sent))
         self.assertFalse(any('/commands' in u for _,u in self.sent))
+        self.assertEqual(self.errors,[])
+
+    def test_radio_dashboard_is_readonly_and_responsive(self):
+        device=self.sim.devices[1]
+        self.poller.radio={"status":"available","source":"simulated_coordinator_local_tables",
+            "observed_at":time.time(),"mode":"simulator","ready":True,
+            "uptime_ms":60000,"channel":20,"pan_id":0x1a62,"dropped_events":0,"latest_seq":self.sim.seq,
+            "scope":"simulated_coordinator_local_tables",
+            "neighbor_source":"synthetic_fixture_not_radio_observation",
+            "route_source":"synthetic_fixture_not_radio_observation",
+            "neighbors":[{"ieee":device['ieee'],"nwk":device['nwk'],"device_type":2,"depth":1,
+                "rx_on_when_idle":False,"relationship":1,"lqi":180,"rssi_dbm":-48,
+                "outgoing_cost":2,"age_periods":0,"device_timeout_seconds":0,"timeout_ms":0}],
+            "routes":[{"destination_nwk":device['nwk'],"next_hop_nwk":device['nwk'],"state":0,
+                "no_route_cache":False,"many_to_one":False,"route_record_required":False}],
+            "route_records":[{"destination_nwk":device['nwk'],"relay_count":1,"path":[device['nwk']]}]}
+        self.connect()
+        self.page.get_by_role('button',name='Radio',exact=True).click()
+        expect(self.page.get_by_role('heading',name='Radio',exact=True)).to_be_visible()
+        expect(self.page.get_by_role('heading',name='Coordinator links',exact=True)).to_be_visible()
+        expect(self.page.get_by_text('180',exact=True)).to_be_visible()
+        expect(self.page.get_by_text('Retries / delivery failures',exact=True)).to_be_visible()
+        for width,height in ((1024,768),(768,1024),(390,844)):
+            self.page.set_viewport_size(dict(width=width,height=height))
+            self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+        self.assertTrue(all(method=='GET' for method,_ in self.sent))
+        self.assertFalse(any('/api/v1/commands' in url for _,url in self.sent))
         self.assertEqual(self.errors,[])
 
     def test_save_keyboard_resize_theme_discard_and_reload(self):

@@ -127,6 +127,43 @@
         ]
       }
     },
+    "/api/v1/radio": {
+      "get": {
+        "operationId": "gateway_radio",
+        "responses": {
+          "200": {
+            "description": "Current radio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RadioSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Coordinator not ready or Zigbee stack busy",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/commands": {
       "post": {
         "operationId": "gateway_command",
@@ -658,6 +695,228 @@
             }
           }
         ]
+      },
+      "RadioSnapshot": {
+        "type": "object",
+        "properties": {
+          "boot_id": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "uptime_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pan_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "channel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 26
+          },
+          "dropped_events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "latest_seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scope": {
+            "const": "coordinator_local_tables"
+          },
+          "neighbor_source": {
+            "const": "coordinator_neighbor_table_direct_links"
+          },
+          "route_source": {
+            "const": "coordinator_routing_and_source_route_tables"
+          },
+          "neighbors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RadioNeighbor"
+            },
+            "maxItems": 64
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RadioRoute"
+            },
+            "maxItems": 64
+          },
+          "route_records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RadioRouteRecord"
+            },
+            "maxItems": 64
+          }
+        },
+        "required": [
+          "boot_id",
+          "ready",
+          "uptime_ms",
+          "pan_id",
+          "channel",
+          "dropped_events",
+          "latest_seq",
+          "scope",
+          "neighbor_source",
+          "route_source",
+          "neighbors",
+          "routes",
+          "route_records"
+        ],
+        "additionalProperties": false
+      },
+      "RadioNeighbor": {
+        "type": "object",
+        "properties": {
+          "ieee": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "nwk": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "device_type": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "rx_on_when_idle": {
+            "type": "boolean"
+          },
+          "relationship": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "lqi": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "rssi_dbm": {
+            "type": "integer",
+            "minimum": -128,
+            "maximum": 127
+          },
+          "outgoing_cost": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "age_periods": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "device_timeout_seconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "ieee",
+          "nwk",
+          "device_type",
+          "depth",
+          "rx_on_when_idle",
+          "relationship",
+          "lqi",
+          "rssi_dbm",
+          "outgoing_cost",
+          "age_periods",
+          "device_timeout_seconds",
+          "timeout_ms"
+        ],
+        "additionalProperties": false
+      },
+      "RadioRoute": {
+        "type": "object",
+        "properties": {
+          "destination_nwk": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "next_hop_nwk": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "state": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7
+          },
+          "no_route_cache": {
+            "type": "boolean"
+          },
+          "many_to_one": {
+            "type": "boolean"
+          },
+          "route_record_required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "destination_nwk",
+          "next_hop_nwk",
+          "state",
+          "no_route_cache",
+          "many_to_one",
+          "route_record_required"
+        ],
+        "additionalProperties": false
+      },
+      "RadioRouteRecord": {
+        "type": "object",
+        "properties": {
+          "destination_nwk": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "relay_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "maxItems": 12
+          }
+        },
+        "required": [
+          "destination_nwk",
+          "relay_count",
+          "path"
+        ],
+        "additionalProperties": false
       },
       "Command": {
         "oneOf": [

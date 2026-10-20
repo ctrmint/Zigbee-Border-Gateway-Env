@@ -88,6 +88,7 @@ def make_handler(store, poller, gateway, token):
                             return self.send(200, doc, {"ETag":store.configuration_etag(profile),"X-Dashboard-Profile":profile})
                     if route.path == "/api/v2/devices": return self.send(200, store.device_views())
                     if route.path == "/api/v2/gateway": return self.send(200, dict(poller.status))
+                    if route.path == "/api/v2/radio": return self.send(200, dict(poller.radio))
                     if route.path == "/api/v2/history":
                         params = parse_qs(route.query, keep_blank_values=True, strict_parsing=True)
                         if any(len(values) != 1 for values in params.values()):

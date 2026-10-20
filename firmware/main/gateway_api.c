@@ -10,6 +10,7 @@
 #include "gateway_reporting.h"
 #include "gateway_clock.h"
 #include "gateway_network.h"
+#include "ezbee/nwk.h"
 #include "esp_http_server.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -230,10 +231,49 @@ static esp_err_t handle_get(httpd_req_t *req)
     size_t path_len=query?(size_t)(query-req->uri):strlen(req->uri);
     bool health=path_len==strlen("/api/v1/health") && !strncmp(req->uri,"/api/v1/health",path_len);
     bool inventory=path_len==strlen("/api/v1/devices") && !strncmp(req->uri,"/api/v1/devices",path_len);
-    if(!health && !inventory && query){
+    bool radio=path_len==strlen("/api/v1/radio") && !strncmp(req->uri,"/api/v1/radio",path_len);
+    if(!health && !inventory && !radio && query){
         /* Accept exactly one documented cursor; reject truncation and ambiguity. */
         if(strncmp(query+1,"after=",6) || !gateway_parse_cursor(query+7,&after))
             return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"invalid after cursor");
+    }
+    cJSON *neighbors=NULL,*routes=NULL,*route_records=NULL;
+    if(radio){
+        xSemaphoreTake(mutex,portMAX_DELAY);bool is_ready=ready;xSemaphoreGive(mutex);
+        if(!is_ready)return unavailable(req,"stack not ready");
+        if(!esp_zigbee_lock_acquire(pdMS_TO_TICKS(1000)))return unavailable(req,"stack busy");
+        neighbors=cJSON_CreateArray();routes=cJSON_CreateArray();route_records=cJSON_CreateArray();
+        if(!neighbors||!routes||!route_records){
+            cJSON_Delete(neighbors);cJSON_Delete(routes);cJSON_Delete(route_records);esp_zigbee_lock_release();
+            return httpd_resp_send_err(req,HTTPD_500_INTERNAL_SERVER_ERROR,"allocation failed");
+        }
+        ezb_nwk_info_iterator_t it=NULL;ezb_nwk_neighbor_info_t nbr;unsigned count=0;
+        while(count++<64 && ezb_nwk_get_next_neighbor(&it,&nbr)==EZB_ERR_NONE){
+            cJSON *n=cJSON_CreateObject();char ieee[17];snprintf(ieee,sizeof(ieee),"%016" PRIx64,nbr.ieee_addr.u64);
+            cJSON_AddStringToObject(n,"ieee",ieee);cJSON_AddNumberToObject(n,"nwk",nbr.short_addr);
+            cJSON_AddNumberToObject(n,"device_type",nbr.device_type);cJSON_AddNumberToObject(n,"depth",nbr.depth);
+            cJSON_AddBoolToObject(n,"rx_on_when_idle",nbr.rx_on_when_idle!=0);cJSON_AddNumberToObject(n,"relationship",nbr.relationship);
+            cJSON_AddNumberToObject(n,"lqi",nbr.lqi);cJSON_AddNumberToObject(n,"rssi_dbm",nbr.rssi);
+            cJSON_AddNumberToObject(n,"outgoing_cost",nbr.outgoing_cost);cJSON_AddNumberToObject(n,"age_periods",nbr.age);
+            cJSON_AddNumberToObject(n,"device_timeout_seconds",nbr.device_timeout);cJSON_AddNumberToObject(n,"timeout_ms",nbr.timeout_counter);
+            cJSON_AddItemToArray(neighbors,n);
+        }
+        it=NULL;count=0;ezb_nwk_route_info_t route;
+        while(count++<64 && ezb_nwk_get_next_route(&it,&route)==EZB_ERR_NONE){
+            cJSON *r=cJSON_CreateObject();cJSON_AddNumberToObject(r,"destination_nwk",route.dest_addr);
+            cJSON_AddNumberToObject(r,"next_hop_nwk",route.next_hop_addr);cJSON_AddNumberToObject(r,"state",route.flags.status);
+            cJSON_AddBoolToObject(r,"no_route_cache",route.flags.no_route_cache!=0);
+            cJSON_AddBoolToObject(r,"many_to_one",route.flags.many_to_one!=0);
+            cJSON_AddBoolToObject(r,"route_record_required",route.flags.route_record_required!=0);cJSON_AddItemToArray(routes,r);
+        }
+        it=NULL;count=0;ezb_nwk_route_record_info_t record;
+        while(count++<64 && ezb_nwk_get_next_route_record(&it,&record)==EZB_ERR_NONE){
+            cJSON *r=cJSON_CreateObject(),*path=cJSON_AddArrayToObject(r,"path");
+            cJSON_AddNumberToObject(r,"destination_nwk",record.dest_address);cJSON_AddNumberToObject(r,"relay_count",record.relay_count);
+            for(unsigned i=0;i<record.relay_count && i<EZB_NWK_MAX_SOURCE_ROUTE;i++)cJSON_AddItemToArray(path,cJSON_CreateNumber(record.path[i]));
+            cJSON_AddItemToArray(route_records,r);
+        }
+        esp_zigbee_lock_release();
     }
     cJSON *o=cJSON_CreateObject();xSemaphoreTake(mutex,portMAX_DELAY);
     cJSON_AddStringToObject(o,"boot_id",boot_id);
@@ -251,6 +291,14 @@ static esp_err_t handle_get(httpd_req_t *req)
             cJSON_AddStringToObject(d,"ieee",s);cJSON_AddNumberToObject(d,"nwk",devices[i].nwk);
             cJSON_AddBoolToObject(d,"active",devices[i].active);cJSON_AddItemToArray(a,d);
         }
+    }else if(radio){
+        cJSON_AddBoolToObject(o,"ready",ready);cJSON_AddNumberToObject(o,"uptime_ms",esp_timer_get_time()/1000);
+        cJSON_AddNumberToObject(o,"pan_id",pan_id);cJSON_AddNumberToObject(o,"channel",channel);
+        cJSON_AddNumberToObject(o,"dropped_events",dropped);cJSON_AddNumberToObject(o,"latest_seq",seq);
+        cJSON_AddStringToObject(o,"scope","coordinator_local_tables");
+        cJSON_AddStringToObject(o,"neighbor_source","coordinator_neighbor_table_direct_links");
+        cJSON_AddStringToObject(o,"route_source","coordinator_routing_and_source_route_tables");
+        cJSON_AddItemToObject(o,"neighbors",neighbors);cJSON_AddItemToObject(o,"routes",routes);cJSON_AddItemToObject(o,"route_records",route_records);
     }else{
         uint32_t oldest=seq>=EVENT_SLOTS?seq-EVENT_SLOTS+1:1;
         bool gap=gateway_cursor_gap(after,oldest,seq);
@@ -358,8 +406,8 @@ esp_err_t gateway_api_start(void)
     if(server)return ESP_OK;
     httpd_config_t c=HTTPD_DEFAULT_CONFIG();c.stack_size=8192;c.lru_purge_enable=true;
     esp_err_t e=httpd_start(&server,&c);if(e!=ESP_OK){server=NULL;return e;}
-    const char *paths[]={"/api/v1/health","/api/v1/devices","/api/v1/events"};
-    for(int i=0;i<3;i++){httpd_uri_t u={.uri=paths[i],.method=HTTP_GET,.handler=handle_get};if((e=httpd_register_uri_handler(server,&u))!=ESP_OK)goto failed;}
+    const char *paths[]={"/api/v1/health","/api/v1/devices","/api/v1/events","/api/v1/radio"};
+    for(int i=0;i<4;i++){httpd_uri_t u={.uri=paths[i],.method=HTTP_GET,.handler=handle_get};if((e=httpd_register_uri_handler(server,&u))!=ESP_OK)goto failed;}
     httpd_uri_t u={.uri="/api/v1/commands",.method=HTTP_POST,.handler=command};if((e=httpd_register_uri_handler(server,&u))!=ESP_OK)goto failed;
 #ifdef CONFIG_GW_NETWORK_TEST
     httpd_uri_t test={.uri="/api/v1/network-test",.method=HTTP_POST,.handler=network_test};if((e=httpd_register_uri_handler(server,&test))!=ESP_OK)goto failed;
