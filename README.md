@@ -1,121 +1,127 @@
 # Zigbee Border Gateway Env
 
-A local home automation starter for **20–50 devices**, using the Espressif **ESP Thread Border Router / Zigbee Gateway board (ESP32-S3 + ESP32-H2)** and a Linux SBC.
+A local-first Zigbee monitoring and control system built around Espressif's
+ESP32-S3/ESP32-H2 gateway board and a Linux single-board computer such as a
+Raspberry Pi. The ESP32-S3 runs the Zigbee coordinator and local API; the Pi
+stores device data in SQLite and serves the dashboard. The Pi can also be used
+as the ESP-IDF development workstation for building and flashing the board.
 
-The board runs Zigbee coordinator firmware, exposes an authenticated local REST API and communicates with the H2 radio over its onboard UART. The SBC hosts a dashboard, API proxy and SQLite device/history store. Your own dashboard can call the board API directly from its backend, or use the SBC API.
+The board is marketed as an ESP Thread Border Router, but this project uses it
+as a **Zigbee coordinator**. It does not form or route a Thread network.
 
-**Status: development system with recorded hardware validation.** Three SONOFF temperature sensors and three S60ZBTPG plugs have been connected. Plug identity, reporting/readback, physical-button and remote switching on one unit, live electrical telemetry and selected settings have hardware evidence. See the [18 October hardware record](docs/HARDWARE_VALIDATION_2026-10-18.md) for exactly what was tested and [validation](docs/VALIDATION.md) for automated checks and outstanding acceptance. A 50-device network has not been load tested. This is not a Zigbee2MQTT replacement or a universal commercial-device compatibility layer.
+## What it includes
 
-## Included
+- A Zigbee gateway API for pairing, device discovery, attribute reads and
+  reports, and supported On/Off commands.
+- A Python service that collects gateway data, records measurement history,
+  tracks gaps and stale readings, and exposes an authenticated local API.
+- A responsive dashboard with **All**, location, **Configuration & Setup**,
+  **System**, **Radio**, and **Starlink** tabs. It includes sensor charts,
+  gateway and database health, coordinator mesh diagnostics, and optional
+  read-only Starlink router and dish monitoring.
+- Model-specific setup for selected SONOFF sensors and S60ZBTPG smart plugs.
+  See [device compatibility](docs/DEVICE_COMPATIBILITY.md) for tested scope and
+  remaining hardware checks.
+- A simulator for trying the dashboard and API without the ESP hardware.
 
-- S3 firmware: coordinator formation and persistence, explicit 0–180 second pairing, 50-entry IEEE-address registry, automatic endpoint/cluster discovery on announcement, standard scalar attribute reports and reads, On/Off commands, bounded event history.
-- H2 RCP build recipe using ESP-IDF's supplied `ot_rcp` source.
-- SBC Python service with SQLite history, restart-aware polling, deduplication, gap detection and authenticated command proxy.
-- Tabbed dashboard: read-only All overview, location tabs, Configuration & Setup, System, Starlink router and dish satellite-link telemetry, and a read-only Radio view of coordinator-local mesh tables and passive RSSI history; configurable numeric readings/history charts, pairing, inventory and endpoint inspection. Presentation profiles have session-cookie selection and independent layouts; device state/settings remain shared.
-- Bounded sensor reporting/display and S60ZBTPG plug jobs with acknowledgements/readback, metering/state/RSSI history and model-specific controls.
-- Continuous gateway Wi-Fi recovery and authenticated identity-pinned rediscovery; retained event ages and recording gaps remain visible.
-- Named locations: create/rename locations, assign multiple sensors and group readings; saved on the SBC across restarts.
-- Saved device names, freshness windows, widget titles/order and chart ranges; revision checks protect edits between browser sessions. Indexed measurement history migrates existing events and marks known ingestion interruptions.
-- Explicit simulator with two sample devices; usable without hardware.
-- Hardware BOM, architecture, flashing, API, security, operations and compatibility documentation.
+Dashboard profiles only separate presentation preferences between browser
+sessions. They are not user accounts or a security boundary. The dashboard
+access token protects the API.
 
-## Try it without hardware
+## Project status
 
-Requires Python 3.11 or newer. No Python packages need installing.
+This is a development-stage home project with recorded validation on selected
+physical devices. SONOFF SNZB-02WD and SNZB-02LD sensors and S60ZBTPG plugs have
+been exercised on hardware. SNZB-02UL support is prepared, with physical
+acceptance still pending. Starlink monitoring has returned live router data and
+partial dish telemetry; dish fields vary by terminal firmware. A 50-device
+network has not been load-tested. This is not a universal Zigbee device layer
+or a Zigbee2MQTT replacement. See the [validation record](docs/VALIDATION.md)
+and [dated hardware evidence](docs/HARDWARE_VALIDATION_2026-10-18.md) for the
+limits of each check.
 
-```bash
-cd zigbee-border-gateway
+## Try the simulator
+
+Requires Python 3.11 or newer.
+
+```sh
+git clone https://github.com/ctrmint/Zigbee-Border-Gateway-Env.git
+cd Zigbee-Border-Gateway-Env
 cp .env.example .env
-# Edit .env: set TWO different random tokens, each at least 32 characters.
-# Generate each with: python3 -c 'import secrets; print(secrets.token_hex(32))'
+```
+
+Edit `.env` and set separate random values for `GATEWAY_TOKEN` and
+`DASHBOARD_TOKEN` (at least 32 characters each). Then start the simulator:
+
+```sh
 set -a
 . ./.env
 set +a
 python3 -m sbc.simulator
 ```
 
-In a second terminal, load the same `.env` then run:
+In a second terminal, load the same `.env` and start the dashboard service:
 
-```bash
+```sh
+set -a
+. ./.env
+set +a
 python3 -m sbc.app
 ```
 
-Open <http://127.0.0.1:8080>, paste `DASHBOARD_TOKEN`, then Connect. The dashboard clearly labels simulated data. Use separate `DB_PATH` values for demo and real deployments to avoid mixing histories.
+Open <http://127.0.0.1:8080> and connect with `DASHBOARD_TOKEN`. Simulated
+readings are labelled in the dashboard. Keep simulator and real-device
+databases separate by setting different `DB_PATH` values.
 
-## Build the physical solution
+## Build and operate the hardware
 
-1. Select the S3/H2 board in [HARDWARE_BOM.md](HARDWARE_BOM.md).
-2. Follow [firmware setup](docs/FIRMWARE_SETUP.md), flashing H2 first and S3 second.
-3. Set `GATEWAY_URL` to the board's DHCP-reserved IP and `GATEWAY_TOKEN` to the configured firmware token. Set `DB_PATH=data/hardware.sqlite3`.
-4. Start the SBC service and open pairing for one device at a time. Wake sleepy devices during discovery.
-5. Inspect endpoints before controlling devices. Read attributes to verify reports and state.
+Start with the [hardware bill of materials](HARDWARE_BOM.md), then follow the
+[ESP firmware setup](docs/FIRMWARE_SETUP.md) and [SBC service setup](docs/SBC_SETUP.md).
+The [operations guide](docs/OPERATIONS.md) covers service health, backups,
+troubleshooting and recovery. Do not erase the Zigbee network as part of a
+routine firmware update.
 
-Starlink router and dish monitoring are optional and disabled until configured. On Raspberry Pi OS install `python3-grpcio` and `python3-protobuf` with apt, or install `requirements-starlink.txt` in the Python environment used by the service. Configure the private IPv4 targets in Configuration & Setup → Starlink. Router diagnostics and dish performance use separate local gRPC endpoints. Dish status fields are optional and vary by terminal firmware; missing fields remain unavailable. See [Starlink monitoring](docs/STARLINK_MONITORING.md).
+Starlink monitoring is optional and disabled until configured. Install the
+optional gRPC runtime, then configure router and dish targets independently in
+**Configuration & Setup → Starlink**. Dish status fields can be absent even
+when the terminal is reachable; see the [Starlink monitoring guide](docs/STARLINK_MONITORING.md).
 
-For another machine to access the dashboard, set `BIND_HOST=0.0.0.0` only on a trusted LAN, firewall its port, or keep localhost and use an SSH tunnel. For ongoing use, see [SBC deployment](docs/SBC_SETUP.md).
+For direct LAN access, bind the service only to a trusted network and restrict
+its port with a firewall. For occasional remote access, use an SSH tunnel.
+Profiles do not replace access control, and the dashboard should not be exposed
+directly to the public internet. See [security and privacy](SECURITY.md).
 
-## Repository
+## Documentation
 
-| Path | Purpose |
+| Guide | Contents |
 | --- | --- |
-| `firmware/` | ESP-IDF S3 application and components |
-| `firmware/rcp/` | H2 configuration and build instructions |
-| `sbc/` | Python API, poller, database and dashboard assets |
-| `tests/` | Network-backed simulator/SBC integration tests |
-| `docs/` | Setup, protocol, operations, limitations and validation |
-| `scripts/` | Demo launch and archive helper |
-| `requirements-dev.txt` | Dependencies for local software validation |
+| [Device compatibility](docs/DEVICE_COMPATIBILITY.md) | Supported models, setup workflows and known device limits |
+| [System dashboard](docs/SYSTEM_DASHBOARD.md) | Pi health, database status, retention and history purge |
+| [Radio dashboard](docs/RADIO_DASHBOARD.md) | Coordinator mesh tables and passive signal history |
+| [Starlink monitoring](docs/STARLINK_MONITORING.md) | Router and dish setup, collected fields and firmware limits |
+| [Dashboard operation](docs/SBC_SETUP.md) | Locations, widgets, profiles and service configuration |
+| [API contracts](docs/API.md) | Authenticated SBC and gateway API references |
+| [Validation record](docs/VALIDATION.md) | Automated checks and dated hardware evidence |
+| [Public project wiki](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/wiki) | Product overview, build, installation and operation |
 
-## Validate and publish
+## Development checks
 
-```bash
+Install the development dependencies in a virtual environment, then run:
+
+```sh
+python3 -m pip install -r requirements-dev.txt
 python3 -m unittest discover -s tests -v
 python3 -m compileall -q sbc tests
+python3 -m sbc.contracts --check
 ```
 
-Install contract-test dependencies first with
-`python3 -m pip install -r requirements-dev.txt` (prefer a virtual environment).
-The base service and simulator need no third-party packages when optional
-Starlink monitoring is disabled. The test dependencies include the gRPC client
-and protobuf runtime used by the Starlink integration.
-Run `python3 -m sbc.contracts --check` to verify the exported API descriptions.
-See the [API contracts](docs/API.md) and
-[configurable dashboard development plan](docs/DASHBOARD_API_DESIGN.md).
-The [System dashboard guide](docs/SYSTEM_DASHBOARD.md) documents host metrics,
-database health, 60-day retention, and the confirmed history-purge scope.
+The React dashboard source is in `frontend/`; Node.js is needed only to run its
+tests or rebuild the committed production assets. See
+[dashboard migration](docs/DASHBOARD_MIGRATION.md) for frontend build commands.
 
-This repository is maintained on GitHub. Work on a branch, validate the change, and merge through a reviewed pull request. Keep hardware acceptance evidence separate from simulator results and update the relevant product guide and issue when new physical checks are completed.
+## License and third-party notices
 
-Do not commit `.env`, generated `sdkconfig`, build artifacts or network/database backups. Original project code is MIT; Espressif example-derived files retain their notices. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-## Current limits
-
-User-initiated binding/report configuration and selected SONOFF adapters are implemented. Pairing alone does not configure reporting; use the appropriate Setup workflow and inspect its remote responses/readback. General-purpose device adapters, IAS Zone enrolment, OTA, MQTT, automation rules and secure Zigbee-network backup/restore remain outstanding. Plug OTA is tracked in #30; schedules/countdowns/scenes and inching timing verification in #31. See [device compatibility](docs/DEVICE_COMPATIBILITY.md).
-
-See [SNZB-02UL preparation](docs/SNZB_02UL.md) for the advance sensor-support milestone and pending hardware validation.
-
-The read-only [All sensors overview](docs/DASHBOARD_ALL.md) displays compact sensor tiles across every location, with responsive tablet layouts.
-
-[User profiles](docs/USER_PROFILES.md) provide session-cookie selection and separate dashboard preferences/layouts without individual logins.
-
-[Sensor signal strength and history](docs/SIGNAL_HISTORY.md) describes passive RSSI logging and dashboard widgets.
-
-[All dashboard layout settings](docs/ALL_LAYOUT.md) provide per-profile columns, minimum tile widths and sensor ordering.
-
-[Continuous Wi-Fi recovery](docs/WIFI_RECOVERY.md) covers autonomous reconnection, authenticated rediscovery and outage validation.
-
-S60ZBTPG smart-plug operation, observed hardware results and remaining acceptance: [docs/S60ZBTPG.md](docs/S60ZBTPG.md).
-
-## Dashboard framework migration (#34)
-
-The primary dashboard now uses React, Mantine and GridStack, including Setup,
-location readings/charts, widget editing and explicit device controls. The old
-HTML/JavaScript dashboard is removed. [Migration and deployment details](docs/DASHBOARD_MIGRATION.md)
-cover static builds, per-profile theme/layouts and preservation of existing data.
-The user reported that the appearance is too similar to the original;
-[a distinct visual redesign is tracked in #35](https://github.com/ctrmint/Zigbee-Border-Gateway-Env/issues/35).
-Functional migration does not imply visual or full physical iPad acceptance.
-
-Dashboard users: see [appearance, fonts, scaling and layout editing](docs/DASHBOARD_APPEARANCE.md).
-The [Radio dashboard guide](docs/RADIO_DASHBOARD.md) describes mesh-table scope,
-signal history and the current telemetry limits.
+Project code is MIT-licensed. ESP-IDF example-derived files retain their
+upstream notices, and the Zigbee stack includes Espressif proprietary
+prebuilt libraries. See [third-party notices](THIRD_PARTY_NOTICES.md) before
+redistributing a firmware build.
