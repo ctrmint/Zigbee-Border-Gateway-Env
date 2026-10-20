@@ -3,6 +3,7 @@ import hmac
 import json
 import os
 import re
+import sqlite3
 from pathlib import Path
 import mimetypes
 import threading
@@ -71,6 +72,9 @@ def make_handler(store, poller, gateway, token):
                     if method=='DELETE':
                         store.delete_profile(profile_route[1]);return self.send(200,{'deleted':True})
                 if method == "GET":
+                    if route.path == "/api/v2/system": return self.send(200, store.system_host())
+                    if route.path == "/api/v2/system/database": return self.send(200, store.system_database())
+                    if route.path == "/api/v2/system/purge-preview": return self.send(200, store.system_purge_preview())
                     if route.path == "/api/v2/plug-profiles":return self.send(200,plugs.profiles())
                     if route.path == "/api/v2/plugs":return self.send(200,store.plug_document())
                     if route.path == "/api/v2/sensor-profiles":return self.send(200,profile_document())
@@ -94,6 +98,13 @@ def make_handler(store, poller, gateway, token):
                     if set(body)=={'job_id','action'} and body['action']=='cancel':return self.send(200,store.cancel_plug(body['job_id']))
                     if not poller.status.get('connected') or not poller.status.get('plug_extensions'):return self.v2_error(503,'gateway_upgrade_required','Connect smart-plug firmware first.')
                     return self.send(202,store.start_plug(body))
+                if method == "POST" and route.path == "/api/v2/system/database/check":
+                    return self.send(200, store.system_database_check())
+                if method == "POST" and route.path == "/api/v2/system/purge":
+                    body = self.read_body(1024)
+                    if set(body) != {"preview_id"} or not isinstance(body["preview_id"], str):
+                        raise DashboardError("A purge preview_id is required.", 422, "invalid_preview")
+                    return self.send(200, store.system_purge(body["preview_id"]))
                 if method == "POST" and route.path == "/api/v2/display":
                     body=self.read_body(4096)
                     if set(body)=={'ieee','action'} and body['action']=='cancel':return self.send(200,store.cancel_display(body['ieee']))
@@ -123,6 +134,8 @@ def make_handler(store, poller, gateway, token):
                 return self.v2_error(error.status, error.code, str(error), error.path)
             except (ValueError, UnicodeError):
                 return self.v2_error(400, "malformed_request", "Invalid JSON or query parameters.")
+            except sqlite3.Error:
+                return self.v2_error(503, "database_unavailable", "The database health operation could not be completed.")
         def configuration(self, method):
             if not self.auth():
                 return self.send(401, {"error": "token required"})

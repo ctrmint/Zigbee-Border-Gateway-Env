@@ -5,7 +5,7 @@ from .network import sample_received
 
 # Dashboard-only source identifier; never transmitted as a Zigbee cluster command.
 SIGNAL_CLUSTER = 65535
-SIGNAL_RETENTION_DAYS = 30
+SIGNAL_RETENTION_DAYS = 60
 
 
 def valid_rssi(value):

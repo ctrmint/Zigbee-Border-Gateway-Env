@@ -70,7 +70,8 @@ class PlugStore:
         if previous and type(previous.get('raw')) is int and 0<=previous['raw']<0xffffffffffff and (e['raw']<previous.get('raw',0) or previous.get('source_boot')!=boot):
             reason='counter_decrease_reset_or_rollover' if e['raw']<previous.get('raw',0) else 'gateway_epoch_changed'
             self.db.execute('INSERT OR IGNORE INTO plug_discontinuities VALUES(?,?,?,?,?)',(boot,e['seq'],e['ieee'],received,reason))
-            self.db.execute('DELETE FROM plug_discontinuities WHERE received<?',(received-30*86400,))
+            from .system import RETENTION_DAYS
+            self.db.execute('DELETE FROM plug_discontinuities WHERE received<?',(received-RETENTION_DAYS*86400,))
     def plug_details(self,d):
         if not plugs.identified(d):return None
         ep=next((int(k) for k in d['endpoints'] if plugs.identified(d,int(k))),None)

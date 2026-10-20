@@ -201,7 +201,18 @@ SBC restarts; changed or tampered cursors return 400. Invalid ZCL values remain
 null samples rather than zeroes. Known outages, gateway restarts and ring overruns
 create interruption records when prior receipt/poll evidence is available.
 At most 500 gap markers are returned; truncation is explicit so clients avoid
-connecting readings across unknown gaps. Existing retention is 30 days.
+connecting readings across unknown gaps. Historical retention and background pruning are 60 days. Historical rows older than this can be reviewed and explicitly purged from the System dashboard.
+
+The authenticated System API exposes `GET /api/v2/system` and
+`GET /api/v2/system/database` for bounded host and SQLite summaries.
+`POST /api/v2/system/database/check` runs an explicit `PRAGMA quick_check(1)`;
+it is not part of polling. `GET /api/v2/system/purge-preview` creates a
+five-minute in-memory preview; `POST /api/v2/system/purge` requires its
+`preview_id` and deletes eligible history in one transaction. Eligible tables
+are `events`, `measurements`, `signal_samples`, `ingestion_gaps`, and
+`plug_discontinuities`. Device registry/latest projections, locations, profiles,
+settings, and commissioning/display/plug jobs are preserved. API error responses
+are bounded and do not include filesystem paths or database contents.
 
 The browser drains at most 20 history pages (10,000 readings) per chart refresh
 and asks for a shorter range when truncated. Charts refresh at most every 30 seconds

@@ -6,10 +6,10 @@ from .grid_layout import BREAKPOINTS
 
 def capabilities_v2():
     return {"api_version": "2", "widget_types": ["numeric", "chart"],
-        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True,"smart_plugs":True,"grid_layouts":True},
+        "features": {"configuration": True, "history_query": True, "dashboard_layouts": True, "reporting_commissioning": True,"user_profiles":True,"sensor_extensions":True,"signal_history":True,"all_overview_layout":True,"smart_plugs":True,"grid_layouts":True,"system_dashboard":True},
         "limits": {"configuration_bytes": 65536, "widgets": 100, "locations": 50,
             "device_overrides": 50, "history_page": 500, "history_days": 31,
-            "history_retention_days": 30,"all_columns":6,"all_min_tile_width":200,"all_max_tile_width":640,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
+            "history_retention_days": 60,"all_columns":6,"all_min_tile_width":200,"all_max_tile_width":640,"profiles":20,"profile_name_chars":80, "chart_ranges": list(RANGES)}}
 
 
 def contract_v2():
@@ -88,8 +88,8 @@ def contract_v2():
         "Gateway": obj({"gateway_id":{"type":"string"},"network":{"type":"object"},"connected": {"type": "boolean"}, "ready": {"type": "boolean"}, "error": {"type": ["string", "null"]},
             "mode": {"enum": ["hardware", "simulator"]}}, ("connected", "error")),
         "Capabilities": obj({"api_version": {"const": "2"}, "widget_types": array({"enum": ["numeric", "chart"]}),
-            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs")},
-                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs")),
+            "features": obj({k: {"const": True} for k in ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs", "grid_layouts", "system_dashboard")},
+                ("configuration", "history_query", "dashboard_layouts", "reporting_commissioning", "sensor_extensions", "user_profiles", "signal_history", "all_overview_layout", "smart_plugs", "grid_layouts", "system_dashboard")),
             "limits": obj({k: ({"type": "array", "items": {"type": "integer"}} if k == "chart_ranges" else {"type": "integer"}) for k in capabilities_v2()["limits"]}, capabilities_v2()["limits"])},
             ("api_version", "widget_types", "features", "limits"))}
     policy = obj({"ieee":{"type":"string","pattern":"^[0-9a-f]{16}$"}, "endpoint":integer(1,240),
@@ -193,6 +193,13 @@ def contract_v2():
     paths['/api/v2/plug-profiles']={'get':{'operationId':'plug_capabilities','responses':{'200':response('Pinned model support and unresolved physical capabilities',ref('PlugProfiles')),'401':plug_errors['401']}}}
     paths['/api/v2/plugs']={'get':{'operationId':'plug_jobs','responses':{'200':response('Active jobs plus latest terminal jobs, at most 100 shared records; confirmed and uncertain states are distinct',ref('PlugJobs')),'401':plug_errors['401']}},
         'post':{'operationId':'request_plug_action','description':'Explicit operator action only. Writes submitted once; no optimistic relay state or uncertain replay. 202 is queued, not confirmed. Jobs/settings are shared across presentation profiles.','requestBody':{'required':True,'content':{'application/json':{'schema':ref('PlugInput')}}},'responses':{'202':response('Queued',ref('PlugJob')),'200':response('Cancelled; in-flight effects may remain',ref('PlugJob')),**plug_errors}}}
-    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.10.0"},
+    system_obj = {"type": "object", "additionalProperties": True}
+    definitions.update(SystemHost=system_obj, SystemDatabase=system_obj, PurgePreview=system_obj, PurgeResult=system_obj)
+    paths['/api/v2/system'] = {"get": {"operationId": "system_host_health", "responses": {"200": response("Bounded host health snapshot", ref("SystemHost")), "401": response("Unauthorized", ref("Error"))}}}
+    paths['/api/v2/system/database'] = {"get": {"operationId": "system_database_metrics", "responses": {"200": response("SQLite size, counts, retention and last integrity check", ref("SystemDatabase")), "401": response("Unauthorized", ref("Error"))}}}
+    paths['/api/v2/system/database/check'] = {"post": {"operationId": "check_system_database", "description": "Explicit, bounded SQLite quick_check; not run during dashboard polling.", "responses": {"200": response("Integrity check result", system_obj), "401": response("Unauthorized", ref("Error")), "503": response("Database unavailable", ref("Error"))}}}
+    paths['/api/v2/system/purge-preview'] = {"get": {"operationId": "preview_history_purge", "description": "Creates a five-minute in-memory preview for timestamped history older than 60 days.", "responses": {"200": response("Purge counts and confirmation token", ref("PurgePreview")), "401": response("Unauthorized", ref("Error"))}}}
+    paths['/api/v2/system/purge'] = {"post": {"operationId": "purge_old_history", "description": "Deletes only timestamped telemetry tables represented by an unexpired preview in one transaction. Preserves registry, latest readings and configuration.", "requestBody": {"required": True, "content": {"application/json": {"schema": obj({"preview_id": {"type": "string", "minLength": 20, "maxLength": 100}}, ("preview_id",), additionalProperties=False)}}}, "responses": {"200": response("Deleted history row counts", ref("PurgeResult")), "401": response("Unauthorized", ref("Error")), "409": response("Preview expired", ref("Error")), "422": response("Invalid preview", ref("Error")), "503": response("Database unavailable", ref("Error"))}}}
+    return {"openapi": "3.1.0", "info": {"title": "Zigbee dashboard v2 API", "version": "2.11.0"},
         "servers": [{"url": "/"}], "security": [{"bearerAuth": []}], "paths": paths,
         "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": definitions}}

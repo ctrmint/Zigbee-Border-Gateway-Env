@@ -39,6 +39,7 @@ import {
   LayoutGrid,
   Check,
   RotateCcw,
+  Database,
 } from "lucide-react";
 import "@mantine/core/styles.css";
 import "./style.css";
@@ -46,6 +47,7 @@ import Grid from "./Grid.jsx";
 import Location, { useHistories } from "./Location.jsx";
 import { geometry, historyKey } from "./history.js";
 const Setup = React.lazy(() => import("./Setup.jsx"));
+const SystemDashboard = React.lazy(() => import("./SystemDashboard.jsx"));
 import useDashboard from "./useDashboard.js";
 import {
   age,
@@ -528,22 +530,42 @@ function App() {
                     </button>
                   ))}
                 </div>
-                <button
-                  className={
-                    page === "setup" ? "selected setup-tab" : "setup-tab"
-                  }
-                  onClick={() => {
-                    const go = () => {
-                      discard();
-                      setPage("setup");
-                    };
-                    if (hasEdits) setConfirm(() => go);
-                    else go();
-                  }}
-                >
-                  <SlidersHorizontal size={16} />
-                  <span>Configuration & Setup</span>
-                </button>
+                <div className="utility-navigation">
+                  <button
+                    className={
+                      page === "setup" ? "selected setup-tab" : "setup-tab"
+                    }
+                    aria-current={page === "setup" ? "page" : undefined}
+                    onClick={() => {
+                      const go = () => {
+                        discard();
+                        setPage("setup");
+                      };
+                      if (hasEdits) setConfirm(() => go);
+                      else go();
+                    }}
+                  >
+                    <SlidersHorizontal size={16} />
+                    <span>Configuration & Setup</span>
+                  </button>
+                  <button
+                    className={
+                      page === "system" ? "selected setup-tab" : "setup-tab"
+                    }
+                    aria-current={page === "system" ? "page" : undefined}
+                    onClick={() => {
+                      const go = () => {
+                        discard();
+                        setPage("system");
+                      };
+                      if (hasEdits) setConfirm(() => go);
+                      else go();
+                    }}
+                  >
+                    <Database size={16} />
+                    <span>System</span>
+                  </button>
+                </div>
               </nav>
               {api.error && (
                 <Alert color="orange" mb="lg" title="Connection interrupted">
@@ -641,6 +663,13 @@ function App() {
               {page === "setup" && (
                 <React.Suspense fallback={<Text>Loading Setup…</Text>}>
                   <Setup api={api} online={online} onLayout={begin} />
+                </React.Suspense>
+              )}
+              {page === "system" && (
+                <React.Suspense
+                  fallback={<Text>Loading System dashboard…</Text>}
+                >
+                  <SystemDashboard api={api} />
                 </React.Suspense>
               )}
               {page === "editor" && draft && (
