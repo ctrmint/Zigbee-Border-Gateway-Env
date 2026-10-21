@@ -43,6 +43,16 @@ class Simulation:
         if voltage:self.attr(i,1,0x20,30,32)
         self.display_values.update({(d['ieee'],attr):value for attr,value in [(3,2600),(4,1800),(5,3000),(6,6000),(7,0),(0x2003,0),(0x2004,0)]})
         return d
+    def add_snzb02p(self, voltage=True):
+        """Synthetic SNZB-02P fixture; not a capture or physical verification."""
+        d={'ieee':'00124b0000000057','nwk':0x3457,'active':True};self.devices.append(d);i=len(self.devices)-1
+        self.emit(dict(d,type='announce'))
+        self.emit(dict(d,type='endpoint',endpoint=1,ok=True,profile_id=0x0104,device_id=0x0302,
+            input_clusters=[0,1,3,32,1026,1029],output_clusters=[10,25]))
+        for attr,raw in [(4,'SONOFF'),(5,'SNZB-02P'),(0x4000,'synthetic-1.0')]:self.attr(i,0,0x42,raw,attr,origin='read_response')
+        self.attr(i,1026,0x29,2150);self.attr(i,1029,0x21,4820);self.attr(i,1,0x20,190,33)
+        if voltage:self.attr(i,1,0x20,30,32)
+        return d
     def emit(self, e):
         with self.lock:
             self.seq += 1
@@ -140,6 +150,13 @@ class Simulation:
                         value=attributes.get((c['cluster'],c['attribute']))
                         if value:self.attr(index,c['cluster'],*value,c['attribute'],origin='read_response')
                         else:self.emit(dict(self.devices[index],type='zcl_response',status=0x86,tsn=42))
+                    elif c['ieee']=='00124b0000000057' and c['cluster']==0 and c['attribute'] in (4,5,0x4000):
+                        self.attr(index,0,0x42,{4:'SONOFF',5:'SNZB-02P',0x4000:'synthetic-1.0'}[c['attribute']],c['attribute'],origin='read_response')
+                    elif c['ieee']=='00124b0000000057' and c['cluster']==1 and c['attribute'] in (32,33):
+                        values={32:(0x20,30),33:(0x20,190)}
+                        dtype,raw=values[c['attribute']];self.attr(index,1,dtype,raw,c['attribute'],origin='read_response')
+                    elif c['ieee']=='00124b0000000057' and c['cluster']==1026:self.attr(index,1026,0x29,2150,0,origin='read_response')
+                    elif c['ieee']=='00124b0000000057' and c['cluster']==1029:self.attr(index,1029,0x21,4820,0,origin='read_response')
                     elif c['ieee']=='00124b0000000027' and c['cluster']==0 and c['attribute'] in (4,5):self.attr(index,0,0x42,'SONOFF' if c['attribute']==4 else 'S60ZBTPG',c['attribute'],origin='read_response')
                     elif c['cluster']==0 and c['attribute'] in (4,5):self.attr(index,0,0x42,'SONOFF' if c['attribute']==4 else 'SNZB-02WD',c['attribute'],origin='read_response')
                     else:self.attr(index,c['cluster'],0x29 if c['cluster']==1026 else 0x21 if c['cluster']==1029 else 0x10,2050 if c['cluster']==1026 else 4800 if c['cluster']==1029 else int(self.on),c['attribute'],origin='read_response')

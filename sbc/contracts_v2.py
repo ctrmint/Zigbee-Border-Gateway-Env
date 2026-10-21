@@ -73,7 +73,7 @@ def contract_v2():
             ("schema_version", "revision", "locations", "devices", "dashboard"), additionalProperties=False),
         "Devices": obj({"devices": array(obj({"ieee": {"type": "string"}, "name": {"type": "string"},
             "location_id": {"type": ["string", "null"]}, "registered": {"type": "boolean"},
-            "profile":{"enum":[None,"SONOFF SNZB-02WD","SONOFF SNZB-02LD","SONOFF SNZB-02UL","SONOFF S60ZBTPG"]}, "discovery": {"enum": ["unknown", "partial"]}, "freshness_seconds": integer(60, 604800),
+            "profile":{"enum":[None,"SONOFF SNZB-02WD","SONOFF SNZB-02LD","SONOFF SNZB-02UL","SONOFF SNZB-02P","SONOFF S60ZBTPG"]}, "discovery": {"enum": ["unknown", "partial"]}, "freshness_seconds": integer(60, 604800),
             "plug":{"anyOf":[{"type":"null"},ref("PlugView")]},"signal": signal,
             "measurements": array(measurement)}, ("ieee", "name", "location_id", "registered", "discovery", "freshness_seconds", "measurements")))}, ("devices",)),
         "History": obj({"items": array(obj({"id": integer(1), "received_at": {"type": "number"},
@@ -150,7 +150,7 @@ def contract_v2():
         "min_interval":integer(0,65534),"max_interval":integer(1,65534),
         "temperature_change":{"type":"number","minimum":0.01,"maximum":327.67,"multipleOf":0.01},
         "humidity_change":{"type":"number","minimum":0.01,"maximum":100,"multipleOf":0.01},
-        "model_hint":{"enum":["","SONOFF SNZB-02WD","SONOFF SNZB-02LD","SONOFF SNZB-02UL"]}},
+        "model_hint":{"enum":["","SONOFF SNZB-02WD","SONOFF SNZB-02LD","SONOFF SNZB-02UL","SONOFF SNZB-02P"]}},
         ("ieee","endpoint","min_interval","max_interval","model_hint"),additionalProperties=False,
         anyOf=[{"required":["temperature_change"]},{"required":["humidity_change"]}])
     job = obj({"id":{"type":"string"},"ieee":{"type":"string"},"policy":dict(policy,additionalProperties=True),
@@ -173,7 +173,7 @@ def contract_v2():
         "steps":array({"type":"object"},maxItems=14),"results":array({"type":"object"},maxItems=48),"message":{"type":"string"}},
         ("id","ieee","endpoint","settings","state","step","attempt","steps","results","message"))
     definitions.update(DisplayInput=display_input,DisplayJob=display_job,DisplayJobs=obj({"jobs":array(ref("DisplayJob"),maxItems=50)},("jobs",)),
-        SensorProfiles=obj({"reference_revision":{"type":"string"},"reference_url":{"type":"string"},"profiles":array({"type":"object"},maxItems=3)},("reference_revision","reference_url","profiles")))
+        SensorProfiles=obj({"reference_revision":{"type":"string"},"reference_url":{"type":"string"},"profiles":array({"type":"object"},maxItems=4)},("reference_revision","reference_url","profiles")))
     paths = {"/api/v2/commissioning":{
         "get":{"operationId":"reporting_status","responses":{"200":response("Durable reporting jobs, observed identity and measurement origins",ref("Commissioning")),"401":response("Unauthorized",ref("Error"))}},
         "post":{"operationId":"configure_or_cancel_reporting","requestBody":{"required":True,"content":{"application/json":{"schema":ref("CommissioningRequest")}}},

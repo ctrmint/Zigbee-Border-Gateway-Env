@@ -1,5 +1,23 @@
 # Validation record
 
+## SONOFF SNZB-02P software support, issue #57, 2026-10-21
+
+- PASS: 116 Python unit/integration tests, including four synthetic SNZB-02P
+  tests for exact Basic identity, profile/reporting defaults, temperature and
+  humidity normalization, battery presence/absence, commissioning, history,
+  and model-hint precedence.
+- PASS: 19 frontend tests, Vite production build, and generated dashboard
+  asset/license check.
+- PASS: Python compilation, generated v2 API contract check, and Git whitespace
+  check.
+- NOT RUN: browser acceptance; Playwright is not installed in the available
+  Python environment. Browser coverage was added for setup, readings, and
+  reporting defaults.
+- NOT RUN: physical pairing, actual endpoint/cluster fingerprint, report
+  cadence, battery behavior, and restart/rejoin checks. The SNZB-02P has not
+  been connected to the project gateway; synthetic fixture results are not
+  hardware evidence.
+
 ## Starlink dish chart scales and inspection, issue #55, 2026-10-20
 
 - PASS: 19 frontend unit tests, including readable Y-axis divisions,

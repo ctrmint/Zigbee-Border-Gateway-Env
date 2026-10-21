@@ -7,7 +7,7 @@ import time
 import uuid
 from decimal import Decimal, InvalidOperation
 from .dashboard import DashboardError
-from .sensors import MODELS,UL,device_model
+from .sensors import MODELS,UL,P,device_model
 
 ACTIVE = {'queued', 'waiting', 'sending'}
 
@@ -94,9 +94,9 @@ class CommissioningStore:
                 'request_id':None,'deadline':None,'results':[],'gateway_boot':None,
                 'message':'Wake the sensor with a brief button press; setup expires after five minutes.'}
             job['model_profile']=device_model(d,policy['model_hint'])
-            if job['model_profile']==UL:
+            if job['model_profile'] in (UL,P):
                 # Optional model-specific and battery operations must not block core reports.
-                for cluster in (6,1):
+                for cluster in ((6,1) if job['model_profile']==UL else (1,)):
                     if cluster in desc.get('input_clusters',[]):job['steps'].append({'op':'bind','cluster':cluster,'optional':True})
                 if 1 in desc.get('input_clusters',[]):
                     job['steps'].extend([{'op':'configure_reporting','cluster':1,'attribute':33,'min_interval':3600,'max_interval':21600,'reportable_change':2,'optional':True},
@@ -189,7 +189,7 @@ def drive_commissioning(store,gateway,health,now=None):
                 try:gateway.request('/api/v1/commands',{'op':'read','ieee':selected['ieee'],'endpoint':selected['policy']['endpoint'],'cluster':0,'attribute':attribute})
                 except Exception:pass
         command.pop('optional',None)
-        if selected['step']==0 and selected['attempt']==1 and selected.get('model_profile',selected['policy']['model_hint'])==UL:
+        if selected['step']==0 and selected['attempt']==1 and selected.get('model_profile',selected['policy']['model_hint']) in (UL,P):
             for attribute in (32,33):
                 try:gateway.request('/api/v1/commands',{'op':'read','ieee':selected['ieee'],'endpoint':selected['policy']['endpoint'],'cluster':1,'attribute':attribute})
                 except Exception:pass
