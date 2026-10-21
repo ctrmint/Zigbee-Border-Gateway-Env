@@ -32,9 +32,10 @@ access token protects the API.
 
 This is a development-stage home project with recorded validation on selected
 physical devices. SONOFF SNZB-02WD and SNZB-02LD sensors and S60ZBTPG plugs have
-been exercised on hardware. SNZB-02UL support is prepared, with physical
-acceptance still pending. Starlink monitoring has returned live router data and
-partial dish telemetry; dish fields vary by terminal firmware. A 50-device
+been exercised on hardware. SNZB-02UL and SNZB-02P software support is prepared,
+with model-specific physical acceptance still pending. Starlink monitoring has
+returned live router data and partial dish telemetry; dish fields vary by
+terminal firmware. A 50-device
 network has not been load-tested. This is not a universal Zigbee device layer
 or a Zigbee2MQTT replacement. See the [validation record](docs/VALIDATION.md)
 and [dated hardware evidence](docs/HARDWARE_VALIDATION_2026-10-18.md) for the
@@ -96,6 +97,7 @@ directly to the public internet. See [security and privacy](SECURITY.md).
 | Guide | Contents |
 | --- | --- |
 | [Device compatibility](docs/DEVICE_COMPATIBILITY.md) | Supported models, setup workflows and known device limits |
+| [SONOFF SNZB-02P](docs/SNZB_02P.md) | Sensor setup, reporting behavior and pending hardware checks |
 | [System dashboard](docs/SYSTEM_DASHBOARD.md) | Pi health, database status, retention and history purge |
 | [Radio dashboard](docs/RADIO_DASHBOARD.md) | Coordinator mesh tables and passive signal history |
 | [Starlink monitoring](docs/STARLINK_MONITORING.md) | Router and dish setup, collected fields and firmware limits |

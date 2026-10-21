@@ -106,6 +106,7 @@ function Reporting({ device, view, job, profiles, api, online, gateway }) {
                 "SONOFF SNZB-02WD",
                 "SONOFF SNZB-02LD",
                 "SONOFF SNZB-02UL",
+                "SONOFF SNZB-02P",
               ].map((value) => ({ value, label: value })),
             ]}
             onChange={(value) => {

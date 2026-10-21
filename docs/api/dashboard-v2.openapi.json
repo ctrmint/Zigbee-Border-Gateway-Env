@@ -2905,6 +2905,7 @@
                     "SONOFF SNZB-02WD",
                     "SONOFF SNZB-02LD",
                     "SONOFF SNZB-02UL",
+                    "SONOFF SNZB-02P",
                     "SONOFF S60ZBTPG"
                   ]
                 },
@@ -4090,7 +4091,8 @@
               "",
               "SONOFF SNZB-02WD",
               "SONOFF SNZB-02LD",
-              "SONOFF SNZB-02UL"
+              "SONOFF SNZB-02UL",
+              "SONOFF SNZB-02P"
             ]
           }
         },
@@ -4163,7 +4165,8 @@
                   "",
                   "SONOFF SNZB-02WD",
                   "SONOFF SNZB-02LD",
-                  "SONOFF SNZB-02UL"
+                  "SONOFF SNZB-02UL",
+                  "SONOFF SNZB-02P"
                 ]
               }
             },
@@ -4503,7 +4506,7 @@
             "items": {
               "type": "object"
             },
-            "maxItems": 3
+            "maxItems": 4
           }
         },
         "required": [

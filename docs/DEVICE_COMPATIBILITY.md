@@ -1,12 +1,13 @@
 # Device compatibility and first pairing
 
-The gateway implements network commissioning, descriptor discovery and selected SONOFF adapters; it is not a universal driver database. WD/LD/UL sensor reports and three S60ZBTPG plugs have been observed. Consult the [dated hardware record](HARDWARE_VALIDATION_2026-10-18.md) for model/firmware-specific evidence and remaining acceptance.
+The gateway implements network commissioning, descriptor discovery and selected SONOFF adapters; it is not a universal driver database. WD/LD/UL sensor reports and three S60ZBTPG plugs have been observed. SNZB-02P software support is implemented but awaits physical verification. Consult the [dated hardware record](HARDWARE_VALIDATION_2026-10-18.md) for model/firmware-specific evidence and remaining acceptance.
 
 | Device feature | Current support |
 | --- | --- |
 | Active endpoints, profile/device IDs, input/output clusters | Automatic on announcement; manual rediscovery available |
 | Standard On/Off cluster 0x0006 | Explicit On/Off commands; attribute read/report state |
 | Temperature 0x0402 and humidity 0x0405 | Reads/reports; SBC normalization |
+| SONOFF SNZB-02P temperature/humidity/battery profile | Implemented from Basic identity and standard clusters; synthetic tests pass; physical pairing/report cadence pending (see [SNZB-02P guide](SNZB_02P.md)) |
 | Manufacturer/model/build Basic attributes | Descriptor discovery reads attributes 4/5/0x4000; explicit reads remain available |
 | Other attribute values | Supported raw ZCL types retained; uint24/uint48 supported, with semantics only for implemented sources |
 | Reporting configuration / remote binding | Bounded sensor/Poll Control and identified S60ZBTPG commissioning, with correlated responses and reporting readback |
@@ -80,6 +81,15 @@ SNZB-02LD model hint separately from Basic-cluster identity; radio verification
 and recurring reporting must still be confirmed. See the
 [manufacturer manual](https://support.sonoff.tech/snzb-02ld-usermanual/) and
 [upstream converter](https://github.com/Koenkk/zigbee-herdsman-converters/blob/master/src/devices/sonoff.ts).
+
+## SNZB-02P
+
+The monitoring and reporting profile is implemented for the SONOFF SNZB-02P.
+Its Basic-cluster model ID takes precedence over a user-entered model hint.
+Temperature and humidity use the existing standard measurement path; battery
+values appear only when the sensor returns those attributes. The synthetic
+test fixture is not evidence of physical compatibility. Follow the
+[SNZB-02P guide](SNZB_02P.md) for setup guidance and remaining physical checks.
 
 ## SNZB-02UL advance support
 

@@ -87,6 +87,12 @@ controls become available; no re-pairing or network erasure is required.
 
 See [SNZB-02UL preparation](SNZB_02UL.md) for profile defaults, battery scaling, display APIs, firmware upgrade requirements and pending physical checks. Generated contracts include the sensor-profile/display routes and bounded gateway operations.
 
+## SNZB-02P sensor support
+
+The SNZB-02P monitoring profile and reporting workflow are implemented, but
+physical pairing and report behavior remain pending. See
+[SNZB-02P setup and verification](SNZB_02P.md).
+
 ## All sensors overview
 
 Select **All** after connecting to view compact, read-only tiles for every discovered sensor, including unassigned sensors. See [overview behavior and tablet validation](DASHBOARD_ALL.md). Existing location widgets and the first-location login default are retained.

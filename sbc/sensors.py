@@ -7,7 +7,8 @@ from .dashboard import DashboardError
 REFERENCE_REVISION = '3956a2c75e37e467ca5cb9e537923317fdbe80de'
 REFERENCE_URL = 'https://github.com/Koenkk/zigbee-herdsman-converters/blob/'+REFERENCE_REVISION+'/src/devices/sonoff.ts'
 UL = 'SONOFF SNZB-02UL'
-MODELS = ('', 'SONOFF SNZB-02WD', 'SONOFF SNZB-02LD', UL)
+P = 'SONOFF SNZB-02P'
+MODELS = ('', 'SONOFF SNZB-02WD', 'SONOFF SNZB-02LD', UL, P)
 DISPLAY_FIELDS = {
     'temperature_units': (7,0x21,0,1,1),
     'comfort_temperature_min': (4,0x29,0,50,100),
@@ -20,12 +21,13 @@ DISPLAY_FIELDS = {
 
 def profile_document():
     return {'reference_revision':REFERENCE_REVISION,'reference_url':REFERENCE_URL,
-        'profiles':[{'model':model,'hardware_status':'not_tested' if model==UL else 'reports_observed',
+        'profiles':[{'model':model,'hardware_status':'not_tested' if model in (UL,P) else 'reports_observed',
+            'reference_url':'https://github.com/Koenkk/zigbee-herdsman-converters/blob/master/src/devices/sonoff.ts' if model==P else REFERENCE_URL,
             'defaults':{'min_interval':5,'max_interval':1800 if model==UL else 3600,
                 'temperature_change':.2,**({} if model.endswith('02LD') else {'humidity_change':1})},
             'recommended_freshness_seconds':2250 if model==UL else 4500,
-            'capabilities':{'temperature':'prepared' if model==UL else 'available',
-                'humidity':'absent' if model.endswith('02LD') else 'prepared' if model==UL else 'available',
+            'capabilities':{'temperature':'prepared' if model in (UL,P) else 'available',
+                'humidity':'absent' if model.endswith('02LD') else 'prepared' if model in (UL,P) else 'available',
                 'battery':'prepared_when_observed','display_settings':'prepared' if model==UL else 'unavailable',
                 'clock':'prepared_time_server' if model==UL else 'unavailable',
                 'remote_display':'codec_only_transport_deferred' if model==UL else 'unavailable',
@@ -34,7 +36,7 @@ def profile_document():
 
 def device_model(device, hint=''):
     observed=next((a.get('raw') for a in device.get('attributes',{}).values() if a.get('cluster')==0 and a.get('attribute')==5 and isinstance(a.get('raw'),str)),None)
-    return ('SONOFF '+observed) if observed in ('SNZB-02WD','SNZB-02LD','SNZB-02UL','S60ZBTPG') else hint
+    return ('SONOFF '+observed) if observed in ('SNZB-02WD','SNZB-02LD','SNZB-02UL','SNZB-02P','S60ZBTPG') else hint
 
 def sensor_endpoint(device, endpoint):
     desc=device.get('endpoints',{}).get(str(endpoint),{})

@@ -270,6 +270,15 @@ older events are interpreted as `unknown`.
 
 See [SNZB-02UL preparation](SNZB_02UL.md) for profile defaults, battery scaling, display APIs, firmware upgrade requirements and pending physical checks. Generated contracts include the sensor-profile/display routes and bounded gateway operations.
 
+## SNZB-02P sensor profile
+
+The sensor-profiles response and `model_hint` enum include `SONOFF SNZB-02P`.
+Commissioning uses the standard temperature/humidity reporting workflow and
+may optionally bind the Power Configuration cluster and read battery attributes
+when the model is observed. Battery voltage is included only if returned by the
+device. See [SNZB-02P setup and verification](SNZB_02P.md); physical acceptance
+remains pending.
+
 ## Session-based user profiles
 
 The v2 API supports `GET/POST /api/v2/profiles` and `PUT/DELETE /api/v2/profiles/{profile_id}`. Configuration resolves `X-Dashboard-Profile` before the `dashboard_profile` session cookie and returns the resolved profile header plus a profile-scoped ETag. Admin remains the backward-compatible default. Profile IDs are presentation selectors, not credentials. See [profile semantics and errors](USER_PROFILES.md).

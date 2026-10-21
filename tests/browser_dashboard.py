@@ -16,10 +16,10 @@ class DashboardTests(base.BrowserFixture):
         self.sent=[];self.page.on('request',lambda r:self.sent.append((r.method,r.url)))
         self.page.goto(f'http://127.0.0.1:{self.server.server_port}/')
 
-    def connect(self):
+    def connect(self, expected_cards=3):
         self.page.get_by_label('Dashboard access token',exact=True).fill(base.TOKEN)
         self.page.get_by_role('button',name='Connect to your home',exact=True).click()
-        expect(self.page.locator('.reading-card')).to_have_count(3)
+        expect(self.page.locator('.reading-card')).to_have_count(expected_cards)
 
     def edit(self):
         self.page.get_by_role('button',name='Configuration & Setup',exact=True).click()
@@ -309,6 +309,23 @@ class DashboardTests(base.BrowserFixture):
         self.page.get_by_role('button',name='Apply display setting',exact=True).click()
         expect(self.page.get_by_role('button',name='Cancel display setup',exact=True)).to_be_visible(timeout=10000)
         self.assertEqual(len([u for m,u in self.sent if m=='POST' and '/api/v2/display' in u]),1)
+        self.assertEqual(self.errors,[])
+
+    def test_snzb02p_identity_readings_and_reporting_defaults(self):
+        device=self.sim.add_snzb02p(voltage=False)
+        self.store.ingest(self.sim.boot,self.sim.events,self.sim.seq,self.sim.devices)
+        self.page.reload();self.connect(expected_cards=4)
+        self.setup_tab('Devices')
+        self.page.get_by_role('button',name='SNZB-02P',exact=True).click()
+        expect(self.page.locator('.device-measurement-list')).to_contain_text('21.5 °C')
+        expect(self.page.locator('.device-measurement-list')).to_contain_text('48.2 %')
+        expect(self.page.locator('.device-measurement-list')).to_contain_text('95 %')
+        self.page.get_by_role('button',name='Reporting configuration',exact=True).click()
+        self.page.get_by_role('button',name='Configure reporting',exact=True).click()
+        expect(self.page.get_by_role('button',name='Cancel reporting setup',exact=True)).to_be_visible(timeout=10000)
+        job=next(j for j in self.store.commissioning_document()['jobs'] if j['ieee']==device['ieee'])
+        self.assertEqual(job['policy']['model_hint'],'SONOFF SNZB-02P')
+        self.assertEqual(job['policy']['max_interval'],3600)
         self.assertEqual(self.errors,[])
 
     def test_plug_rocker_debounces_and_compacts_controls(self):
